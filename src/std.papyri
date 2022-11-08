@@ -1,0 +1,61 @@
+@fn bool $b: bool -> $b
+@fn int $i: int -> $i
+@fn str $s: str -> $s
+@fn list(*$_args: any list) $_: none -> $_args
+@fn dict(**$kwargs: any dict) $_: none -> $kwargs
+
+@fn inline $v: inline -> $v
+@fn block $v: block -> $v
+
+@fn b $v: inline -> <b>$v</b>
+@fn blockquote($cite?: str) $v: block -> <blockquote cite?=$cite>$v</blockquote>
+@fn bold $v: inline -> <strong>$v</strong>
+@fn cite $v: inline -> <cite>$v</cite>
+@fn dfn $v: inline -> <dfn>$v</dfn>
+@fn emph $v: inline -> <em>$v</em>
+@fn href($_url: str) $v: inline -> <a href=$_url>$v</a>
+@fn i $v: inline -> <i>$v</i>
+@fn image($alt?: str) $url: str -> <img src=$url alt?=$alt />
+@fn kbd $v: str -> <kbd>$v</kbd>
+@fn quote $v: inline -> <q>$v</q>
+@fn samp $v: str -> <samp>$v</samp>
+@fn sub $v: inline -> <sub>$v</sub>
+@fn sup $v: inline -> <sup>$v</sup>
+@fn strikethrough $v: inline -> <s>$v</s>
+@fn underline $v: inline -> <u>$v</u>
+
+@fn code($language?: implicit str) $v: str -> {
+    <code class="syntax-highlight">
+        @syntax_highlight(language=$language) $v
+    </code>
+}
+@fn code_block($language?: implicit str, $first_line_no: int = 1) $v: str -> {
+    <pre class="panel listing">
+        <code class="syntax-highlight">
+            @syntax_highlight(language=$language, code_block=True, first_line_no=$first_line_no) @fix_indentation $v
+        </code>
+    </pre>
+}
+
+@fn h1 $v: inline -> <h1>$v</h1>
+@fn h2 $v: inline -> <h2>$v</h2>
+@fn h3 $v: inline -> <h3>$v</h3>
+@fn h4 $v: inline -> <h4>$v</h4>
+@fn h5 $v: inline -> <h5>$v</h5>
+@fn h6 $v: inline -> <h6>$v</h6>
+
+@fn title $v: inline -> {
+    @export(title=$v).
+    <h1>$v</h1>
+}
+
+@fn numbered $items: html list -> {
+    <ol>
+        @map(@fn $item -> <li>$item</li>) $items
+    </ol>
+}
+
+@fn footnote $v: inline -> {
+    |<a class="footnote-ref"></a>#
+    <span class="footnote panel">$v</span>
+}
