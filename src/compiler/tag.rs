@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+use std::rc::Rc;
 
 use crate::parser::{ast, AST};
 use crate::utils::{ice_at, str_ids, NameID, taginfo};
@@ -40,13 +41,7 @@ impl Tag {
     }
     
     pub fn attr(&mut self, k: NameID, v: Option<Box<str>>) {
-        if k == str_ids::CLASS {
-            if let Some(v) = v { self.add_css_class(&v); }
-        } else if k == str_ids::STYLE {
-            if let Some(v) = v { self.add_style(&v); }
-        } else {
-            self.attributes.insert(k, v);
-        }
+        self.attributes.insert(k, v);
     }
     
     pub fn add_css_class(&mut self, k: &str) {
@@ -78,18 +73,25 @@ impl <'a> Compiler<'a> {
         
         let mut r = Tag::new(tag.name_id, HTML::Empty);
         for attr in tag.attrs.iter() {
-            match &attr.value {
+            match attr.value.as_ref() {
                 Some(node) => {
                     let v = self.evaluate_tag_attribute(node);
-                    if v.is_some() {
-                        r.attr(attr.name_id, v);
-                    } else if !attr.question_mark {
+                    if v.is_some() || attr.question_mark {
+                        match attr.name_id {
+                            str_ids::CLASS => if let Some(v) = v { r.add_css_class(&v); },
+                            str_ids::STYLE => if let Some(v) = v { r.add_style(&v); },
+                            name_id => r.attr(name_id, v),
+                        }
+                    } else {
                         self.diagnostics.err_expected_type(&Type::Str, &Type::Unit, node.range());
                     }
                 },
-                None => {
-                    r.attr(attr.name_id, None);
-                }
+                None => match attr.name_id {
+                    str_ids::CLASS | str_ids::STYLE => {
+                        self.diagnostics.err_expected_type(&Type::Str, &Type::Unit, &attr.range);
+                    },
+                    name_id => r.attr(name_id, None),
+                },
             }
         }
         r.content = self.compile_tag_children(tag);
@@ -110,7 +112,7 @@ impl <'a> Compiler<'a> {
         match value {
             AST::FuncCall(_) | AST::VarName(_, _) => {
                 match self.evaluate_node(value, &Type::optional(Type::Str)) {
-                    Some(Value::Str(t)) => { *out += &t; }
+                    Some(Value::Str(t)) => *out += &t,
                     Some(Value::Unit) => return false,
                     None => {},
                     _ => ice_at("coercion failed", value.range()),
@@ -151,5 +153,21 @@ impl <'a> Compiler<'a> {
             },
         }
         true
+    }
+}
+
+impl From<PlainTag> for HTML {
+    fn from(tag: PlainTag) -> HTML {
+        HTML::PlainTag(Rc::new(tag))
+    }
+}
+
+impl From<Tag> for HTML {
+    fn from(tag: Tag) -> HTML {
+        if tag.attributes.is_empty() && tag.css_classes.is_empty() && tag.css_style.is_none() {
+            HTML::from(PlainTag {name_id: tag.name_id, content: tag.content})
+        } else {
+            HTML::Tag(Rc::new(tag))
+        }
     }
 }

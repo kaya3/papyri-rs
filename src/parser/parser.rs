@@ -134,7 +134,7 @@ impl <'a> TokenQueue<'a> {
                 self.diagnostics.syntax_error("unmatched opening tag", &tag.range);
                 return None;
             };
-            tag.range = tag.range.to_end(close.range.end);
+            tag.range.end = close.range.end;
             tag.children = children.into_boxed_slice();
         }
         Some(AST::Tag(Box::new(tag)))
@@ -142,30 +142,53 @@ impl <'a> TokenQueue<'a> {
     
     fn parse_tag_attribute(&mut self) -> Option<(Token, TagAttribute)> {
         let name = self.poll_ignoring_whitespace_if_kind(TokenKind::Name)?;
+        let mut range = name.range.clone();
         let name_id = self.string_pool.insert(name.as_str());
-        let question_mark = self.poll_ignoring_whitespace_if_kind(TokenKind::QuestionMark).is_some();
+        let question_mark = self.poll_ignoring_whitespace_if_kind(TokenKind::QuestionMark);
         if self.poll_ignoring_whitespace_if_kind(TokenKind::Equals).is_none() {
-            return Some((name, TagAttribute {name_id, question_mark, value: None}));
+            return match question_mark {
+                Some(q) => {
+                    self.diagnostics.syntax_error("expected '=' after '?'", &q.range);
+                    None
+                },
+                None => Some((name, TagAttribute {
+                    range,
+                    name_id,
+                    question_mark: false,
+                    value: None,
+                })),
+            };
         }
-        match self.poll_ignoring_whitespace_if_kind(TokenKind::LDblQuote) {
+        
+        let question_mark = question_mark.is_some();
+        let value = match self.poll_ignoring_whitespace_if_kind(TokenKind::LDblQuote) {
             Some(open) => {
-                let (children, close) = self.parse_nodes_until(|tok| matches!(tok.kind, TokenKind::LDblQuote | TokenKind::RDblQuote));
-                if close.is_none() {
+                let (children, Some(close)) = self.parse_nodes_until(|tok| matches!(tok.kind, TokenKind::LDblQuote | TokenKind::RDblQuote)) else {
                     self.diagnostics.err_unmatched(&open);
-                }
-                Some((name, TagAttribute {
+                    return None;
+                };
+                range.end = close.range.end;
+                TagAttribute {
+                    range,
                     name_id,
                     question_mark,
-                    value: Some(AST::Group(AST::seq(open, children, close)))
-                }))
+                    value: Some(AST::Group(AST::seq(open, children, Some(close))))
+                }
             },
             None => {
                 self.skip_whitespace();
                 let tok = self.expect_poll()?;
-                self.parse_node(tok)
-                    .map(|value| (name, TagAttribute {name_id, question_mark, value: Some(value)}))
+                let value = self.parse_node(tok)?;
+                range.end = value.range().end;
+                TagAttribute {
+                    range,
+                    name_id,
+                    question_mark,
+                    value: Some(value),
+                }
             },
-        }
+        };
+        Some((name, value))
     }
     
     fn parse_func(&mut self, at: Token) -> Option<AST> {

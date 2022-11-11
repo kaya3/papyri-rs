@@ -5,6 +5,7 @@ use super::token::Token;
 
 #[derive(Debug)]
 pub struct TagAttribute {
+    pub range: SourceRange,
     pub name_id: NameID,
     pub question_mark: bool,
     pub value: Option<AST>,

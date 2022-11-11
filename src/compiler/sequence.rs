@@ -1,5 +1,5 @@
 use crate::parser::ast::AST;
-use crate::utils::taginfo::ContentKind;
+use crate::utils::taginfo::{ContentKind, content_kind};
 use crate::utils::{str_ids, NameID};
 use super::compiler::Compiler;
 use super::html::HTML;
@@ -44,26 +44,30 @@ impl <'a> Compiler<'a> {
 
 struct SequenceBuilder {
     content_kind: ContentKind,
-    blocks: Vec<HTML>,
-    inline: Vec<HTML>,
+    children: Vec<HTML>,
+    next_child: Option<Box<SequenceBuilder>>,
 }
 
 impl SequenceBuilder {
     fn new(block_kind: ContentKind) -> SequenceBuilder {
         SequenceBuilder {
             content_kind: block_kind,
-            blocks: Vec::new(),
-            inline: Vec::new(),
+            children: Vec::new(),
+            next_child: None,
         }
     }
     
     fn to_html(mut self) -> HTML {
-        if matches!(self.content_kind, ContentKind::RequireBlock(_) | ContentKind::RequireOneOf(_)) || !self.blocks.is_empty() {
-            self.close_inline();
-            HTML::seq(&self.blocks)
-        } else {
-            HTML::seq(&self.inline)
+        if matches!(self.content_kind, ContentKind::AllowBlock(_)) && self.children.is_empty() {
+            return self.next_child.map(|c| c.to_html())
+                .unwrap_or(HTML::Empty);
         }
+        
+        self.close_child();
+        while matches!(self.children.last(), Some(HTML::Whitespace)) {
+            self.children.pop();
+        }
+        HTML::seq(&self.children)
     }
     
     fn newline(&mut self) {
@@ -71,23 +75,21 @@ impl SequenceBuilder {
             ContentKind::RequireBlock(_) |
             ContentKind::RequireOneOf(_) |
             ContentKind::AllowBlock(_) => {
-                self.close_inline();
+                self.close_child();
             },
             ContentKind::RequireInline => {
-                self.inline.push(HTML::tag(str_ids::BR, HTML::Empty));
+                self.push(HTML::tag(str_ids::BR, HTML::Empty));
             },
             ContentKind::RequireInlineNoLineBreaks => {},
         }
     }
     
-    fn close_inline(&mut self) {
-        while matches!(self.inline.last(), Some(HTML::Whitespace)) {
-            self.inline.pop();
-        }
-        if !self.inline.is_empty() {
-            // TODO: paragraph contents might not be valid in wrapper. need to recurse?
-            let paragraph = std::mem::take(&mut self.inline);
-            self.blocks.push(HTML::tag(self.content_kind.wrap_with(), HTML::seq(&paragraph)));
+    fn close_child(&mut self) {
+        if let Some(child) = std::mem::take(&mut self.next_child) {
+            let html = child.to_html();
+            if !matches!(html, HTML::Empty) {
+                self.children.push(HTML::tag(self.content_kind.wrap_with(), html));
+            }
         }
     }
     
@@ -95,15 +97,22 @@ impl SequenceBuilder {
         // do nothing
         if matches!(child, HTML::Empty) { return; }
         
-        let is_block = match self.content_kind {
+        let is_allowed = match self.content_kind {
             ContentKind::RequireOneOf(tag_names) => child.is_all(tag_names),
-            _ => child.is_block(),
+            ContentKind::RequireBlock(_) |
+            ContentKind::AllowBlock(_) => child.is_block(),
+            _ => true,
         };
-        if is_block {
-            self.close_inline();
-            self.blocks.push(child);
-        } else if !matches!(child, HTML::Whitespace) || !self.inline.is_empty() {
-            self.inline.push(child);
+        if is_allowed {
+            self.close_child();
+            if !self.children.is_empty() || !child.is_whitespace() {
+                self.children.push(child);
+            }
+        } else if self.next_child.is_some() || !child.is_whitespace() {
+            self.next_child.get_or_insert_with(|| {
+                let child_content_kind = content_kind(self.content_kind.wrap_with());
+                Box::new(SequenceBuilder::new(child_content_kind))
+            }).push(child);
         }
     }
 }

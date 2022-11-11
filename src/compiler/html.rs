@@ -17,18 +17,6 @@ pub enum HTML {
     Empty,
 }
 
-impl From<PlainTag> for HTML {
-    fn from(tag: PlainTag) -> HTML {
-        HTML::PlainTag(Rc::new(tag))
-    }
-}
-
-impl From<Tag> for HTML {
-    fn from(tag: Tag) -> HTML {
-        HTML::Tag(Rc::new(tag))
-    }
-}
-
 impl HTML {
     pub fn from_value(value: Value, string_pool: &mut StringPool) -> HTML {
         match value {
@@ -73,9 +61,7 @@ impl HTML {
             },
         }
     }
-}
-
-impl HTML {
+    
     pub fn text(s: &str) -> HTML {
         if s.is_empty() {
             HTML::Empty
@@ -96,6 +82,10 @@ impl HTML {
         } else {
             HTML::Sequence(Rc::from(content))
         }
+    }
+    
+    pub fn is_whitespace(&self) -> bool {
+        matches!(self, HTML::Whitespace | HTML::RawNewline | HTML::Empty)
     }
     
     pub fn is_block(&self) -> bool {

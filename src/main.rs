@@ -2,7 +2,7 @@
 #![allow(dead_code)]
 
 use std::collections::HashSet;
-use std::fs;
+use std::{fs, io};
 use std::path::PathBuf;
 
 mod config;
@@ -102,7 +102,7 @@ fn run_main() -> Result<(), String> {
             let out_file = fs::File::create(&out_path)
                 .map_err(|e| format!("Failed to create \"{}\": {}", out_path.to_string_lossy(), e))?;
             
-            let mut out_writer = std::io::BufWriter::new(out_file);
+            let mut out_writer = io::BufWriter::new(out_file);
             out.render_to(&mut out_writer, &mut loader.string_pool, !options.text)
                 .map_err(|e| format!("Failed to write \"{}\": {}", out_path.to_string_lossy(), e))?;
             
