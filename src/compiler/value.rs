@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use crate::parser::{ast, AST, Token, TokenKind};
-use crate::utils::{ice_at, NameID, str_ids};
+use crate::utils::{ice_at, NameID, str_ids, SliceRef};
 use super::compiler::Compiler;
 use super::func::Func;
 use super::html::HTML;
@@ -15,7 +15,7 @@ pub enum Value {
     Bool(bool),
     Int(i64),
     Str(Rc<str>),
-    List(Rc<Vec<Value>>),
+    List(SliceRef<Value>),
     Dict(Rc<ValueMap>),
     HTML(HTML),
     Func(Func),
@@ -38,15 +38,15 @@ impl Value {
     }
     
     pub fn list(vs: Vec<Value>) -> Value {
-        Value::List(Rc::new(vs))
+        Value::List(SliceRef::from(vs))
     }
     
     pub fn get_type(&self) -> Type {
         match self {
             Value::Unit => Type::Unit,
-            Value::Bool(_) => Type::Bool,
-            Value::Int(_) => Type::Int,
-            Value::Str(_) => Type::Str,
+            Value::Bool(..) => Type::Bool,
+            Value::Int(..) => Type::Int,
+            Value::Str(..) => Type::Str,
             Value::Dict(vs) => {
                 if vs.is_empty() { return Type::Unit; }
                 let mut vs = vs.values();
@@ -57,6 +57,7 @@ impl Value {
                 Type::dict(t)
             },
             Value::List(vs) => {
+                let vs = vs.as_ref();
                 if vs.is_empty() { return Type::Unit; }
                 let mut t = vs[0].get_type();
                 for v in &vs[1..] {
@@ -65,7 +66,7 @@ impl Value {
                 Type::list(t)
             },
             Value::HTML(html) => if html.is_block() { Type::Block } else { Type::Inline },
-            Value::Func(_) | Value::NativeFunc(_) => Type::Function,
+            Value::Func(..) | Value::NativeFunc(..) => Type::Function,
         }
     }
 }
@@ -83,17 +84,19 @@ impl <'a> Compiler<'a> {
                 self.evaluate_literal(tok)?
             },
             AST::Verbatim(tok) => if type_hint.is_html() {
-                self.evaluate_verbatim(&tok)?
+                self.evaluate_verbatim_as_html(&tok)?
             } else {
-                Value::str(tok.get_verbatim_text())
+                self.evaluate_literal(tok)?
             },
             
+            AST::Match(m) => return self.evaluate_match(m, type_hint),
             AST::FuncCall(call) => return self.evaluate_func_call(call, type_hint),
             AST::FuncDef(def) => Value::Func(self.compile_func_def(def)),
-            AST::VarName(name_id, range) => self.get_var(*name_id, range)?,
+            AST::VarName(v) => self.get_var(v.name_id, &v.range)?,
             AST::List(list) => self.evaluate_list(list, type_hint)?,
+            AST::Template(..) => Value::Str(Rc::from(self.evaluate_to_string(node))),
             
-            AST::Group(_) | AST::Tag(_) => Value::HTML(self.compile_node(node)),
+            AST::Group(..) | AST::Tag(..) => Value::HTML(self.compile_node(node)),
             
             _ => ice_at("invalid AST value", node.range()),
         };
@@ -102,6 +105,7 @@ impl <'a> Compiler<'a> {
     
     fn evaluate_list(&mut self, list: &ast::GroupOrList, type_hint: &Type) -> Option<Value> {
         let child_type_hint = match type_hint {
+            Type::AnyValue => type_hint,
             Type::List(t) => t,
             t if t.is_html() => &Type::AnyHTML,
             t => {
@@ -117,7 +121,58 @@ impl <'a> Compiler<'a> {
         Some(Value::list(children))
     }
     
-    fn evaluate_literal(&mut self, tok: &Token) -> Option<Value> {
+    fn evaluate_to_string(&mut self, value: &AST) -> String {
+        let mut out = "".to_string();
+        self._evaluate_to_string(value, &mut out);
+        out
+    }
+    
+    fn _evaluate_to_string(&mut self, value: &AST, out: &mut String) {
+        match value {
+            AST::FuncCall(..) | AST::VarName(..) => {
+                match self.evaluate_node(value, &Type::optional(Type::Str)) {
+                    Some(Value::Str(t)) => *out += &t,
+                    Some(Value::Unit) | None => {},
+                    _ => ice_at("coercion failed", value.range()),
+                }
+            },
+            
+            AST::Group(seq) | AST::Template(seq) => {
+                for child in seq.children.iter() {
+                    self._evaluate_to_string(child, out);
+                }
+            },
+            AST::List(list) => {
+                let mut sep = false;
+                for child in list.children.iter() {
+                    if sep { *out += " "; }
+                    self._evaluate_to_string(child, out);
+                    sep = true;
+                }
+            },
+            AST::Text(t, ..) => {
+                *out += &t;
+            }
+            AST::Whitespace(..) => {
+                *out += " ";
+            },
+            AST::Entity(tok) => {
+                *out += &self.decode_entity(tok);
+            },
+            AST::Escape(tok) => {
+                *out += self.unescape_char(&tok).encode_utf8(&mut [0; 4]);
+            },
+            AST::Verbatim(tok) => {
+                *out += tok.get_verbatim_text();
+            },
+            
+            _ => {
+                self.diagnostics.syntax_error("not allowed in string template", value.range());
+            },
+        }
+    }
+    
+    pub fn evaluate_literal(&mut self, tok: &Token) -> Option<Value> {
         match tok.kind {
             TokenKind::Dot => Some(Value::Unit),
             TokenKind::Boolean => Some(Value::Bool(tok.get_bool_value())),
@@ -129,12 +184,13 @@ impl <'a> Compiler<'a> {
                     None
                 },
             },
+            TokenKind::Verbatim => Some(Value::str(tok.get_verbatim_text())),
             
             _ => ice_at("illegal token kind", &tok.range),
         }
     }
     
-    fn evaluate_verbatim(&mut self, tok: &Token) -> Option<Value> {
+    fn evaluate_verbatim_as_html(&mut self, tok: &Token) -> Option<Value> {
         let f_name = if tok.is_multiline_verbatim() { str_ids::CODE_BLOCK } else { str_ids::CODE };
         let func = self.get_var(f_name, &tok.range)?;
         let Value::Func(func) = self.coerce(func, &Type::Function, &tok.range)? else {

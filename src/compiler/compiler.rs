@@ -83,22 +83,24 @@ impl <'a> Compiler<'a> {
             AST::Group(group) => self.compile_sequence(&group.children, ContentKind::ALLOW_P),
             AST::Tag(tag) => self.compile_tag(tag),
             
-            AST::FuncCall(_) |
-            AST::VarName(_, _) |
-            AST::Verbatim(_) |
-            AST::List(_) => {
+            AST::FuncCall(..) |
+            AST::Match(..) |
+            AST::VarName(..) |
+            AST::Verbatim(..) |
+            AST::List(..) => {
                 self.evaluate_node(node, &Type::AnyHTML)
                     .map(|v| self.compile_value(v))
                     .unwrap_or(HTML::Empty)
             },
             
             AST::LiteralValue(tok) => tok.text().map(|s| HTML::Text(Rc::from(s))).unwrap_or(HTML::Empty),
-            AST::Text(text, _) => HTML::Text(text.clone()),
-            AST::Whitespace(_) => HTML::Whitespace,
+            AST::Text(text, ..) => HTML::Text(text.clone()),
+            AST::Whitespace(..) => HTML::Whitespace,
             AST::Escape(range) => self.compile_escape(range),
             AST::Entity(range) => HTML::Text(Rc::from(self.decode_entity(range))),
             
             AST::ParagraphBreak(range) => ice_at("paragraph break should be handled in SequenceCompiler", range),
+            AST::Template(template) => ice_at("template should not occur in non-value context", &template.range),
         }
     }
     

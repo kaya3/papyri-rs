@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::PathBuf;
+use std::path::{PathBuf, Path};
 use std::rc::Rc;
 use once_cell::unsync::OnceCell;
 
@@ -10,6 +10,7 @@ pub fn has_papyri_extension(path: &PathBuf) -> bool {
 }
 
 pub struct SourceFile {
+    pub path: Box<Path>,
     pub path_str: String,
     pub src: Box<str>,
     line_col_coords: OnceCell<Box<[(u32, u32)]>>,
@@ -17,25 +18,25 @@ pub struct SourceFile {
 
 impl SourceFile {
     pub fn synthetic(path_str: &str, src: &str) -> Rc<SourceFile> {
+        SourceFile::new(PathBuf::new(), path_str.to_string(), Box::from(src))
+    }
+    
+    pub fn from_path(path: PathBuf) -> Result<Rc<SourceFile>, String> {
+        fs::read_to_string(&path)
+            .map(|src| {
+                let path_str = String::from(path.to_string_lossy());
+                SourceFile::new(path, path_str, src.into_boxed_str())
+            })
+            .map_err(|e| e.to_string())
+    }
+    
+    fn new(path: PathBuf, path_str: String, src: Box<str>) -> Rc<SourceFile> {
         Rc::new(SourceFile {
-            path_str: path_str.to_string(),
-            src: Box::from(src),
+            path: path.into_boxed_path(),
+            path_str,
+            src,
             line_col_coords: OnceCell::new(),
         })
-    }
-    
-    pub fn from_path(path: &PathBuf) -> Result<Rc<SourceFile>, String> {
-        SourceFile::new(path, String::from(path.to_string_lossy()))
-    }
-    
-    fn new(path: &PathBuf, path_str: String) -> Result<Rc<SourceFile>, String> {
-        let src = fs::read_to_string(&path)
-            .map_err(|e| e.to_string())?;
-        Ok(Rc::new(SourceFile {
-            path_str,
-            src: Box::from(src),
-            line_col_coords: OnceCell::new(),
-        }))
     }
     
     pub fn eof_range(src: Rc<SourceFile>) -> SourceRange {

@@ -3,8 +3,10 @@ use std::cell::RefCell;
 use std::collections::HashSet;
 use std::rc::Rc;
 
+use crate::parser::AST;
 use crate::utils::{SourceRange, NameID};
 use super::compiler::Compiler;
+use super::types::Type;
 use super::value::{Value, ValueMap};
 
 #[derive(Debug)]
@@ -113,5 +115,12 @@ impl <'a> Compiler<'a> {
         for (k, v) in dict {
             self.set_var(*k, v.clone(), implicit, range);
         }
+    }
+    
+    pub fn evaluate_in_frame(&mut self, mut frame: ActiveFrame, node: &AST, type_hint: &Type) -> Option<Value> {
+        std::mem::swap(&mut self.frame, &mut frame);
+        let result = self.evaluate_node(node, type_hint);
+        std::mem::swap(&mut self.frame, &mut frame);
+        result
     }
 }

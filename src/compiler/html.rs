@@ -44,7 +44,8 @@ impl HTML {
                 tbl.into()
             },
             Value::List(vs) => {
-                let items: Vec<_> = vs.iter()
+                let items: Vec<_> = vs.as_ref()
+                    .iter()
                     .map(|child| HTML::tag(str_ids::LI, HTML::from_value(child.clone(), string_pool)))
                     .collect();
                 HTML::tag(str_ids::UL, HTML::seq(&items))
@@ -109,13 +110,13 @@ impl HTML {
     
     pub fn wrap_page(self, title: Option<HTML>, web_root: &str) -> HTML {
         let mut link_tag = Tag::new(str_ids::LINK, HTML::Empty);
-        link_tag.attr(str_ids::REL, Some(Box::from("stylesheet")));
-        link_tag.attr(str_ids::TYPE, Some(Box::from("text/css")));
-        link_tag.attr(str_ids::HREF, Some(format!("{}papyri.css", web_root).into_boxed_str()));
+        link_tag.attr(str_ids::REL, Some(Rc::from("stylesheet")));
+        link_tag.attr(str_ids::TYPE, Some(Rc::from("text/css")));
+        link_tag.attr(str_ids::HREF, Some(Rc::from(format!("{}papyri.css", web_root))));
         
         let mut script_tag = Tag::new(str_ids::SCRIPT, HTML::Empty);
-        script_tag.attr(str_ids::TYPE, Some(Box::from("text/javascript")));
-        script_tag.attr(str_ids::SRC, Some(format!("{}papyri.js", web_root).into_boxed_str()));
+        script_tag.attr(str_ids::TYPE, Some(Rc::from("text/javascript")));
+        script_tag.attr(str_ids::SRC, Some(Rc::from(format!("{}papyri.js", web_root))));
         
         HTML::seq(&[
             HTML::DocType,

@@ -32,7 +32,7 @@ impl Type {
     }
     
     pub fn optional(t: Type) -> Type {
-        if matches!(t, Type::Optional(_)) {
+        if matches!(t, Type::Optional(..)) {
             t
         } else {
             Type::Optional(Box::new(t))
@@ -62,7 +62,7 @@ impl Type {
             (Type::Dict(t1), Type::Dict(t2)) => Type::dict(t1.least_upper_bound(t2)),
             
             (Type::Dict(_) | Type::List(_), Type::Block) | (Type::Block, Type::Dict(_) | Type::List(_)) => Type::Block,
-            (Type::Block, _) | (_, Type::Block) => Type::AnyHTML,
+            (Type::Dict(_) | Type::List(_) | Type::Block, _) | (_, Type::Dict(_) | Type::List(_) | Type::Block) => Type::AnyHTML,
             _ => Type::Inline,
         }
     }
@@ -79,7 +79,7 @@ impl Type {
                 "int" => Type::Int,
                 "str" => Type::Str,
                 "function" => Type::Function,
-                _ => ice_at("not a primitive type", range)
+                _ => ice_at("not a primitive type", range),
             },
             ast::TypeAnnotation::Group(child, range) => {
                 let child = Type::compile(child);
@@ -87,7 +87,7 @@ impl Type {
                     "dict" => Type::dict(child),
                     "list" => Type::list(child),
                     "?" => Type::optional(child),
-                    _ => ice_at("not a group type", range)
+                    _ => ice_at("not a group type", range),
                 }
             },
         }
@@ -120,7 +120,15 @@ impl Diagnostics {
 }
 
 impl <'a> Compiler<'a> {
-    pub fn coerce(&mut self, value: Value, mut expected: &Type, range: &SourceRange) -> Option<Value> {
+    pub fn coerce(&mut self, value: Value, expected: &Type, range: &SourceRange) -> Option<Value> {
+        self._coerce(value, expected, Some(range))
+    }
+    
+    pub fn try_coerce(&mut self, value: Value, expected: &Type) -> Option<Value> {
+        self._coerce(value, expected, None)
+    }
+    
+    fn _coerce(&mut self, value: Value, mut expected: &Type, range: Option<&SourceRange>) -> Option<Value> {
         if let Type::Optional(t) = expected {
             if matches!(value, Value::Unit) { return Some(value); }
             expected = t;
@@ -129,23 +137,23 @@ impl <'a> Compiler<'a> {
         match (expected, &value) {
             (Type::AnyValue, _) |
             (Type::Unit, Value::Unit) |
-            (Type::Bool, Value::Bool(_)) |
-            (Type::Int, Value::Int(_)) |
-            (Type::Str, Value::Str(_)) |
-            (Type::AnyHTML, Value::HTML(_)) |
-            (Type::Function, Value::Func(_) | Value::NativeFunc(_)) => return Some(value),
+            (Type::Bool, Value::Bool(..)) |
+            (Type::Int, Value::Int(..)) |
+            (Type::Str, Value::Str(..)) |
+            (Type::AnyHTML, Value::HTML(..)) |
+            (Type::Function, Value::Func(..) | Value::NativeFunc(..)) => return Some(value),
             
             (Type::Str, Value::Bool(b)) => return Some(Value::str(Token::bool_to_string(*b))),
             (Type::Str, Value::Int(i)) => return Some(Value::str(&i.to_string())),
             
-            (Type::Optional(_), _) |
-            (_, Value::Func(_) | Value::NativeFunc(_)) => {},
+            (Type::Optional(..), _) |
+            (_, Value::Func(..) | Value::NativeFunc(..)) => {},
             
             (Type::Dict(t), Value::Dict(vs)) => {
                 let mut coerced_vs = HashMap::new();
                 let mut any_errors = false;
                 for (k, v) in vs.iter() {
-                    if let Some(coerced_v) = self.coerce(v.clone(), t, range) {
+                    if let Some(coerced_v) = self._coerce(v.clone(), t, range) {
                         coerced_vs.insert(k.clone(), coerced_v);
                     } else {
                         any_errors = true;
@@ -155,10 +163,11 @@ impl <'a> Compiler<'a> {
                 if !any_errors { return Some(Value::dict(coerced_vs)); }
             },
             (Type::List(t), Value::List(vs)) => {
+                let vs = vs.as_ref();
                 let mut coerced_vs = Vec::new();
                 let mut any_errors = false;
                 for v in vs.iter() {
-                    if let Some(coerced_v) = self.coerce(v.clone(), t, range) {
+                    if let Some(coerced_v) = self._coerce(v.clone(), t, range) {
                         coerced_vs.push(coerced_v);
                     } else {
                         any_errors = true;
@@ -176,11 +185,13 @@ impl <'a> Compiler<'a> {
                 }
                 return Some(Value::HTML(r));
             },
-            (Type::Inline, Value::Dict(_) | Value::List(_)) => {},
+            (Type::Inline, Value::Dict(..) | Value::List(..)) => {},
             (Type::Inline, _) => {
                 let v = self.compile_value(value);
                 return if v.is_block() {
-                    self.diagnostics.err_expected_type(&Type::Inline, &Type::Block, range);
+                    if let Some(range) = range {
+                        self.diagnostics.err_expected_type(&Type::Inline, &Type::Block, range);
+                    }
                     None
                 } else {
                     Some(Value::HTML(v))
@@ -192,7 +203,9 @@ impl <'a> Compiler<'a> {
             _ => {},
         }
         
-        self.diagnostics.err_expected_type(expected, &value.get_type(), &range);
+        if let Some(range) = range {
+            self.diagnostics.err_expected_type(expected, &value.get_type(), &range);
+        }
         None
     }
 }

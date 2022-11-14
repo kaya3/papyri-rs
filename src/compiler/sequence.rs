@@ -19,7 +19,7 @@ impl ContentKind {
 
 impl <'a> Compiler<'a> {
     pub fn compile_sequence(&mut self, sequence: &[AST], block_kind: ContentKind) -> HTML {
-        let allow_blocks = matches!(block_kind, ContentKind::RequireOneOf(_) | ContentKind::RequireBlock(_) | ContentKind::AllowBlock(_));
+        let allow_blocks = matches!(block_kind, ContentKind::RequireOneOf(..) | ContentKind::RequireBlock(..) | ContentKind::AllowBlock(..));
         let forbid_breaks = matches!(block_kind, ContentKind::RequireInlineNoLineBreaks);
         
         let mut comp = SequenceBuilder::new(block_kind);
@@ -58,7 +58,7 @@ impl SequenceBuilder {
     }
     
     fn to_html(mut self) -> HTML {
-        if matches!(self.content_kind, ContentKind::AllowBlock(_)) && self.children.is_empty() {
+        if matches!(self.content_kind, ContentKind::AllowBlock(..)) && self.children.is_empty() {
             return self.next_child.map(|c| c.to_html())
                 .unwrap_or(HTML::Empty);
         }
@@ -72,9 +72,9 @@ impl SequenceBuilder {
     
     fn newline(&mut self) {
         match self.content_kind {
-            ContentKind::RequireBlock(_) |
-            ContentKind::RequireOneOf(_) |
-            ContentKind::AllowBlock(_) => {
+            ContentKind::RequireBlock(..) |
+            ContentKind::RequireOneOf(..) |
+            ContentKind::AllowBlock(..) => {
                 self.close_child();
             },
             ContentKind::RequireInline => {
@@ -99,8 +99,8 @@ impl SequenceBuilder {
         
         let is_allowed = match self.content_kind {
             ContentKind::RequireOneOf(tag_names) => child.is_all(tag_names),
-            ContentKind::RequireBlock(_) |
-            ContentKind::AllowBlock(_) => child.is_block(),
+            ContentKind::RequireBlock(..) |
+            ContentKind::AllowBlock(..) => child.is_block(),
             _ => true,
         };
         if is_allowed {

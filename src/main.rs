@@ -1,5 +1,6 @@
 
 #![allow(dead_code)]
+#![forbid(unsafe_code)]
 
 use std::collections::HashSet;
 use std::{fs, io};
@@ -83,7 +84,7 @@ fn run_main() -> Result<(), String> {
         }
         
         diagnostics.clear();
-        let result = loader.load_uncached(&src_path, &mut diagnostics)?;
+        let result = loader.load_uncached(src_path.clone(), &mut diagnostics)?;
         
         let out = if options.text {
             result.out.clone()

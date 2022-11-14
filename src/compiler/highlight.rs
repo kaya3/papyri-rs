@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use crate::utils::str_ids;
 use super::html::HTML;
 use super::tag::Tag;
@@ -7,7 +9,7 @@ pub fn enumerate_lines(lines: Vec<HTML>, start: i64) -> HTML {
     for (i, line) in lines.into_iter().enumerate() {
         let mut tag = Tag::new(str_ids::SPAN, line.clone());
         tag.add_css_class("line");
-        let index = (i as i64 + start).to_string().into_boxed_str();
+        let index = Rc::from((i as i64 + start).to_string());
         tag.attr(str_ids::DATA_LINE_NO, Some(index));
         out.push(HTML::from(tag));
         out.push(HTML::RawNewline);
@@ -35,6 +37,7 @@ pub fn syntax_highlight(src: &str, language: &str) -> Vec<HTML> {
 #[cfg(feature="syntect")]
 mod syntect_highlighting {
     use std::ops::Range;
+    use std::rc::Rc;
     use std::str::FromStr;
     use once_cell::sync::Lazy;
     use syntect::parsing::{SyntaxSet, Scope, ScopeStack, ParseState};
@@ -314,14 +317,14 @@ mod syntect_highlighting {
         let mut tag = Tag::new(str_ids::SPAN, HTML::text(s));
         tag.add_css_class(css_class);
         if paren_no > 0 {
-            tag.attr(str_ids::DATA_PAREN_NO, Some(format!("{}", paren_no).into_boxed_str()));
+            tag.attr(str_ids::DATA_PAREN_NO, Some(Rc::from(format!("{}", paren_no))));
         }
         HTML::from(tag)
     }
     
     fn make_link_token(s: &str, is_comment: bool) -> HTML {
         let mut tag = Tag::new(str_ids::A, HTML::text(s));
-        tag.attr(str_ids::HREF, Some(Box::from(s)));
+        tag.attr(str_ids::HREF, Some(Rc::from(s)));
         if is_comment { tag.add_css_class("comment"); }
         HTML::from(tag)
     }

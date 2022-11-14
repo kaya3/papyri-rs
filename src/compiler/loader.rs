@@ -32,13 +32,13 @@ impl ModuleLoader {
         loader
     }
     
-    pub fn load_uncached(&mut self, path: &path::PathBuf, diagnostics: &mut Diagnostics) -> Result<CompileResult, String> {
+    pub fn load_uncached(&mut self, path: path::PathBuf, diagnostics: &mut Diagnostics) -> Result<CompileResult, String> {
         let src = SourceFile::from_path(path)?;
         Ok(compile(src, self, diagnostics))
     }
     
-    pub fn load_cached(&mut self, path: &path::PathBuf, diagnostics: &mut Diagnostics) -> Result<Rc<CompileResult>, String> {
-        let k = fs::canonicalize(path)
+    pub fn load_cached(&mut self, path: path::PathBuf, diagnostics: &mut Diagnostics) -> Result<Rc<CompileResult>, String> {
+        let k = fs::canonicalize(&path)
             .map_err(|e| e.to_string())?;
         match self.get(&k) {
             ModuleState::NotLoaded => {

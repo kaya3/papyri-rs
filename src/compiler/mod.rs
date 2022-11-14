@@ -4,6 +4,7 @@ mod func;
 mod highlight;
 mod html;
 mod loader;
+mod matcher;
 mod native;
 mod render;
 mod sequence;

@@ -83,7 +83,7 @@ impl NativeFunc {
                 spread_param: None,
                 named_params: HashMap::new(),
                 spread_named_param: None,
-                content_param: FuncParam::new(str_ids::CONTENT, Type::list(Type::AnyHTML)),
+                content_param: FuncParam::new(str_ids::CONTENT, Type::list(Type::AnyValue)),
             },
             
             NativeFunc::SyntaxHighlight => FuncSignature {
@@ -135,8 +135,12 @@ impl <'a> Compiler<'a> {
                     ice_at("failed to unpack", call_range);
                 };
                 
-                let path = std::path::PathBuf::from(format!("{}.papyri", *path_str));
-                let module = match self.loader.load_cached(&path, self.diagnostics) {
+                // compute import/include path relative to current source file
+                let mut path = call_range.src.path.to_path_buf();
+                path.pop();
+                path.push(format!("{}.papyri", path_str));
+                
+                let module = match self.loader.load_cached(path, self.diagnostics) {
                     Ok(module) => module,
                     Err(msg) => {
                         self.diagnostics.error(&format!("{} when loading module \"{}\"", msg, *path_str), call_range);
@@ -167,12 +171,12 @@ impl <'a> Compiler<'a> {
                 };
                 
                 let mut out = Vec::new();
-                for v in content.iter() {
+                for v in content.as_ref().iter() {
                     let bindings = callback.signature().bind_synthetic_call(self, false, v.clone(), call_range)?;
                     let r = self.evaluate_func_call_with_bindings(
                         callback.clone(),
                         bindings,
-                        &Type::AnyHTML,
+                        &Type::AnyValue,
                     )?;
                     out.push(self.compile_value(r));
                 }

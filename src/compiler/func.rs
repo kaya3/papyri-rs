@@ -116,7 +116,7 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
     fn compile_positional_arg(&mut self, arg: &ast::Arg) {
         if arg.is_spread() {
             if let Some(Value::List(vs)) = self.compiler.evaluate_node(&arg.value, &Type::list(Type::AnyValue)) {
-                for v in vs.iter() {
+                for v in vs.as_ref().iter() {
                     self.add_positional_arg(v.clone(), arg.value.range());
                 }
             } else {
@@ -347,11 +347,8 @@ impl <'a> Compiler<'a> {
     }
     
     pub fn evaluate_func_call_with_bindings(&mut self, func: Func, bindings: ValueMap, type_hint: &Type) -> Option<Value> {
-        let mut frame = func.0.closure.new_child_frame(bindings);
-        std::mem::swap(&mut self.frame, &mut frame);
-        let result = self.evaluate_node(func.0.body.as_ref(), type_hint);
-        std::mem::swap(&mut self.frame, &mut frame);
-        result
+        let frame = func.0.closure.new_child_frame(bindings);
+        self.evaluate_in_frame(frame, func.0.body.as_ref(), type_hint)
     }
 }
 

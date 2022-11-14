@@ -102,16 +102,73 @@ pub struct GroupOrList {
 }
 
 #[derive(Debug)]
+pub struct Match {
+    pub range: SourceRange,
+    pub value: AST,
+    pub branches: Box<[MatchBranch]>,
+}
+
+#[derive(Debug)]
+pub struct MatchBranch {
+    pub pattern: MatchPattern,
+    pub then: AST,
+}
+
+#[derive(Debug)]
+pub enum MatchPattern {
+    Ignore(SourceRange),
+    SpreadIgnore(SourceRange),
+    Literal(Token),
+    VarName(VarName),
+    SpreadVarName(VarName),
+    Typed(SourceRange, Box<MatchPattern>, TypeAnnotation),
+    ExactList(SourceRange, Box<[MatchPattern]>),
+    SpreadList(SourceRange, Box<[MatchPattern]>, usize),
+}
+
+impl MatchPattern {
+    pub fn range(&self) -> &SourceRange {
+        match self {
+            MatchPattern::Ignore(range) |
+            MatchPattern::SpreadIgnore(range) |
+            MatchPattern::Typed(range, ..) |
+            MatchPattern::ExactList(range, ..) |
+            MatchPattern::SpreadList(range, ..) |
+            MatchPattern::VarName(VarName {range, ..}) |
+            MatchPattern::SpreadVarName(VarName {range, ..}) |
+            MatchPattern::Literal(Token {range, ..}) => range,
+        }
+    }
+    
+    pub fn is_spread(&self) -> bool {
+        match self {
+            MatchPattern::SpreadIgnore(..) | MatchPattern::SpreadVarName(..) => true,
+            MatchPattern::Typed(_, child, _) => child.is_spread(),
+            _ => false,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct VarName {
+    pub name_id: NameID,
+    pub range: SourceRange,
+}
+
+#[derive(Debug)]
 pub enum AST {
     LiteralValue(Token),
     Verbatim(Token),
     
     FuncCall(Box<FuncCall>),
     FuncDef(Box<FuncDef>),
+    Match(Box<Match>),
+    
     Group(Box<GroupOrList>),
     List(Box<GroupOrList>),
+    Template(Box<GroupOrList>),
     Tag(Box<Tag>),
-    VarName(NameID, SourceRange),
+    VarName(VarName),
     
     Text(Rc<str>, SourceRange),
     Entity(SourceRange),
@@ -135,13 +192,16 @@ impl AST {
         match self {
             AST::FuncCall(call) => &call.range,
             AST::FuncDef(def) => &def.range,
-            AST::Group(group) => &group.range,
-            AST::List(list) => &list.range,
+            AST::Match(m) => &m.range,
             AST::Tag(tag) => &tag.range,
+            
+            AST::Group(g) |
+            AST::List(g) |
+            AST::Template(g) => &g.range,
             
             AST::LiteralValue(Token {range, ..}) |
             AST::Verbatim(Token {range, ..}) |
-            AST::VarName(_, range) |
+            AST::VarName(VarName{range, ..}) |
             AST::Text(_, range) |
             AST::Entity(range) |
             AST::Escape(range) |
@@ -151,6 +211,6 @@ impl AST {
     }
     
     pub fn is_whitespace(&self) -> bool {
-        matches!(self, AST::Whitespace(_) | AST::ParagraphBreak(_))
+        matches!(self, AST::Whitespace(..) | AST::ParagraphBreak(..))
     }
 }

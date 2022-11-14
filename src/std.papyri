@@ -29,7 +29,7 @@
         @syntax_highlight(language=$language) $v
     </>
 }
-@fn code_block($language?: implicit str, $first_line_no: int = 1) $v: str -> {
+@fn code_block($language?: implicit str, $first_line_no: int? = 1) $v: str -> {
     <pre class="panel listing">
         <code class="syntax-highlight">
             @syntax_highlight(language=$language, code_block=True, first_line_no=$first_line_no) @fix_indentation $v

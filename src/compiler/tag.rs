@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
-use crate::parser::{ast, AST};
+use crate::parser::ast;
 use crate::utils::{ice_at, str_ids, NameID, taginfo};
 use super::compiler::Compiler;
 use super::html::HTML;
@@ -23,7 +23,7 @@ impl PlainTag {
 #[derive(Debug, Clone)]
 pub struct Tag {
     pub name_id: NameID,
-    pub attributes: HashMap<NameID, Option<Box<str>>>,
+    pub attributes: HashMap<NameID, Option<Rc<str>>>,
     pub css_classes: HashSet<Box<str>>,
     pub css_style: Option<String>,
     pub content: HTML,
@@ -40,7 +40,7 @@ impl Tag {
         }
     }
     
-    pub fn attr(&mut self, k: NameID, v: Option<Box<str>>) {
+    pub fn attr(&mut self, k: NameID, v: Option<Rc<str>>) {
         self.attributes.insert(k, v);
     }
     
@@ -75,12 +75,17 @@ impl <'a> Compiler<'a> {
         for attr in tag.attrs.iter() {
             match attr.value.as_ref() {
                 Some(node) => {
-                    let v = self.evaluate_tag_attribute(node);
-                    if v.is_some() || attr.question_mark {
+                    let Some(v) = self.evaluate_node(node, &Type::optional(Type::Str)) else { continue; };
+                    let s = match v {
+                        Value::Str(s) => Some(s),
+                        Value::Unit => None,
+                        _ => ice_at("failed to coerce", &attr.range),
+                    };
+                    if s.is_some() || attr.question_mark {
                         match attr.name_id {
-                            str_ids::CLASS => if let Some(v) = v { r.add_css_class(&v); },
-                            str_ids::STYLE => if let Some(v) = v { r.add_style(&v); },
-                            name_id => r.attr(name_id, v),
+                            str_ids::CLASS => if let Some(s) = s { r.add_css_class(&s); },
+                            str_ids::STYLE => if let Some(s) = s { r.add_style(&s); },
+                            name_id => r.attr(name_id, s),
                         }
                     } else {
                         self.diagnostics.err_expected_type(&Type::Str, &Type::Unit, node.range());
@@ -100,59 +105,6 @@ impl <'a> Compiler<'a> {
     
     fn compile_tag_children(&mut self, tag: &ast::Tag) -> HTML {
         self.compile_sequence(&tag.children, taginfo::content_kind(tag.name_id))
-    }
-    
-    fn evaluate_tag_attribute(&mut self, value: &AST) -> Option<Box<str>> {
-        let mut out = "".to_string();
-        self.write_tag_attribute(value, &mut out)
-            .then_some(Box::from(out))
-    }
-    
-    fn write_tag_attribute(&mut self, value: &AST, out: &mut String) -> bool {
-        match value {
-            AST::FuncCall(_) | AST::VarName(_, _) => {
-                match self.evaluate_node(value, &Type::optional(Type::Str)) {
-                    Some(Value::Str(t)) => *out += &t,
-                    Some(Value::Unit) => return false,
-                    None => {},
-                    _ => ice_at("coercion failed", value.range()),
-                }
-            },
-            
-            AST::Group(group) => {
-                for child in group.children.iter() {
-                    self.write_tag_attribute(child, out);
-                }
-            },
-            AST::List(list) => {
-                let mut sep = false;
-                for child in list.children.iter() {
-                    if sep { *out += " "; }
-                    self.write_tag_attribute(child, out);
-                    sep = true;
-                }
-            },
-            AST::Text(t, _) => {
-                *out += &t;
-            }
-            AST::Whitespace(_) => {
-                *out += " ";
-            },
-            AST::Entity(tok) => {
-                *out += &self.decode_entity(tok);
-            },
-            AST::Escape(tok) => {
-                *out += self.unescape_char(&tok).encode_utf8(&mut [0; 4]);
-            },
-            AST::Verbatim(tok) => {
-                *out += tok.get_verbatim_text();
-            },
-            
-            _ => {
-                self.diagnostics.syntax_error("not allowed in tag attribute", value.range());
-            },
-        }
-        true
     }
 }
 
