@@ -1,8 +1,10 @@
 use std::collections::HashMap;
+use std::rc::Rc;
 
 use crate::parser::ast;
-use crate::utils::{ice_at, NameID, SourceRange, ice};
+use crate::utils::{ice, ice_at};
 use super::compiler::Compiler;
+use super::html::HTML;
 use super::types::Type;
 use super::value::{Value, ValueMap};
 
@@ -25,6 +27,9 @@ impl <'a> Compiler<'a> {
     fn bind_pattern(&mut self, pattern: &ast::MatchPattern, value: Value, bindings: &mut ValueMap) -> bool {
         match pattern {
             ast::MatchPattern::Ignore(..) => true,
+            ast::MatchPattern::EmptyHTML(_) => {
+                matches!(value, Value::Unit | Value::HTML(HTML::Empty))
+            },
             ast::MatchPattern::Literal(other) => {
                 let Some(other) = self.evaluate_literal(other) else { return false; };
                 match (value, other) {
@@ -36,8 +41,11 @@ impl <'a> Compiler<'a> {
                     _ => false,
                 }
             },
+            ast::MatchPattern::LiteralName(_, name_id) => {
+                matches!(value, Value::Str(s) if s.as_ref() == self.get_name(*name_id))
+            },
             ast::MatchPattern::VarName(var) => {
-                self.bind_one(var.name_id, value, bindings, &var.range);
+                self.bind_one(var, value, bindings);
                 true
             },
             ast::MatchPattern::Typed(_, child, type_) => {
@@ -45,6 +53,11 @@ impl <'a> Compiler<'a> {
                     Some(value) => self.bind_pattern(child, value, bindings),
                     None => false,
                 }
+            },
+            ast::MatchPattern::TypeOf(_, child, t_var) => {
+                let t = Value::Str(Rc::from(value.get_type().to_string()));
+                self.bind_one(t_var, t, bindings);
+                self.bind_pattern(child, value, bindings)
             },
             ast::MatchPattern::ExactList(_, child_patterns) => {
                 let Value::List(child_values) = value else { return false; };
@@ -66,6 +79,47 @@ impl <'a> Compiler<'a> {
                     && self.bind_spread(spread_pattern, Value::List(child_values.slice(i, j)), bindings)
                     && self.bind_all(post_patterns, &child_values.as_ref()[j..], bindings)
             },
+            ast::MatchPattern::Tag(_, tag_pattern) => {
+                let Value::HTML(HTML::Tag(tag_value)) = value else { return false; };
+                
+                let tag_name = self.get_name(tag_value.name_id);
+                if !self.bind_pattern(&tag_pattern.name, Value::from(tag_name), bindings) { return false; }
+                
+                for (attr_name_id, attr_pattern) in tag_pattern.attrs.iter() {
+                    let Some(v) = tag_value.attributes.get(attr_name_id) else { return false; };
+                    if !self.bind_pattern(attr_pattern, v.clone().into(), bindings) { return false; }
+                }
+                
+                if let Some(spread_pattern) = tag_pattern.spread.as_ref() {
+                    let remaining: ValueMap = tag_value.attributes.iter()
+                        .filter(|(k, _)| !tag_pattern.attrs.contains_key(k))
+                        .map(|(k, v)| (
+                            *k,
+                            v.clone().into(),
+                        ))
+                        .collect();
+                    if !self.bind_spread(spread_pattern, Value::dict(remaining), bindings) { return false; }
+                } else if tag_value.attributes.len() != tag_pattern.attrs.len() {
+                    return false;
+                }
+                
+                self.bind_pattern(&tag_pattern.content, Value::from(&tag_value.content), bindings)
+            },
+            ast::MatchPattern::Regex(pattern_range, regex, name_ids) => {
+                let Value::Str(value_str) = value else { return false; };
+                let Some(match_) = regex.captures(value_str.as_ref()) else { return false; };
+                
+                if match_.len() != name_ids.len() + 1 { ice_at("incorrect number of capture groups", pattern_range); }
+                let match_ = match_.iter()
+                    .skip(1)
+                    .zip(name_ids.iter());
+                
+                for (s, var) in match_ {
+                    let v = s.map_or(Value::Unit, |m| m.as_str().into());
+                    self.bind_one(var, v, bindings);
+                }
+                true
+            },
             
             ast::MatchPattern::SpreadIgnore(range) |
             ast::MatchPattern::SpreadVarName(ast::VarName {range, ..}) => {
@@ -85,7 +139,7 @@ impl <'a> Compiler<'a> {
         match pattern {
             ast::MatchPattern::SpreadIgnore(..) => true,
             ast::MatchPattern::SpreadVarName(var) => {
-                self.bind_one(var.name_id, value, bindings, pattern.range());
+                self.bind_one(var, value, bindings);
                 true
             },
             ast::MatchPattern::Typed(_, child_pattern, type_) => {
@@ -97,9 +151,10 @@ impl <'a> Compiler<'a> {
         }
     }
     
-    fn bind_one(&mut self, name_id: NameID, value: Value, bindings: &mut ValueMap, range: &SourceRange) {
-        if bindings.insert(name_id, value).is_some() {
-            self.diagnostics.warning(&format!("name '{}' already bound in this pattern", self.get_name(name_id)), range);
+    fn bind_one(&mut self, var: &ast::VarName, value: Value, bindings: &mut ValueMap) {
+        if bindings.insert(var.name_id, value).is_some() {
+            let msg = format!("name '{}' already bound in this pattern", self.get_name(var.name_id));
+            self.diagnostics.warning(&msg, &var.range);
         }
     }
 }

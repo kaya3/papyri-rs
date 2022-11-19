@@ -1,11 +1,19 @@
-pub fn is_ascii_alphabetic(s: &str) -> bool {
-    s.chars().all(|c| c.is_ascii_alphabetic())
+/// Indicates whether the given string is a valid name, matching `[a-zA-Z_][a-zA-Z0-9_]*`.
+pub fn is_identifier(s: &str) -> bool {
+    let mut s_chars = s.chars();
+    matches!(s_chars.next(), Some('a'..='z' | 'A'..='Z' | '_'))
+        && s_chars.all(|c| matches!(c, 'a'..='z' | 'A'..='Z' | '0'..='9' | '_'))
 }
 
+/// Indicates whether the given string is all whitespace.
 pub fn is_whitespace(s: &str) -> bool {
     s.chars().all(char::is_whitespace)
 }
 
+/// Strips indentation from the start of each line of the given string. The
+/// indentation of the first line with any non-whitespace characters is removed
+/// from all lines. Leading and trailing whitespace of the whole string is also
+/// removed.
 pub fn fix_indentation(s: &str) -> String {
     let mut indentation_to_remove: Option<&str> = None;
     let mut out = "".to_string();

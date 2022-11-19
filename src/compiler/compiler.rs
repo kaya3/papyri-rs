@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use crate::parser::{parse, AST};
+use crate::parser::{parse, AST, text};
 use crate::utils::taginfo::ContentKind;
 use crate::utils::{Diagnostics, ice_at, ice, SourceFile, SourceRange, str_ids, NameID};
 
@@ -53,9 +53,10 @@ pub struct Compiler<'a> {
 
 impl <'a> Compiler<'a> {
     fn new(diagnostics: &'a mut Diagnostics, loader: &'a mut ModuleLoader) -> Compiler<'a> {
-        let frame = loader.stdlib.as_ref()
-            .map(|stdlib| stdlib.new_child_frame(HashMap::new()))
-            .unwrap_or_else(get_natives_frame);
+        let frame = match loader.stdlib.as_ref() {
+            Some(stdlib) => stdlib.new_child_frame(HashMap::new()),
+            None => get_natives_frame(),
+        };
         Compiler {
             diagnostics,
             loader,
@@ -80,7 +81,7 @@ impl <'a> Compiler<'a> {
                 HTML::Empty
             },
             
-            AST::Group(group) => self.compile_sequence(&group.children, ContentKind::ALLOW_P),
+            AST::Group(group, ..) => self.compile_sequence(group, ContentKind::ALLOW_P),
             AST::Tag(tag) => self.compile_tag(tag),
             
             AST::FuncCall(..) |
@@ -89,28 +90,18 @@ impl <'a> Compiler<'a> {
             AST::Verbatim(..) |
             AST::List(..) => {
                 self.evaluate_node(node, &Type::AnyHTML)
-                    .map(|v| self.compile_value(v))
-                    .unwrap_or(HTML::Empty)
+                    .map_or(HTML::Empty, |v| self.compile_value(v))
             },
             
-            AST::LiteralValue(tok) => tok.text().map(|s| HTML::Text(Rc::from(s))).unwrap_or(HTML::Empty),
+            AST::LiteralValue(tok) => tok.text().map(text::substitutions).map_or(HTML::Empty, HTML::from),
             AST::Text(text, ..) => HTML::Text(text.clone()),
             AST::Whitespace(..) => HTML::Whitespace,
             AST::Escape(range) => self.compile_escape(range),
-            AST::Entity(range) => HTML::Text(Rc::from(self.decode_entity(range))),
+            AST::Entity(range) => HTML::Text(Rc::from(text::decode_entity(range, self.diagnostics))),
             
             AST::ParagraphBreak(range) => ice_at("paragraph break should be handled in SequenceCompiler", range),
-            AST::Template(template) => ice_at("template should not occur in non-value context", &template.range),
+            AST::Template(.., range) => ice_at("template should not occur in non-value context", range),
         }
-    }
-    
-    pub fn decode_entity(&mut self, range: &SourceRange) -> String {
-        let s = range.as_str();
-        let unescaped = HTML::unescape(s);
-        if unescaped == s {
-            self.diagnostics.syntax_error("invalid entity", range);
-        }
-        unescaped
     }
     
     fn compile_escape(&mut self, range: &SourceRange) -> HTML {
@@ -121,22 +112,6 @@ impl <'a> Compiler<'a> {
     }
     
     pub fn unescape_char(&mut self, range: &SourceRange) -> char {
-        let s = range.as_str();
-        match s.chars().nth(1).unwrap() {
-            'u' | 'U' => {
-                let char_code = u32::from_str_radix(&s[2..], 16).expect("failed to parse hex digits");
-                match char::from_u32(char_code) {
-                    Some(c) => c,
-                    None => {
-                        self.diagnostics.syntax_error("invalid unicode escape", range);
-                        // replacement character
-                        '\u{FFFD}'
-                    },
-                }
-            },
-            'n' => '\n',
-            't' => '\t',
-            c => c,
-        }
+        text::unescape_char(range, self.diagnostics)
     }
 }

@@ -94,6 +94,12 @@ impl Type {
     }
 }
 
+impl ToString for Type {
+    fn to_string(&self) -> String {
+        format!("{:?}", self)
+    }
+}
+
 impl std::fmt::Debug for Type {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -141,13 +147,13 @@ impl <'a> Compiler<'a> {
             (Type::Int, Value::Int(..)) |
             (Type::Str, Value::Str(..)) |
             (Type::AnyHTML, Value::HTML(..)) |
-            (Type::Function, Value::Func(..) | Value::NativeFunc(..)) => return Some(value),
+            (Type::Function, Value::Func(..)) => return Some(value),
             
-            (Type::Str, Value::Bool(b)) => return Some(Value::str(Token::bool_to_string(*b))),
-            (Type::Str, Value::Int(i)) => return Some(Value::str(&i.to_string())),
+            (Type::Str, Value::Bool(b)) => return Some(Token::bool_to_string(*b).into()),
+            (Type::Str, Value::Int(i)) => return Some(i.to_string().into()),
             
             (Type::Optional(..), _) |
-            (_, Value::Func(..) | Value::NativeFunc(..)) => {},
+            (_, Value::Func(..)) => {},
             
             (Type::Dict(t), Value::Dict(vs)) => {
                 let mut coerced_vs = HashMap::new();
@@ -177,7 +183,7 @@ impl <'a> Compiler<'a> {
                 if !any_errors { return Some(Value::list(coerced_vs)); }
             },
             
-            (Type::AnyHTML, _) => return Some(Value::HTML(self.compile_value(value))),
+            (Type::AnyHTML, _) => return Some(self.compile_value(value).into()),
             (Type::Block, _) => {
                 let mut r = self.compile_value(value);
                 if !r.is_block() {

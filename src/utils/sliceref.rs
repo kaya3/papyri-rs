@@ -3,6 +3,8 @@ use std::rc::Rc;
 use super::diagnostics::ice;
 
 #[derive(Debug, Clone)]
+/// A reference-counted pointer to a slice, allowing reference-counted pointers
+/// to sub-slices without copying.
 pub struct SliceRef<T> {
     original: Rc<[T]>,
     a: usize,
@@ -23,6 +25,8 @@ impl <T> From<Rc<[T]>> for SliceRef<T> {
 }
 
 impl <T> SliceRef<T> {
+    /// Creates a new reference-counted pointer to a sub-slice of this slice,
+    /// without copying.
     pub fn slice(&self, a: usize, b: usize) -> SliceRef<T> {
         if a > b || self.a + b > self.original.len() { ice("illegal slice"); }
         
@@ -33,10 +37,12 @@ impl <T> SliceRef<T> {
         }
     }
     
+    /// Returns a reference to the slice represented by this pointer.
     pub fn as_ref(&self) -> &[T] {
         &self.original[self.a..self.b]
     }
     
+    /// Returns the length of this slice.
     pub fn len(&self) -> usize {
         self.b - self.a
     }

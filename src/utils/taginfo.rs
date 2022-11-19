@@ -2,6 +2,7 @@ use super::NameID;
 use super::str_ids;
 
 #[derive(Debug, Clone, Copy)]
+/// Specifies what contents/children an HTML tag can have.
 pub enum ContentKind {
     /// Children must all be one of these specific tag kinds; wrap with the first one otherwise
     RequireOneOf(&'static [NameID]),
@@ -15,6 +16,7 @@ pub enum ContentKind {
     RequireInlineNoLineBreaks,
 }
 
+/// Indicates whether `name_id` is the id of a self-closing HTML tag name.
 pub fn is_self_closing(name_id: NameID) -> bool {
     // https://developer.mozilla.org/en-US/docs/Glossary/Void_element
     matches!(
@@ -39,6 +41,7 @@ pub fn is_self_closing(name_id: NameID) -> bool {
     )
 }
 
+/// Indicates whether `name_id` is the id of a HTML block-level tag name.
 pub fn is_block(name_id: NameID) -> bool {
     // https://developer.mozilla.org/en-US/docs/Web/HTML/Block-level_elements
     // "canvas", "menu" and "video" included as extras
@@ -83,6 +86,8 @@ pub fn is_block(name_id: NameID) -> bool {
     )
 }
 
+/// Returns the `ContentKind` specifying what contents/children are allowed for
+/// an HTML tag of this name.
 pub fn content_kind(name_id: NameID) -> ContentKind {
     match name_id {
         str_ids::ARTICLE |
@@ -94,6 +99,7 @@ pub fn content_kind(name_id: NameID) -> ContentKind {
         str_ids::NAV |
         str_ids::SECTION => ContentKind::REQUIRE_P,
         
+        str_ids::ANONYMOUS |
         str_ids::ADDRESS |
         str_ids::DETAILS |
         str_ids::DIV |
@@ -149,7 +155,6 @@ pub fn content_kind(name_id: NameID) -> ContentKind {
         str_ids::H4 |
         str_ids::H5 |
         str_ids::H6 |
-        str_ids::HR |
         str_ids::P => ContentKind::RequireInlineNoLineBreaks,
         
         _ => ContentKind::RequireInline,

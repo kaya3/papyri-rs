@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::{rc::Rc, collections::HashMap};
 
 use crate::utils::{SourceRange, NameID};
 use super::token::Token;
@@ -12,10 +12,22 @@ pub struct TagAttribute {
 }
 
 #[derive(Debug)]
+pub enum TagAttrOrSpread {
+    Attr(TagAttribute),
+    Spread(AST),
+}
+
+#[derive(Debug)]
+pub enum TagName {
+    Fixed(NameID),
+    Variable(VarName),
+}
+
+#[derive(Debug)]
 pub struct Tag {
     pub range: SourceRange,
-    pub name_id: NameID,
-    pub attrs: Box<[TagAttribute]>,
+    pub name: TagName,
+    pub attrs: Box<[TagAttrOrSpread]>,
     pub children: Box<[AST]>,
 }
 
@@ -96,9 +108,12 @@ pub struct FuncCall {
 }
 
 #[derive(Debug)]
-pub struct GroupOrList {
-    pub range: SourceRange,
-    pub children: Box<[AST]>,
+pub enum TemplatePart {
+    Literal(SourceRange),
+    VarName(VarName),
+    Escape(SourceRange),
+    Entity(SourceRange),
+    Whitespace
 }
 
 #[derive(Debug)]
@@ -118,12 +133,25 @@ pub struct MatchBranch {
 pub enum MatchPattern {
     Ignore(SourceRange),
     SpreadIgnore(SourceRange),
+    EmptyHTML(SourceRange),
     Literal(Token),
+    LiteralName(SourceRange, NameID),
     VarName(VarName),
     SpreadVarName(VarName),
+    Regex(SourceRange, regex::Regex, Box<[VarName]>),
     Typed(SourceRange, Box<MatchPattern>, TypeAnnotation),
+    TypeOf(SourceRange, Box<MatchPattern>, VarName),
     ExactList(SourceRange, Box<[MatchPattern]>),
     SpreadList(SourceRange, Box<[MatchPattern]>, usize),
+    Tag(SourceRange, Box<TagMatchPattern>),
+}
+
+#[derive(Debug)]
+pub struct TagMatchPattern {
+    pub name: MatchPattern,
+    pub attrs: HashMap<NameID, MatchPattern>,
+    pub spread: Option<MatchPattern>,
+    pub content: MatchPattern,
 }
 
 impl MatchPattern {
@@ -132,11 +160,16 @@ impl MatchPattern {
             MatchPattern::Ignore(range) |
             MatchPattern::SpreadIgnore(range) |
             MatchPattern::Typed(range, ..) |
+            MatchPattern::TypeOf(range, ..) |
             MatchPattern::ExactList(range, ..) |
             MatchPattern::SpreadList(range, ..) |
+            MatchPattern::Tag(range, ..) |
+            MatchPattern::Regex(range, ..) |
+            MatchPattern::EmptyHTML(range) |
+            MatchPattern::LiteralName(range, ..) |
+            MatchPattern::Literal(Token {range, ..}) |
             MatchPattern::VarName(VarName {range, ..}) |
-            MatchPattern::SpreadVarName(VarName {range, ..}) |
-            MatchPattern::Literal(Token {range, ..}) => range,
+            MatchPattern::SpreadVarName(VarName {range, ..}) => range,
         }
     }
     
@@ -164,9 +197,9 @@ pub enum AST {
     FuncDef(Box<FuncDef>),
     Match(Box<Match>),
     
-    Group(Box<GroupOrList>),
-    List(Box<GroupOrList>),
-    Template(Box<GroupOrList>),
+    Group(Box<[AST]>, SourceRange),
+    List(Box<[AST]>, SourceRange),
+    Template(Box<[TemplatePart]>, SourceRange),
     Tag(Box<Tag>),
     VarName(VarName),
     
@@ -178,14 +211,13 @@ pub enum AST {
 }
 
 impl AST {
-    pub fn seq(open: Token, children: Vec<AST>, close: Option<Token>) -> Box<GroupOrList> {
-        let end = close.map(|t| t.range.end)
-            .or_else(|| children.last().map(|child| child.range().end))
-            .unwrap_or(open.range.end);
-        Box::new(GroupOrList {
-            range: open.range.to_end(end),
-            children: children.into_boxed_slice(),
-        })
+    pub fn seq_range(open: Token, children: &[AST], close: Option<Token>) -> SourceRange {
+        let end = match (children.last(), close) {
+            (_, Some(close)) => close.range.end,
+            (Some(child), _) => child.range().end,
+            _ => open.range.end,
+        };
+        open.range.to_end(end)
     }
     
     pub fn range(&self) -> &SourceRange {
@@ -195,14 +227,13 @@ impl AST {
             AST::Match(m) => &m.range,
             AST::Tag(tag) => &tag.range,
             
-            AST::Group(g) |
-            AST::List(g) |
-            AST::Template(g) => &g.range,
-            
             AST::LiteralValue(Token {range, ..}) |
             AST::Verbatim(Token {range, ..}) |
-            AST::VarName(VarName{range, ..}) |
-            AST::Text(_, range) |
+            AST::VarName(VarName {range, ..}) |
+            AST::Text(.., range) |
+            AST::Group(.., range) |
+            AST::List(.., range) |
+            AST::Template(.., range) |
             AST::Entity(range) |
             AST::Escape(range) |
             AST::Whitespace(range) |

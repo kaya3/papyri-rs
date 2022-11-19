@@ -8,10 +8,10 @@ impl ContentKind {
     pub const REQUIRE_P: ContentKind = ContentKind::RequireBlock(str_ids::P);
     pub const ALLOW_P: ContentKind = ContentKind::AllowBlock(str_ids::P);
     
-    fn wrap_with(&self) -> NameID {
+    fn wrap_with(self) -> NameID {
         match self {
             ContentKind::RequireOneOf(tag_name_ids) => tag_name_ids[0],
-            ContentKind::RequireBlock(tag_name_id) | ContentKind::AllowBlock(tag_name_id) => *tag_name_id,
+            ContentKind::RequireBlock(tag_name_id) | ContentKind::AllowBlock(tag_name_id) => tag_name_id,
             _ => str_ids::P,
         }
     }
@@ -59,12 +59,11 @@ impl SequenceBuilder {
     
     fn to_html(mut self) -> HTML {
         if matches!(self.content_kind, ContentKind::AllowBlock(..)) && self.children.is_empty() {
-            return self.next_child.map(|c| c.to_html())
-                .unwrap_or(HTML::Empty);
+            return self.next_child.map_or(HTML::Empty, |c| c.to_html());
         }
         
         self.close_child();
-        while matches!(self.children.last(), Some(HTML::Whitespace)) {
+        while matches!(self.children.last(), Some(c) if c.is_whitespace()) {
             self.children.pop();
         }
         HTML::seq(&self.children)

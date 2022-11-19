@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 use std::rc::Rc;
-use maplit::{hashmap, convert_args};
+use maplit::hashmap;
 
 use crate::utils::{ice_at, str_ids, text, NameID, SourceRange};
 use super::frame::ActiveFrame;
-use super::func::{FuncSignature, FuncParam};
+use super::func::{FuncSignature, FuncParam, Func};
 use super::highlight::{syntax_highlight, enumerate_lines};
 use super::html::HTML;
 use super::compiler::Compiler;
@@ -20,20 +20,64 @@ pub enum NativeFunc {
     Include,
     Let,
     Map,
+    Raise,
     SyntaxHighlight,
 }
 
 pub fn get_natives_frame() -> ActiveFrame {
-    ActiveFrame::new(None, convert_args!(hashmap!(
-        str_ids::EXPORT => NativeFunc::Export,
-        str_ids::FIX_INDENTATION => NativeFunc::FixIndentation,
-        str_ids::IMPLICIT => NativeFunc::Implicit,
-        str_ids::IMPORT => NativeFunc::Import,
-        str_ids::INCLUDE => NativeFunc::Include,
-        str_ids::LET => NativeFunc::Let,
-        str_ids::MAP => NativeFunc::Map,
-        str_ids::SYNTAX_HIGHLIGHT => NativeFunc::SyntaxHighlight,
-    )))
+    let args_dict = Rc::new(FuncSignature {
+        positional_params: Box::new([]),
+        spread_param: None,
+        named_params: HashMap::new(),
+        spread_named_param: Some(FuncParam::new(str_ids::ARGS, Type::dict(Type::AnyValue))),
+        content_param: FuncParam::new(str_ids::CONTENT, Type::Unit),
+    });
+    
+    let content_str = Rc::new(FuncSignature {
+        positional_params: Box::new([]),
+        spread_param: None,
+        named_params: HashMap::new(),
+        spread_named_param: None,
+        content_param: FuncParam::new(str_ids::CONTENT, Type::Str),
+    });
+    
+    let map = Rc::new(FuncSignature {
+        positional_params: Box::new([
+            FuncParam::new(str_ids::_CALLBACK, Type::Function),
+        ]),
+        spread_param: None,
+        named_params: HashMap::new(),
+        spread_named_param: None,
+        content_param: FuncParam::new(str_ids::CONTENT, Type::list(Type::AnyValue)),
+    });
+    
+    let syntax_highlight = Rc::new(FuncSignature {
+        positional_params: Box::new([]),
+        spread_param: None,
+        named_params: hashmap!(
+            str_ids::LANGUAGE => FuncParam::new(str_ids::LANGUAGE, Type::optional(Type::Str)).implicit().with_default(Value::Unit),
+            str_ids::CODE_BLOCK => FuncParam::new(str_ids::CODE_BLOCK, Type::Bool).with_default(Value::Bool(false)),
+            str_ids::FIRST_LINE_NO => FuncParam::new(str_ids::FIRST_LINE_NO, Type::optional(Type::Int)).with_default(Value::Unit),
+        ),
+        spread_named_param: None,
+        content_param: FuncParam::new(str_ids::CONTENT, Type::Str),
+    });
+    
+    let bindings: ValueMap = [
+        (NativeFunc::Export, args_dict.clone()),
+        (NativeFunc::FixIndentation, content_str.clone()),
+        (NativeFunc::Implicit, args_dict.clone()),
+        (NativeFunc::Import, content_str.clone()),
+        (NativeFunc::Include, content_str.clone()),
+        (NativeFunc::Let, args_dict),
+        (NativeFunc::Map, map),
+        (NativeFunc::Raise, content_str),
+        (NativeFunc::SyntaxHighlight, syntax_highlight),
+    ].into_iter().map(|(f, sig)| {
+        (f.name_id(), Value::Func(Func::Native(f, sig)))
+    }).collect();
+    
+    ActiveFrame::new(None, bindings)
 }
 
 impl NativeFunc {
@@ -46,64 +90,9 @@ impl NativeFunc {
             NativeFunc::Include => str_ids::INCLUDE,
             NativeFunc::Let => str_ids::LET,
             NativeFunc::Map => str_ids::MAP,
+            NativeFunc::Raise => str_ids::RAISE,
             NativeFunc::SyntaxHighlight => str_ids::SYNTAX_HIGHLIGHT,
         }
-    }
-    
-    pub fn signature(&self) -> FuncSignature {
-        match self {
-            NativeFunc::Export | NativeFunc::Implicit | NativeFunc::Let => FuncSignature {
-                positional_params: Box::new([]),
-                spread_param: None,
-                named_params: HashMap::new(),
-                spread_named_param: Some(FuncParam::new(str_ids::ARGS, Type::dict(Type::AnyValue))),
-                content_param: FuncParam::new(str_ids::CONTENT, Type::Unit),
-            },
-            
-            NativeFunc::FixIndentation => FuncSignature {
-                positional_params: Box::new([]),
-                spread_param: None,
-                named_params: HashMap::new(),
-                spread_named_param: None,
-                content_param: FuncParam::new(str_ids::CONTENT, Type::Str),
-            },
-            
-            NativeFunc::Import | NativeFunc::Include => FuncSignature {
-                positional_params: Box::new([]),
-                spread_param: None,
-                named_params: HashMap::new(),
-                spread_named_param: None,
-                content_param: FuncParam::new(str_ids::PATH, Type::Str),
-            },
-            
-            NativeFunc::Map => FuncSignature {
-                positional_params: Box::new([
-                    FuncParam::new(str_ids::_CALLBACK, Type::Function),
-                ]),
-                spread_param: None,
-                named_params: HashMap::new(),
-                spread_named_param: None,
-                content_param: FuncParam::new(str_ids::CONTENT, Type::list(Type::AnyValue)),
-            },
-            
-            NativeFunc::SyntaxHighlight => FuncSignature {
-                positional_params: Box::new([]),
-                spread_param: None,
-                named_params: hashmap!(
-                    str_ids::LANGUAGE => FuncParam::new(str_ids::LANGUAGE, Type::optional(Type::Str)).implicit().with_default(Value::Unit),
-                    str_ids::CODE_BLOCK => FuncParam::new(str_ids::CODE_BLOCK, Type::Bool).with_default(Value::Bool(false)),
-                    str_ids::FIRST_LINE_NO => FuncParam::new(str_ids::FIRST_LINE_NO, Type::optional(Type::Int)).with_default(Value::Unit),
-                ),
-                spread_named_param: None,
-                content_param: FuncParam::new(str_ids::CONTENT, Type::Str),
-            },
-        }
-    }
-}
-
-impl From<NativeFunc> for Value {
-    fn from(f: NativeFunc) -> Value {
-        Value::NativeFunc(f)
     }
 }
 
@@ -126,12 +115,11 @@ impl <'a> Compiler<'a> {
                 let Some(Value::Str(content)) = bindings.get(&str_ids::CONTENT) else {
                     ice_at("failed to unpack", call_range);
                 };
-                let s = Rc::from(text::fix_indentation(content));
-                return Some(Value::Str(s));
+                return Some(text::fix_indentation(content).into());
             },
             
             NativeFunc::Import | NativeFunc::Include => {
-                let Some(Value::Str(path_str)) = bindings.get(&str_ids::PATH) else {
+                let Some(Value::Str(path_str)) = bindings.get(&str_ids::CONTENT) else {
                     ice_at("failed to unpack", call_range);
                 };
                 
@@ -151,7 +139,7 @@ impl <'a> Compiler<'a> {
                     Value::Dict(module.exports.clone())
                 } else {
                     self.set_vars(module.exports.as_ref(), false, call_range);
-                    Value::HTML(module.out.clone())
+                    Value::from(&module.out)
                 });
             },
             
@@ -177,10 +165,20 @@ impl <'a> Compiler<'a> {
                         callback.clone(),
                         bindings,
                         &Type::AnyValue,
+                        call_range,
                     )?;
                     out.push(self.compile_value(r));
                 }
-                return Some(Value::HTML(HTML::seq(&out)));
+                return Some(HTML::seq(&out).into());
+            },
+            
+            NativeFunc::Raise => {
+                let Some(Value::Str(content)) = bindings.get(&str_ids::CONTENT) else {
+                    ice_at("failed to unpack", call_range);
+                };
+                
+                self.diagnostics.runtime_error(content, call_range);
+                return None;
             },
             
             NativeFunc::SyntaxHighlight => {
@@ -194,7 +192,7 @@ impl <'a> Compiler<'a> {
                 };
                 
                 let Value::Str(language) = language else {
-                    return Some(Value::HTML(HTML::text(src)));
+                    return Some(HTML::Text(src.clone()).into());
                 };
                 
                 let first_line_no = if let Value::Int(i) = first_line_no {
@@ -203,12 +201,12 @@ impl <'a> Compiler<'a> {
                 } else { 1 };
                 
                 let r = syntax_highlight(src.as_ref(), language.as_ref());
-                return Some(Value::HTML(if *block {
+                return Some(if *block {
                     enumerate_lines(r, first_line_no)
                 } else {
                     if r.len() > 1 { self.diagnostics.warning("multi-line string in inline syntax highlight", call_range); }
                     HTML::seq(&r)
-                }));
+                }.into());
             }
         }
         

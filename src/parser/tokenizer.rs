@@ -1,44 +1,48 @@
 use std::rc::Rc;
-
 use once_cell::sync::Lazy;
 
 use crate::utils::{Diagnostics, SourceRange, SourceFile};
-use super::token::{Token, TokenKind};
+use super::token::{Token, TokenKind, QuoteDir, QuoteKind};
 
-// later patterns take priority
+// Later patterns take priority
 static LEXER: Lazy<regex_lexer::Lexer<TokenKind>> = Lazy::new(
     || regex_lexer::LexerBuilder::new()
-        .token(r".", TokenKind::Undetermined)
-        .token(r"\s+", TokenKind::Whitespace) // or short Newline
-        .token(r"\s*\n\s*\n\s*", TokenKind::Newline)
-        .token(r"[\$@<]?[a-zA-Z_][a-zA-Z0-9_]*", TokenKind::Name)
-        .token(r"</(?:[a-zA-Z_][a-zA-Z0-9_]*)?>", TokenKind::CloseTag)
+        .token(r"<!--|/>|->|\.\.\.|\*\*|.", TokenKind::Undetermined)
+        .token(r"\s+", TokenKind::Whitespace) // or Newline
+        .token(r"[a-zA-Z_][a-zA-Z0-9_]*", TokenKind::Name)
         .token(r"-?[0-9]+", TokenKind::Number)
-        .token(r"\\(?:u[0-9a-fA-F]{4}|U[0-9a-fA-F]{8}|[^uU])", TokenKind::Escape)
+        .token(r"</(?:[a-zA-Z_][a-zA-Z0-9_]*)?>", TokenKind::CloseTag)
+        .token(r"\\(?:x[0-9a-fA-F]{2}|u[0-9a-fA-F]{4}|U[0-9a-fA-F]{8}|[^xuU])", TokenKind::Escape)
         .token(r"&(?:[a-zA-Z][a-zA-Z0-9]*|#[0-9]+);", TokenKind::Entity)
-        .token(r"#[^\n]*(?:\n[^\S\n]*)?", TokenKind::Comment)
-        .token(r"<!--", TokenKind::LAngleComment)
-        .token(r"/>", TokenKind::RAngleSlash)
-        .token(r"-->", TokenKind::RAngleComment)
-        .token(r"->", TokenKind::Arrow)
-        .token(r"\.\.\.", TokenKind::Ellipsis)
-        .token(r"\*\*?", TokenKind::Asterisk)
         .token(r"`+", TokenKind::Verbatim)
-        .token("[^#\\sa-zA-Z0-9_\\\\\\-\\(\\)\\[\\]\\{\\}<>/\\.,=:~\\|\\?@\\*\\$`'\"]+", TokenKind::RawText)
+        .token(r"#[^\n]*(?:\n[^\S\n]*)?", TokenKind::Comment)
+        .token(r"-->", TokenKind::RAngleComment)
+        .token(r#"[^#\sa-zA-Z0-9_\\\-\(\)\[\]\{\}<>/\.,=:~\|\?@\*\$`'"]+"#, TokenKind::RawText)
         .build()
         .expect("Failed to build regex_lexer")
 );
 
+/// Tokenizes the given Papyri source file.
 pub fn tokenize(src: Rc<SourceFile>, strip_comments: bool, diagnostics: &mut Diagnostics) -> Vec<Token> {
+    // The current index in the source string. Used to generate token spans.
     let mut cur = 0;
-    let mut open_tag = false;
-    let mut right_quote = false;
+    
+    // Indicates whether a quote `'` or `"` should become a left or right quote.
+    let mut quote_dir = QuoteDir::Left;
+    
+    // In most places, two newlines are needed to make a paragraph break; but a
+    // Comment token consumes its trailing newline, so this flag indicates
+    // whether only one newline is needed for a paragraph break.
     let mut short_newline = false;
     
-    let mut errors = Vec::new();
-    let mut tokens = Vec::<Token>::new();
+    // Holds errors to be emitted for the current token; these cannot be sent
+    // to `diagnostics` until a span is known.
+    let mut errors: Vec<&str> = Vec::new();
     
-    let mut token_stream = LEXER.tokens(&src.src);
+    // Collects the output tokens.
+    let mut tokens: Vec<Token> = Vec::new();
+    
+    let mut token_stream = LEXER.tokens(&src.src).peekable();
     while let Some(t) = token_stream.next() {
         let mut kind = t.kind;
         let mut s = t.text;
@@ -46,45 +50,56 @@ pub fn tokenize(src: Rc<SourceFile>, strip_comments: bool, diagnostics: &mut Dia
         match kind {
             TokenKind::Undetermined => {
                 kind = match s {
+                    "<!--" => {
+                        if let Some(close_tok) = token_stream.find(|t| t.kind == TokenKind::RAngleComment) {
+                            s = &src.src[cur..close_tok.span.end];
+                        } else {
+                            // no syntax error here; an unmatched `<!--` means
+                            // the rest of the file is commented
+                            s = &src.src[cur..];
+                        }
+                        TokenKind::Comment
+                    },
+                    
+                    "$" | "@" if matches!(token_stream.peek(), Some(tok) if tok.kind == TokenKind::Name) => {
+                        let k = if s == "$" { TokenKind::VarName } else { TokenKind::FuncName };
+                        let end = token_stream.next().unwrap().span.end;
+                        s = &src.src[cur..end];
+                        k
+                    },
+                    
                     "(" => TokenKind::LPar,
                     ")" => TokenKind::RPar,
                     "[" => TokenKind::LSqb,
                     "]" => TokenKind::RSqb,
                     "{" => TokenKind::LBrace,
                     "}" => TokenKind::RBrace,
-                    "<" => {
-                        open_tag = true;
-                        TokenKind::LAngle
-                    },
+                    "<" => TokenKind::LAngle,
                     ">" => TokenKind::RAngle,
+                    "/>" => TokenKind::RAngleSlash,
                     "." => TokenKind::Dot,
+                    "..." => TokenKind::Ellipsis,
                     "," => TokenKind::Comma,
                     "=" => TokenKind::Equals,
                     ":" => TokenKind::Colon,
-                    "~" => TokenKind::Tilde,
                     "|" => TokenKind::Bar,
                     "?" => TokenKind::QuestionMark,
-                    "$" => TokenKind::Dollar,
-                    "@" => TokenKind::At,
-                    "'" => if right_quote { TokenKind::RQuote } else { TokenKind::LQuote },
-                    "\"" => if right_quote { TokenKind::RDblQuote } else { TokenKind::LDblQuote },
+                    "*" | "**" => TokenKind::Asterisk,
+                    "->" => TokenKind::Arrow,
+                    "'" => TokenKind::Quote(QuoteKind::Single, quote_dir),
+                    "\"" => TokenKind::Quote(QuoteKind::Double, quote_dir),
                     
                     _ => TokenKind::RawText,
                 };
             },
             
-            TokenKind::Name => {
-                kind = match s {
-                    "True" | "False" => TokenKind::Boolean,
-                    s if s.starts_with("@") => TokenKind::FuncName,
-                    s if s.starts_with("<") => TokenKind::OpenTag,
-                    s if s.starts_with("$") => TokenKind::VarName,
-                    _ => TokenKind::Name,
-                };
-            }
+            TokenKind::Name if matches!(s, "True" | "False") => {
+                kind = TokenKind::Boolean;
+            },
             
             TokenKind::Whitespace => {
-                if short_newline && s.contains("\n") { kind = TokenKind::Newline; }
+                let newlines = s.chars().filter(|c| *c == '\n').count();
+                if newlines >= 2 || (short_newline && newlines >= 1) { kind = TokenKind::Newline; }
             },
             
             TokenKind::Verbatim => {
@@ -101,21 +116,10 @@ pub fn tokenize(src: Rc<SourceFile>, strip_comments: bool, diagnostics: &mut Dia
                     errors.push("unexpected end of file in verbatim string");
                 }
             },
-            TokenKind::LAngleComment => {
-                kind = TokenKind::Comment;
-                if let Some(close_tok) = token_stream.find(|t| t.kind == TokenKind::RAngleComment) {
-                    s = &src.src[cur..close_tok.span.end];
-                } else {
-                    s = &src.src[cur..];
-                }
-            },
             TokenKind::RAngleComment => {
                 kind = TokenKind::RawText;
             },
             
-            TokenKind::CloseTag | TokenKind::RAngleSlash => {
-                open_tag = false;
-            },
             _ => {},
         }
         
@@ -133,10 +137,9 @@ pub fn tokenize(src: Rc<SourceFile>, strip_comments: bool, diagnostics: &mut Dia
         }
         errors.clear();
         
-        right_quote = match kind {
-            TokenKind::Equals | TokenKind::LBrace | TokenKind::LPar | TokenKind::LSqb | TokenKind::Newline | TokenKind::Whitespace => false,
-            TokenKind::RAngle | TokenKind::RAngleSlash => !open_tag,
-            _ => true,
+        quote_dir = match kind {
+            TokenKind::Equals | TokenKind::LBrace | TokenKind::LPar | TokenKind::LSqb | TokenKind::RAngle | TokenKind::Newline | TokenKind::Whitespace => QuoteDir::Left,
+            _ => QuoteDir::Right,
         };
         short_newline = kind == TokenKind::Comment;
         cur = end;
@@ -144,6 +147,9 @@ pub fn tokenize(src: Rc<SourceFile>, strip_comments: bool, diagnostics: &mut Dia
         if kind == TokenKind::Comment && strip_comments {
             continue;
         } else if let Some(prev_token) = tokens.last() {
+            // Ensure that there are never two consecutive whitespace tokens in
+            // the output. This can happen if a comment token is removed from
+            // between two whitespace tokens.
             if tok.is_whitespace() && prev_token.is_whitespace() {
                 if tok.kind == TokenKind::Newline {
                     tokens.pop();

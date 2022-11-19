@@ -5,15 +5,16 @@ use crate::parser::{ast, AST};
 use crate::utils::{Diagnostics, SourceRange, ice_at, NameID};
 use super::compiler::Compiler;
 use super::frame::InactiveFrame;
+use super::native::NativeFunc;
 use super::types::Type;
 use super::value::{Value, ValueMap};
 
 #[derive(Debug)]
 pub struct FuncParam {
-    pub name_id: NameID,
-    pub is_implicit: bool,
-    pub type_: Type,
-    pub default_value: Option<Value>,
+    name_id: NameID,
+    is_implicit: bool,
+    type_: Type,
+    default_value: Option<Value>,
 }
 
 impl FuncParam {
@@ -70,23 +71,32 @@ impl FuncSignature {
 }
 
 #[derive(Debug, Clone)]
-pub struct Func(Rc<_Func>);
+pub enum Func {
+    NonNative(Rc<NonNativeFunc>),
+    Native(NativeFunc, Rc<FuncSignature>),
+}
 
 impl Func {
     pub fn name_id(&self) -> NameID {
-        self.0.name_id
+        match self {
+            Func::NonNative(f) => f.name_id,
+            Func::Native(f, _) => f.name_id(),
+        }
     }
     
     pub fn signature(&self) -> &FuncSignature {
-        &self.0.signature
+        match self {
+            Func::NonNative(f) => &f.signature,
+            Func::Native(_, sig) => sig,
+        }
     }
 }
 
 #[derive(Debug)]
-struct _Func {
+pub struct NonNativeFunc {
     name_id: NameID,
     closure: InactiveFrame,
-    pub signature: FuncSignature,
+    signature: FuncSignature,
     body: Rc<AST>,
 }
 
@@ -285,7 +295,7 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
 
 impl <'a> Compiler<'a> {
     pub fn compile_func_def(&mut self, def: &ast::FuncDef) -> Func {
-        Func(Rc::new(_Func {
+        Func::NonNative(Rc::new(NonNativeFunc {
             name_id: def.name_id,
             closure: self.frame.to_inactive(),
             signature: self.compile_func_signature(&def.signature),
@@ -311,8 +321,7 @@ impl <'a> Compiler<'a> {
     
     pub fn compile_param(&mut self, param: &ast::Param) -> FuncParam {
         let mut type_ = param.type_annotation.as_ref()
-            .map(Type::compile)
-            .unwrap_or(Type::AnyValue);
+            .map_or(Type::AnyValue, Type::compile);
         let mut default_value = param.default_value.as_ref()
             .map(|v| self.evaluate_node(v, &type_))
             .flatten();
@@ -333,11 +342,7 @@ impl <'a> Compiler<'a> {
         match self.get_var(call.name_id, &call.range)? {
             Value::Func(f) => {
                 let bindings = f.signature().bind_call(self, call)?;
-                self.evaluate_func_call_with_bindings(f, bindings, type_hint)
-            },
-            Value::NativeFunc(f) => {
-                let bindings = f.signature().bind_call(self, call)?;
-                self.evaluate_native_func(f, bindings, &call.range)
+                self.evaluate_func_call_with_bindings(f, bindings, type_hint, &call.range)
             },
             _ => {
                 self.diagnostics.type_error(&format!("'{}' is not a function", self.get_name(call.name_id)), &call.range);
@@ -346,9 +351,16 @@ impl <'a> Compiler<'a> {
         }
     }
     
-    pub fn evaluate_func_call_with_bindings(&mut self, func: Func, bindings: ValueMap, type_hint: &Type) -> Option<Value> {
-        let frame = func.0.closure.new_child_frame(bindings);
-        self.evaluate_in_frame(frame, func.0.body.as_ref(), type_hint)
+    pub fn evaluate_func_call_with_bindings(&mut self, func: Func, bindings: ValueMap, type_hint: &Type, call_range: &SourceRange) -> Option<Value> {
+        match func {
+            Func::NonNative(f) => {
+                let frame = f.closure.new_child_frame(bindings);
+                self.evaluate_in_frame(frame, f.body.as_ref(), type_hint)
+            },
+            Func::Native(f, _) => {
+                self.evaluate_native_func(f, bindings, call_range)
+            },
+        }
     }
 }
 

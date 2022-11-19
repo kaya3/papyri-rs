@@ -19,7 +19,6 @@ pub enum TokenKind {
     Boolean,
     Verbatim,
     
-    OpenTag,
     CloseTag,
     
     LPar,
@@ -29,7 +28,6 @@ pub enum TokenKind {
     LBrace,
     RBrace,
     LAngle,
-    LAngleComment,
     RAngle,
     RAngleSlash,
     RAngleComment,
@@ -39,17 +37,23 @@ pub enum TokenKind {
     Comma,
     Equals,
     Colon,
-    Tilde,
     Arrow,
     Bar,
     Asterisk,
     QuestionMark,
-    At,
-    Dollar,
-    LQuote,
-    RQuote,
-    LDblQuote,
-    RDblQuote,
+    Quote(QuoteKind, QuoteDir),
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum QuoteKind {
+    Single,
+    Double,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum QuoteDir {
+    Left,
+    Right,
 }
 
 pub struct Token {
@@ -57,60 +61,71 @@ pub struct Token {
     pub range: SourceRange,
 }
 
+impl ToString for Token {
+    fn to_string(&self) -> String {
+        self.as_str().to_string()
+    }
+}
+
 impl Token {
+    /// Returns this token's source as a borrowed string.
     pub fn as_str(&self) -> &str {
         self.range.as_str()
     }
     
-    pub fn to_string(&self) -> String {
-        self.as_str().to_string()
-    }
-    
+    /// Indicates whether this token is a whitespace or newline token.
     pub fn is_whitespace(&self) -> bool {
         self.kind == TokenKind::Whitespace || self.kind == TokenKind::Newline
     }
     
+    /// Indicates whether this token is a primitive type name.
     pub fn is_primitive_type(&self) -> bool {
-        matches!(self.as_str(), "any" | "none" | "html" | "block" | "inline" | "bool" | "int" | "str" | "function")
+        matches!(self.kind, TokenKind::Name)
+            && matches!(self.as_str(), "any" | "none" | "html" | "block" | "inline" | "bool" | "int" | "str" | "function")
     }
     
+    /// Indicates whether this token is a group type name or modifier.
     pub fn is_group_type(&self) -> bool {
-        matches!(self.as_str(), "dict" | "list" | "?")
+        matches!(self.kind, TokenKind::Name | TokenKind::QuestionMark)
+            && matches!(self.as_str(), "dict" | "list" | "?")
     }
     
-    pub fn is_close_tag(&self, name: &str) -> bool {
+    /// Indicates whether this token is a closing tag for the given tag name.
+    /// If no tag name is given, only `</>` matches.
+    pub fn is_close_tag(&self, name: &Option<String>) -> bool {
         self.kind == TokenKind::CloseTag && {
             let s = self.as_str();
-            s == "</>" || &s[2..s.len()-1].to_ascii_lowercase() == name
+            s == "</>" || matches!(name, Some(t) if t == &s[2..s.len() - 1].to_ascii_lowercase())
         }
     }
     
+    /// Returns the `bool` value of a Boolean literal token.
     pub fn get_bool_value(&self) -> bool {
         if self.kind != TokenKind::Boolean { ice("token is not Boolean"); }
         self.as_str() == "True"
     }
     
+    /// Converts a `bool` value to the source of a Boolean literal token. This
+    /// is the inverse of `get_bool_value`.
     pub fn bool_to_string(b: bool) -> &'static str {
         if b { "True" } else { "False" }
     }
     
-    pub fn get_open_tag_name(&self) -> &str {
-        if self.kind != TokenKind::OpenTag { ice("token is not OpenTag"); }
-        &self.as_str()[1..]
-    }
-    
+    /// Returns the function name from this FuncName token.
     pub fn get_func_name(&self) -> &str {
         match self.kind {
             TokenKind::FuncName => &self.as_str()[1..],
-            _ => ice("token is not At or FuncName"),
+            _ => ice("token is not FuncName"),
         }
     }
     
+    /// Returns the variable name from this VarName token.
     pub fn get_var_name(&self) -> &str {
         if self.kind != TokenKind::VarName { ice("token is not VarName"); }
         &self.as_str()[1..]
     }
     
+    /// Returns the raw text of this Verbatim token.
     pub fn get_verbatim_text(&self) -> &str {
         if self.kind != TokenKind::Verbatim { ice("token is not Verbatim"); }
         let s = self.as_str();
@@ -119,18 +134,20 @@ impl Token {
         &s[i..s.len()-i]
     }
     
+    /// Indicates whether this Verbatim token is a multi-line string literal.
     pub fn is_multiline_verbatim(&self) -> bool {
         if self.kind != TokenKind::Verbatim { ice("token is not Verbatim"); }
         self.as_str().starts_with("```")
     }
     
-    pub fn text(&self) -> Option<String> {
+    /// Returns the representation of this token as normal text, if it has one.
+    pub fn text(&self) -> Option<&str> {
         match self.kind {
             TokenKind::Name |
+            TokenKind::Number |
             TokenKind::Boolean |
             TokenKind::LPar |
             TokenKind::RPar |
-            TokenKind::LAngle |
             TokenKind::RAngle |
             TokenKind::RAngleSlash |
             TokenKind::Dot |
@@ -138,23 +155,23 @@ impl Token {
             TokenKind::Equals |
             TokenKind::Colon |
             TokenKind::Asterisk |
-            TokenKind::At |
-            TokenKind::Dollar |
             TokenKind::QuestionMark |
             TokenKind::Arrow |
-            TokenKind::RawText => Some(self.to_string()),
+            TokenKind::RawText => Some(self.as_str()),
             
-            TokenKind::Number => Some(self.as_str().replace("-", "\u{2212}")),
-            TokenKind::Ellipsis => Some("\u{2026}".to_string()),
-            TokenKind::LQuote => Some("\u{2018}".to_string()),
-            TokenKind::RQuote => Some("\u{2019}".to_string()),
-            TokenKind::LDblQuote => Some("\u{201C}".to_string()),
-            TokenKind::RDblQuote => Some("\u{201D}".to_string()),
+            TokenKind::Ellipsis => Some("\u{2026}"),
             
-            // non-breaking space
-            TokenKind::Tilde => Some("\u{00A0}".to_string()),
+            TokenKind::Quote(q, d) => Some(match (q, d) {
+                // single quotes
+                (QuoteKind::Single, QuoteDir::Left) => "\u{2018}",
+                (QuoteKind::Single, QuoteDir::Right) => "\u{2019}",
+                // double quotes
+                (QuoteKind::Double, QuoteDir::Left) => "\u{201C}",
+                (QuoteKind::Double, QuoteDir::Right) => "\u{201D}",
+            }),
+            
             // word joiner
-            TokenKind::Bar => Some("\u{2060}".to_string()),
+            TokenKind::Bar => Some("\u{2060}"),
             
             _ => None,
         }

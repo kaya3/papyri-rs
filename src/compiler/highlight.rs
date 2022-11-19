@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use crate::utils::str_ids;
 use super::html::HTML;
 use super::tag::Tag;
@@ -7,10 +5,9 @@ use super::tag::Tag;
 pub fn enumerate_lines(lines: Vec<HTML>, start: i64) -> HTML {
     let mut out = Vec::new();
     for (i, line) in lines.into_iter().enumerate() {
-        let mut tag = Tag::new(str_ids::SPAN, line.clone());
-        tag.add_css_class("line");
-        let index = Rc::from((i as i64 + start).to_string());
-        tag.attr(str_ids::DATA_LINE_NO, Some(index));
+        let tag = Tag::new(str_ids::SPAN, line)
+            .str_attr(str_ids::CLASS, "line")
+            .str_attr(str_ids::DATA_LINE_NO, &(i as i64 + start).to_string());
         out.push(HTML::from(tag));
         out.push(HTML::RawNewline);
     }
@@ -37,7 +34,6 @@ pub fn syntax_highlight(src: &str, language: &str) -> Vec<HTML> {
 #[cfg(feature="syntect")]
 mod syntect_highlighting {
     use std::ops::Range;
-    use std::rc::Rc;
     use std::str::FromStr;
     use once_cell::sync::Lazy;
     use syntect::parsing::{SyntaxSet, Scope, ScopeStack, ParseState};
@@ -149,7 +145,7 @@ mod syntect_highlighting {
             TokenKind::KeywordOp
         } else if CACHE.op.does_match(stack).is_some() {
             TokenKind::Op
-        } else if text::is_ascii_alphabetic(s) && CACHE.keyword.does_match(stack).is_some() {
+        } else if text::is_identifier(s) && CACHE.keyword.does_match(stack).is_some() {
             TokenKind::Keyword
         } else if CACHE.punctuation.does_match(stack).is_some() {
             TokenKind::Punctuation
@@ -161,7 +157,7 @@ mod syntect_highlighting {
             TokenKind::TypeAnnotation
         } else if CACHE.decorator.does_match(stack).is_some() {
             TokenKind::Decorator
-        } else if text::is_ascii_alphabetic(s) {
+        } else if text::is_identifier(s) {
             TokenKind::Name
         } else {
             TokenKind::Punctuation
@@ -207,11 +203,11 @@ mod syntect_highlighting {
                                 },
                                 _ => {
                                     line_highlighter.push(range, TokenKind::ParenUnmatched);
-                                }
+                                },
                             },
                             _ => {
                                 line_highlighter.push(range, kind);
-                            }
+                            },
                         }
                     }
                     out.push(line_highlighter.close());
@@ -266,14 +262,15 @@ mod syntect_highlighting {
         }
         
         fn push(&mut self, range: Range<usize>, kind: TokenKind) {
-            if range.is_empty() { return; }
-            if matches!(self.current_token_kind, Some(k) if k == kind) {
+            if range.is_empty() {
+                // do nothing
+            } else if matches!(self.current_token_kind, Some(k) if k == kind) {
                 self.current_range.end = range.end;
-                return;
+            } else {
+                self.close_part();
+                self.current_token_kind = Some(kind);
+                self.current_range = range;
             }
-            self.close_part();
-            self.current_token_kind = Some(kind);
-            self.current_range = range;
         }
         
         fn close_part(&mut self) {
@@ -311,21 +308,21 @@ mod syntect_highlighting {
             TokenKind::String => "string",
             TokenKind::TypeAnnotation => "type-annotation",
             TokenKind::URL => return make_link_token(s, false),
-            TokenKind::Whitespace => return if s == " " { HTML::Whitespace } else { HTML::text(s) },
+            TokenKind::Whitespace => return HTML::text(s),
         };
         
-        let mut tag = Tag::new(str_ids::SPAN, HTML::text(s));
-        tag.add_css_class(css_class);
+        let mut tag = Tag::new(str_ids::SPAN, HTML::text(s))
+            .str_attr(str_ids::CLASS, css_class);
         if paren_no > 0 {
-            tag.attr(str_ids::DATA_PAREN_NO, Some(Rc::from(format!("{}", paren_no))));
+            tag = tag.str_attr(str_ids::DATA_PAREN_NO, &format!("{}", paren_no));
         }
         HTML::from(tag)
     }
     
     fn make_link_token(s: &str, is_comment: bool) -> HTML {
-        let mut tag = Tag::new(str_ids::A, HTML::text(s));
-        tag.attr(str_ids::HREF, Some(Rc::from(s)));
-        if is_comment { tag.add_css_class("comment"); }
+        let mut tag = Tag::new(str_ids::A, HTML::text(s))
+            .str_attr(str_ids::HREF, s);
+        if is_comment { tag = tag.str_attr(str_ids::CLASS, "comment"); }
         HTML::from(tag)
     }
 }

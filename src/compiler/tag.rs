@@ -1,125 +1,111 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::rc::Rc;
 
 use crate::parser::ast;
-use crate::utils::{ice_at, str_ids, NameID, taginfo};
+use crate::utils::{ice_at, str_ids, NameID, taginfo, text, ice, SourceRange};
 use super::compiler::Compiler;
 use super::html::HTML;
 use super::types::Type;
 use super::value::Value;
 
-#[derive(Debug, Clone)]
-pub struct PlainTag {
-    pub name_id: NameID,
-    pub content: HTML,
-}
-
-impl PlainTag {
-    pub fn new(name_id: NameID, content: HTML) -> PlainTag {
-        PlainTag {name_id, content}
-    }
-}
+pub type AttrMap = HashMap<NameID, Option<Rc<str>>>;
 
 #[derive(Debug, Clone)]
 pub struct Tag {
     pub name_id: NameID,
-    pub attributes: HashMap<NameID, Option<Rc<str>>>,
-    pub css_classes: HashSet<Box<str>>,
-    pub css_style: Option<String>,
+    pub attributes: AttrMap,
     pub content: HTML,
 }
 
 impl Tag {
     pub fn new(name_id: NameID, content: HTML) -> Tag {
-        Tag {
-            name_id,
-            attributes: HashMap::new(),
-            css_classes: HashSet::new(),
-            css_style: None,
-            content,
+        Tag::new_with_attrs(name_id, HashMap::new(), content)
+    }
+    
+    pub fn new_with_attrs(name_id: NameID, attributes: AttrMap, content: HTML) -> Tag {
+        Tag {name_id, attributes, content}
+    }
+    
+    pub fn str_attr(mut self, k: NameID, v: &str) -> Self {
+        let v = Some(Rc::from(v));
+        if self.attributes.insert(k, v).is_some() {
+            ice("duplicate attribute");
         }
-    }
-    
-    pub fn attr(&mut self, k: NameID, v: Option<Rc<str>>) {
-        self.attributes.insert(k, v);
-    }
-    
-    pub fn add_css_class(&mut self, k: &str) {
-        let ks = k.trim().split(r"\s+").map(Box::from);
-        for cls in ks { self.css_classes.insert(cls); }
-    }
-    
-    pub fn add_style(&mut self, s: &str) {
-        match &mut self.css_style {
-            Some(style) => {
-                if !style.ends_with(";") {
-                    *style += ";";
-                }
-                *style += s;
-            },
-            None => {
-                self.css_style = Some(s.to_string());
-            },
-        };
-    }
-}
-
-impl <'a> Compiler<'a> {
-    pub fn compile_tag(&mut self, tag: &ast::Tag) -> HTML {
-        if tag.attrs.is_empty() {
-            let content = self.compile_tag_children(tag);
-            return HTML::from(PlainTag::new(tag.name_id, content));
-        }
-        
-        let mut r = Tag::new(tag.name_id, HTML::Empty);
-        for attr in tag.attrs.iter() {
-            match attr.value.as_ref() {
-                Some(node) => {
-                    let Some(v) = self.evaluate_node(node, &Type::optional(Type::Str)) else { continue; };
-                    let s = match v {
-                        Value::Str(s) => Some(s),
-                        Value::Unit => None,
-                        _ => ice_at("failed to coerce", &attr.range),
-                    };
-                    if s.is_some() || attr.question_mark {
-                        match attr.name_id {
-                            str_ids::CLASS => if let Some(s) = s { r.add_css_class(&s); },
-                            str_ids::STYLE => if let Some(s) = s { r.add_style(&s); },
-                            name_id => r.attr(name_id, s),
-                        }
-                    } else {
-                        self.diagnostics.err_expected_type(&Type::Str, &Type::Unit, node.range());
-                    }
-                },
-                None => match attr.name_id {
-                    str_ids::CLASS | str_ids::STYLE => {
-                        self.diagnostics.err_expected_type(&Type::Str, &Type::Unit, &attr.range);
-                    },
-                    name_id => r.attr(name_id, None),
-                },
-            }
-        }
-        r.content = self.compile_tag_children(tag);
-        HTML::from(r)
-    }
-    
-    fn compile_tag_children(&mut self, tag: &ast::Tag) -> HTML {
-        self.compile_sequence(&tag.children, taginfo::content_kind(tag.name_id))
-    }
-}
-
-impl From<PlainTag> for HTML {
-    fn from(tag: PlainTag) -> HTML {
-        HTML::PlainTag(Rc::new(tag))
+        self
     }
 }
 
 impl From<Tag> for HTML {
     fn from(tag: Tag) -> HTML {
-        if tag.attributes.is_empty() && tag.css_classes.is_empty() && tag.css_style.is_none() {
-            HTML::from(PlainTag {name_id: tag.name_id, content: tag.content})
+        HTML::Tag(Rc::new(tag))
+    }
+}
+
+impl <'a> Compiler<'a> {
+    pub fn compile_tag(&mut self, tag: &ast::Tag) -> HTML {
+        let tag_name_id = match &tag.name {
+            ast::TagName::Fixed(name_id) => *name_id,
+            ast::TagName::Variable(var) => match self.evaluate_var(var, &Type::Str) {
+                Some(Value::Str(name)) => {
+                    if text::is_identifier(&name) {
+                        self.loader.string_pool.insert(&name.to_ascii_lowercase())
+                    } else {
+                        self.diagnostics.error(&format!("invalid tag name '{}'", name), &var.range);
+                        str_ids::ANONYMOUS
+                    }
+                },
+                None => str_ids::ANONYMOUS,
+                Some(_) => ice_at("failed to coerce", &var.range),
+            }
+        };
+        
+        let mut attrs: AttrMap = HashMap::new();
+        for attr in tag.attrs.iter() {
+            match attr {
+                ast::TagAttrOrSpread::Attr(attr) => {
+                    let range = &attr.range;
+                    match attr.value.as_ref() {
+                        Some(node) => {
+                            let expected_type = if attr.question_mark { Type::optional(Type::Str) } else { Type::Str };
+                            match self.evaluate_node(node, &expected_type) {
+                                Some(Value::Str(s)) => { self.add_attr(&mut attrs, attr.name_id, Some(s), range); },
+                                Some(Value::Unit) | None => {},
+                                Some(_) => ice_at("failed to coerce", range),
+                            }
+                        },
+                        None => { self.add_attr(&mut attrs, attr.name_id, None, range); },
+                    }
+                },
+                ast::TagAttrOrSpread::Spread(spread) => {
+                    let range = spread.range();
+                    match self.evaluate_node(spread, &Type::dict(Type::optional(Type::Str))) {
+                        Some(Value::Dict(dict)) => {
+                            for (k, v) in dict.iter() {
+                                match v {
+                                    Value::Str(s) => { self.add_attr(&mut attrs, *k, Some(s.clone()), range); },
+                                    Value::Unit => { self.add_attr(&mut attrs, *k, None, range); },
+                                    _ => ice_at("failed to coerce", range),
+                                }
+                            }
+                        },
+                        None => {},
+                        Some(_) => ice_at("failed to coerce", range),
+                    }
+                },
+            }
+        }
+        
+        let children = self.compile_sequence(&tag.children, taginfo::content_kind(tag_name_id));
+        if tag_name_id.is_anonymous() {
+            children
         } else {
-            HTML::Tag(Rc::new(tag))
+            Tag::new_with_attrs(tag_name_id, attrs, children).into()
+        }
+    }
+    
+    fn add_attr(&mut self, attrs: &mut AttrMap, name_id: NameID, value: Option<Rc<str>>, range: &SourceRange) {
+        if attrs.insert(name_id, value).is_some() {
+            self.diagnostics.error(&format!("repeated attribute '{}'", self.get_name(name_id)), range);
         }
     }
 }

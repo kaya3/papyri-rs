@@ -5,10 +5,13 @@ use once_cell::unsync::OnceCell;
 
 use super::SourceRange;
 
+/// Indicates whether the given file path has a `.papyri` file extension.
 pub fn has_papyri_extension(path: &PathBuf) -> bool {
-    matches!(path.extension(), Some(s) if s.to_string_lossy() == "papyri")
+    matches!(path.extension(), Some(s) if s.to_string_lossy().to_ascii_lowercase() == "papyri")
 }
 
+/// Represents a Papyri source file. The source as a string must be smaller
+/// than 4 GiB.
 pub struct SourceFile {
     pub path: Box<Path>,
     pub path_str: String,
@@ -17,10 +20,13 @@ pub struct SourceFile {
 }
 
 impl SourceFile {
+    /// Creates a new synthetic source file which does not exist on the file
+    /// system. This is used for the standard library.
     pub fn synthetic(path_str: &str, src: &str) -> Rc<SourceFile> {
         SourceFile::new(PathBuf::new(), path_str.to_string(), Box::from(src))
     }
     
+    /// Loads a source file from the given path.
     pub fn from_path(path: PathBuf) -> Result<Rc<SourceFile>, String> {
         fs::read_to_string(&path)
             .map(|src| {
@@ -39,11 +45,15 @@ impl SourceFile {
         })
     }
     
+    /// Returns a span at the end of this source file. Used to report syntax
+    /// errors where an unexpected end-of-file occurs.
     pub fn eof_range(src: Rc<SourceFile>) -> SourceRange {
         let end = src.src.len() as u32;
         SourceRange {src, start: end, end}
     }
     
+    /// Converts an index in this source file to (line, col) numbers, used for
+    /// reporting diagnostics.
     pub fn index_to_line_col(&self, index: u32) -> (u32, u32) {
         self.line_col_coords.get_or_init(|| {
             let mut coords = Vec::new();

@@ -2,28 +2,39 @@ use std::rc::Rc;
 
 use crate::parser::Token;
 use crate::utils::{str_ids, StringPool, NameID, taginfo};
-use super::tag::{Tag, PlainTag};
+use super::tag::Tag;
 use super::value::Value;
 
 #[derive(Debug, Clone)]
 pub enum HTML {
+    Empty,
     Tag(Rc<Tag>),
-    PlainTag(Rc<PlainTag>),
     Sequence(Rc<[HTML]>),
     Text(Rc<str>),
     DocType,
     Whitespace,
     RawNewline,
-    Empty,
+}
+
+impl From<&str> for HTML {
+    fn from(s: &str) -> Self {
+        HTML::text(s)
+    }
+}
+
+impl From<String> for HTML {
+    fn from(s: String) -> Self {
+        s.as_str().into()
+    }
 }
 
 impl HTML {
     pub fn from_value(value: Value, string_pool: &mut StringPool) -> HTML {
         match value {
             Value::Unit => HTML::Empty,
-            Value::Bool(b) => HTML::text(Token::bool_to_string(b)),
-            Value::Int(t) => HTML::text(&t.to_string()),
-            Value::Str(t) => HTML::Text(t.clone()),
+            Value::Bool(b) => Token::bool_to_string(b).into(),
+            Value::Int(t) => t.to_string().replace("-", "\u{2212}").into(),
+            Value::Str(t) => HTML::Text(t),
             Value::Dict(vs) => {
                 let mut entries: Vec<_> = vs.iter()
                     .map(|(k, v)| {
@@ -39,9 +50,10 @@ impl HTML {
                         HTML::tag(str_ids::TD, HTML::from_value(v.clone(), string_pool)),
                     ])))
                     .collect();
-                let mut tbl = Tag::new(str_ids::TABLE, HTML::seq(&rows));
-                tbl.add_css_class("tabular-data");
-                tbl.into()
+                
+                Tag::new(str_ids::TABLE, HTML::seq(&rows))
+                    .str_attr(str_ids::CLASS, "tabular-data")
+                    .into()
             },
             Value::List(vs) => {
                 let items: Vec<_> = vs.as_ref()
@@ -54,11 +66,7 @@ impl HTML {
             
             Value::Func(f) => {
                 let name = string_pool.get(f.name_id());
-                HTML::tag(str_ids::CODE, HTML::text(&format!("(@fn {})", name)))
-            },
-            Value::NativeFunc(f) => {
-                let name = string_pool.get(f.name_id());
-                HTML::tag(str_ids::CODE, HTML::text(&format!("(native @fn {})", name)))
+                HTML::tag(str_ids::CODE, format!("(@fn {})", name).into())
             },
         }
     }
@@ -72,7 +80,7 @@ impl HTML {
     }
     
     pub fn tag(name_id: NameID, content: HTML) -> HTML {
-        PlainTag::new(name_id, content).into()
+        Tag::new(name_id, content).into()
     }
     
     pub fn seq(content: &[HTML]) -> HTML {
@@ -92,7 +100,6 @@ impl HTML {
     pub fn is_block(&self) -> bool {
         match self {
             HTML::Tag(tag) => taginfo::is_block(tag.name_id),
-            HTML::PlainTag(tag) => taginfo::is_block(tag.name_id),
             HTML::Sequence(seq) => seq[0].is_block(),
             _ => false,
         }
@@ -101,7 +108,6 @@ impl HTML {
     pub fn is_all(&self, allowed_tag_names: &[NameID]) -> bool {
         match self {
             HTML::Tag(tag) => allowed_tag_names.contains(&tag.name_id),
-            HTML::PlainTag(tag) => allowed_tag_names.contains(&tag.name_id),
             HTML::Sequence(seq) => seq.iter().all(|child| child.is_all(allowed_tag_names)),
             HTML::Empty => true,
             _ => false,
@@ -109,21 +115,20 @@ impl HTML {
     }
     
     pub fn wrap_page(self, title: Option<HTML>, web_root: &str) -> HTML {
-        let mut link_tag = Tag::new(str_ids::LINK, HTML::Empty);
-        link_tag.attr(str_ids::REL, Some(Rc::from("stylesheet")));
-        link_tag.attr(str_ids::TYPE, Some(Rc::from("text/css")));
-        link_tag.attr(str_ids::HREF, Some(Rc::from(format!("{}papyri.css", web_root))));
+        let link_tag = Tag::new(str_ids::LINK, HTML::Empty)
+            .str_attr(str_ids::REL, "stylesheet")
+            .str_attr(str_ids::TYPE, "text/css")
+            .str_attr(str_ids::HREF, &format!("{}papyri.css", web_root));
         
-        let mut script_tag = Tag::new(str_ids::SCRIPT, HTML::Empty);
-        script_tag.attr(str_ids::TYPE, Some(Rc::from("text/javascript")));
-        script_tag.attr(str_ids::SRC, Some(Rc::from(format!("{}papyri.js", web_root))));
+        let script_tag = Tag::new(str_ids::SCRIPT, HTML::Empty)
+            .str_attr(str_ids::TYPE, "text/javascript")
+            .str_attr(str_ids::SRC, &format!("{}papyri.js", web_root));
         
         HTML::seq(&[
             HTML::DocType,
             HTML::tag(str_ids::HTML, HTML::seq(&[
                 HTML::tag(str_ids::HEAD, HTML::seq(&[
-                    title.map(|t| HTML::tag(str_ids::TITLE, t))
-                        .unwrap_or(HTML::Empty),
+                    title.map_or(HTML::Empty, |t| HTML::tag(str_ids::TITLE, t)),
                     HTML::from(link_tag),
                 ])),
                 HTML::tag(str_ids::BODY, HTML::seq(&[

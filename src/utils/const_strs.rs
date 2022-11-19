@@ -12,6 +12,7 @@ macro_rules! const_strs {
             $($val,)*
         ];
         
+        /// Constants for ids of names which are always pooled.
         pub mod str_ids {
             use super::NameID;
             const_strs!{@count ($($name)*) {0}}
@@ -88,8 +89,8 @@ const_strs!(
     OL = "ol",
     P = "p",
     PARAM = "param",
-    PATH = "path",
     PRE = "pre",
+    RAISE = "raise",
     REL = "rel",
     SCRIPT = "script",
     SECTION = "section",

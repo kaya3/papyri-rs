@@ -3,9 +3,24 @@
 @fn str $s: str -> $s
 @fn list(*$_args: any list) $_: none -> $_args
 @fn dict(**$kwargs: any dict) $_: none -> $kwargs
-
 @fn inline $v: inline -> $v
 @fn block $v: block -> $v
+@fn typeof $v -> @match $v {_: $t -> $t}
+
+@fn attributes(**$b: str? dict) $v: html -> @match $v {
+    <$t **$a>$c</> -> <$t **$a **$b>$c</>,
+    _: $t -> @raise "expected tag, was $t",
+}
+@fn class($_c: str) $v: html -> @match $v {
+    <$t class=$o **$a>$v</> -> <$t class="$o $_c" **$a>$v</>,
+    <$t **$a>$v</> -> <$t class=$_c **$a>$v</>,
+    _: $t -> @raise "expected tag, was $t",
+}
+@fn style($_s: str) $v: html -> @match $v {
+    <$t style=$o **$a>$v</> -> <$t style="$o$_s" **$a>$v</>,
+    <$t **$a>$v</> -> <$t style=$_s **$a>$v</>,
+    _: $t -> @raise "expected tag, was $t",
+}
 
 @fn b $v: inline -> <b>$v</>
 @fn blockquote($cite?: str) $v: block -> <blockquote cite?=$cite>$v</>

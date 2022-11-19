@@ -32,8 +32,8 @@ pub struct ProgramArgs {
 }
 
 pub fn get_config_from_args() -> Result<ProgramArgs, String> {
-    let args: Vec<String> = env::args().skip(1).collect();
-    let mut args = ProgramArgs::from_args(args.iter().map(|a| a.as_str()))
+    let raw_args: Vec<String> = env::args().skip(1).collect();
+    let mut args = ProgramArgs::from_args(raw_args.iter().map(String::as_str))
         .map_err(|e| e.to_string())?;
     
     if args.paths.is_empty() { args.paths.push("./**/*.papyri".to_string()); }
