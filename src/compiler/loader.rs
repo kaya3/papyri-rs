@@ -1,6 +1,6 @@
-use std::collections::HashMap;
 use std::{fs, path};
 use std::rc::Rc;
+use indexmap::IndexMap;
 
 use crate::utils::{Diagnostics, SourceFile, StringPool};
 use super::compiler::compile_stdlib;
@@ -10,7 +10,7 @@ use super::{CompileResult, compile};
 pub struct ModuleLoader {
     pub string_pool: StringPool,
     pub stdlib: Option<InactiveFrame>,
-    cache: HashMap<path::PathBuf, ModuleState>,
+    cache: IndexMap<path::PathBuf, ModuleState>,
 }
 
 #[derive(Clone)]
@@ -26,7 +26,7 @@ impl ModuleLoader {
         let mut loader = ModuleLoader {
             string_pool: StringPool::new(),
             stdlib: None,
-            cache: HashMap::new(),
+            cache: IndexMap::new(),
         };
         loader.stdlib = Some(compile_stdlib(&mut loader));
         loader

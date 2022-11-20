@@ -1,5 +1,6 @@
-use std::collections::HashMap;
 use std::rc::Rc;
+
+use indexmap::IndexMap;
 
 use crate::parser::ast;
 use crate::utils::{ice, ice_at};
@@ -11,7 +12,7 @@ use super::value::{Value, ValueMap};
 impl <'a> Compiler<'a> {
     pub fn evaluate_match(&mut self, match_: &ast::Match, type_hint: &Type) -> Option<Value> {
         let value = self.evaluate_node(&match_.value, &Type::AnyValue)?;
-        let mut bindings = HashMap::new();
+        let mut bindings = IndexMap::new();
         for branch in match_.branches.iter() {
             bindings.clear();
             if self.bind_pattern(&branch.pattern, value.clone(), &mut bindings) {
@@ -91,8 +92,9 @@ impl <'a> Compiler<'a> {
                 }
                 
                 if let Some(spread_pattern) = tag_pattern.spread.as_ref() {
-                    let remaining: ValueMap = tag_value.attributes.iter()
-                        .filter(|(k, _)| !tag_pattern.attrs.contains_key(k))
+                    let remaining: ValueMap = tag_value.attributes
+                        .iter()
+                        .filter(|(k, _)| !tag_pattern.attrs.contains_key(*k))
                         .map(|(k, v)| (
                             *k,
                             v.clone().into(),

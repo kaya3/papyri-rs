@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use std::rc::Rc;
+use indexmap::IndexMap;
 
 use crate::parser::{ast, AST, Token, TokenKind, text};
 use crate::utils::{ice_at, NameID, str_ids, SliceRef, SourceRange};
@@ -20,7 +20,7 @@ pub enum Value {
     Func(Func),
 }
 
-pub type ValueMap = HashMap<NameID, Value>;
+pub type ValueMap = IndexMap<NameID, Value>;
 
 impl From<&str> for Value {
     fn from(s: &str) -> Self {

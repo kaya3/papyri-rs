@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use indexmap::IndexMap;
 
 use crate::utils::{taginfo, ice_at, ice};
 use super::ast::*;
@@ -123,7 +123,7 @@ impl <'a> Parser<'a> {
             },
         };
         
-        let mut attrs = HashMap::new();
+        let mut attrs = IndexMap::new();
         let mut spread = None;
         let rangle = loop {
             self.skip_whitespace();

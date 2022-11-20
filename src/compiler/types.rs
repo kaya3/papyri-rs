@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use indexmap::IndexMap;
 
 use crate::utils::{Diagnostics, ice_at, SourceRange, str_ids};
 use crate::parser::{ast, Token};
@@ -156,7 +156,7 @@ impl <'a> Compiler<'a> {
             (_, Value::Func(..)) => {},
             
             (Type::Dict(t), Value::Dict(vs)) => {
-                let mut coerced_vs = HashMap::new();
+                let mut coerced_vs = IndexMap::new();
                 let mut any_errors = false;
                 for (k, v) in vs.iter() {
                     if let Some(coerced_v) = self._coerce(v.clone(), t, range) {

@@ -1,6 +1,5 @@
-use std::collections::HashMap;
 use std::rc::Rc;
-use maplit::hashmap;
+use indexmap::IndexMap;
 
 use crate::utils::{ice_at, str_ids, text, NameID, SourceRange};
 use super::frame::ActiveFrame;
@@ -28,7 +27,7 @@ pub fn get_natives_frame() -> ActiveFrame {
     let args_dict = Rc::new(FuncSignature {
         positional_params: Box::new([]),
         spread_param: None,
-        named_params: HashMap::new(),
+        named_params: IndexMap::new(),
         spread_named_param: Some(FuncParam::new(str_ids::ARGS, Type::dict(Type::AnyValue))),
         content_param: FuncParam::new(str_ids::CONTENT, Type::Unit),
     });
@@ -36,7 +35,7 @@ pub fn get_natives_frame() -> ActiveFrame {
     let content_str = Rc::new(FuncSignature {
         positional_params: Box::new([]),
         spread_param: None,
-        named_params: HashMap::new(),
+        named_params: IndexMap::new(),
         spread_named_param: None,
         content_param: FuncParam::new(str_ids::CONTENT, Type::Str),
     });
@@ -46,7 +45,7 @@ pub fn get_natives_frame() -> ActiveFrame {
             FuncParam::new(str_ids::_CALLBACK, Type::Function),
         ]),
         spread_param: None,
-        named_params: HashMap::new(),
+        named_params: IndexMap::new(),
         spread_named_param: None,
         content_param: FuncParam::new(str_ids::CONTENT, Type::list(Type::AnyValue)),
     });
@@ -54,11 +53,11 @@ pub fn get_natives_frame() -> ActiveFrame {
     let syntax_highlight = Rc::new(FuncSignature {
         positional_params: Box::new([]),
         spread_param: None,
-        named_params: hashmap!(
-            str_ids::LANGUAGE => FuncParam::new(str_ids::LANGUAGE, Type::optional(Type::Str)).implicit().with_default(Value::Unit),
-            str_ids::CODE_BLOCK => FuncParam::new(str_ids::CODE_BLOCK, Type::Bool).with_default(Value::Bool(false)),
-            str_ids::FIRST_LINE_NO => FuncParam::new(str_ids::FIRST_LINE_NO, Type::optional(Type::Int)).with_default(Value::Unit),
-        ),
+        named_params: IndexMap::from([
+            (str_ids::LANGUAGE, FuncParam::new(str_ids::LANGUAGE, Type::optional(Type::Str)).implicit().with_default(Value::Unit)),
+            (str_ids::CODE_BLOCK, FuncParam::new(str_ids::CODE_BLOCK, Type::Bool).with_default(Value::Bool(false))),
+            (str_ids::FIRST_LINE_NO, FuncParam::new(str_ids::FIRST_LINE_NO, Type::optional(Type::Int)).with_default(Value::Unit)),
+        ]),
         spread_named_param: None,
         content_param: FuncParam::new(str_ids::CONTENT, Type::Str),
     });

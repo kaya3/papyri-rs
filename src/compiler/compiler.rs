@@ -1,10 +1,9 @@
-use std::collections::HashMap;
 use std::rc::Rc;
+use indexmap::IndexMap;
 
 use crate::parser::{parse, AST, text};
 use crate::utils::taginfo::ContentKind;
 use crate::utils::{Diagnostics, ice_at, ice, SourceFile, SourceRange, str_ids, NameID};
-
 use super::frame::{ActiveFrame, InactiveFrame};
 use super::html::HTML;
 use super::loader::ModuleLoader;
@@ -54,14 +53,14 @@ pub struct Compiler<'a> {
 impl <'a> Compiler<'a> {
     fn new(diagnostics: &'a mut Diagnostics, loader: &'a mut ModuleLoader) -> Compiler<'a> {
         let frame = match loader.stdlib.as_ref() {
-            Some(stdlib) => stdlib.new_child_frame(HashMap::new()),
+            Some(stdlib) => stdlib.new_child_frame(IndexMap::new()),
             None => get_natives_frame(),
         };
         Compiler {
             diagnostics,
             loader,
             frame,
-            exports: HashMap::new(),
+            exports: IndexMap::new(),
         }
     }
     

@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use std::rc::Rc;
+use indexmap::IndexMap;
 
 use crate::parser::ast;
 use crate::utils::{ice_at, str_ids, NameID, taginfo, text, ice, SourceRange};
@@ -8,7 +8,7 @@ use super::html::HTML;
 use super::types::Type;
 use super::value::Value;
 
-pub type AttrMap = HashMap<NameID, Option<Rc<str>>>;
+pub type AttrMap = IndexMap<NameID, Option<Rc<str>>>;
 
 #[derive(Debug, Clone)]
 pub struct Tag {
@@ -19,7 +19,7 @@ pub struct Tag {
 
 impl Tag {
     pub fn new(name_id: NameID, content: HTML) -> Tag {
-        Tag::new_with_attrs(name_id, HashMap::new(), content)
+        Tag::new_with_attrs(name_id, IndexMap::new(), content)
     }
     
     pub fn new_with_attrs(name_id: NameID, attributes: AttrMap, content: HTML) -> Tag {
@@ -59,7 +59,7 @@ impl <'a> Compiler<'a> {
             }
         };
         
-        let mut attrs: AttrMap = HashMap::new();
+        let mut attrs: AttrMap = IndexMap::new();
         for attr in tag.attrs.iter() {
             match attr {
                 ast::TagAttrOrSpread::Attr(attr) => {

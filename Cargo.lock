@@ -166,12 +166,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0717cef1bc8b636c6e1c1bbdefc09e6322da8a9321966e8928ef80d20f7f770f"
 
 [[package]]
-name = "maplit"
-version = "1.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3e2e65a1a2e43cfcb47a895c4c8b10d1f4a61097f9f254f183aee60cad9c651d"
-
-[[package]]
 name = "memchr"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -216,14 +210,13 @@ dependencies = [
 
 [[package]]
 name = "papyri"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "aho-corasick",
  "arg",
  "glob",
  "htmlentity",
  "indexmap",
- "maplit",
  "once_cell",
  "regex",
  "regex-lexer",

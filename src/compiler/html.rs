@@ -36,17 +36,9 @@ impl HTML {
             Value::Int(t) => t.to_string().replace("-", "\u{2212}").into(),
             Value::Str(t) => HTML::Text(t),
             Value::Dict(vs) => {
-                let mut entries: Vec<_> = vs.iter()
-                    .map(|(k, v)| {
-                        let k_str: Rc<str> = Rc::from(string_pool.get(*k));
-                        (k_str, v)
-                    })
-                    .collect();
-                entries.sort_by_key(|t| t.0.clone());
-                
-                let rows: Vec<_> = entries.into_iter()
+                let rows: Vec<HTML> = vs.iter()
                     .map(|(k, v)| HTML::tag(str_ids::TR, HTML::seq(&[
-                        HTML::tag(str_ids::TH, HTML::Text(k)),
+                        HTML::tag(str_ids::TH, HTML::text(string_pool.get(*k))),
                         HTML::tag(str_ids::TD, HTML::from_value(v.clone(), string_pool)),
                     ])))
                     .collect();

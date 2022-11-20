@@ -1,4 +1,5 @@
-use std::{rc::Rc, collections::HashMap};
+use std::rc::Rc;
+use indexmap::IndexMap;
 
 use crate::utils::{SourceRange, NameID};
 use super::token::Token;
@@ -149,7 +150,7 @@ pub enum MatchPattern {
 #[derive(Debug)]
 pub struct TagMatchPattern {
     pub name: MatchPattern,
-    pub attrs: HashMap<NameID, MatchPattern>,
+    pub attrs: IndexMap<NameID, MatchPattern>,
     pub spread: Option<MatchPattern>,
     pub content: MatchPattern,
 }

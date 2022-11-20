@@ -1,5 +1,6 @@
-use std::collections::HashMap;
 use std::rc::Rc;
+
+use indexmap::IndexMap;
 
 use crate::parser::{ast, AST};
 use crate::utils::{Diagnostics, SourceRange, ice_at, NameID};
@@ -42,7 +43,7 @@ impl FuncParam {
 pub struct FuncSignature {
     pub positional_params: Box<[FuncParam]>,
     pub spread_param: Option<FuncParam>,
-    pub named_params: HashMap<NameID, FuncParam>,
+    pub named_params: IndexMap<NameID, FuncParam>,
     pub spread_named_param: Option<FuncParam>,
     pub content_param: FuncParam,
 }
@@ -116,8 +117,8 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
             compiler,
             sig,
             spread_pos: Vec::new(),
-            spread_named: HashMap::new(),
-            map: HashMap::new(),
+            spread_named: IndexMap::new(),
+            map: IndexMap::new(),
             positional_arg_count: 0,
             any_errors: false,
         }
