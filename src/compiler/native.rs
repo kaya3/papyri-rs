@@ -191,8 +191,10 @@ impl <'a> Compiler<'a> {
                     ice_at("failed to unpack", call_range);
                 };
                 
+                let src = if *block { src } else { src.trim() };
+                
                 let Value::Str(language) = language else {
-                    return Some(HTML::Text(src.clone()).into());
+                    return Some(HTML::text(src).into());
                 };
                 
                 let first_line_no = if let Value::Int(i) = first_line_no {

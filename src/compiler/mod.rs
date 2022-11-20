@@ -2,6 +2,7 @@ mod compiler;
 mod frame;
 mod func;
 mod highlight;
+mod highlight_papyri;
 mod html;
 mod loader;
 mod matcher;

@@ -98,6 +98,7 @@ impl <'a> Parser<'a> {
         let mut range = first_token.range;
         while let Some(tok) = self.poll_if(|tok| match tok.kind {
             // must skip quotes in case we're parsing text inside a string template
+            TokenKind::LAngle |
             TokenKind::Quote(..) => false,
             _ => if let Some(t) = tok.text() { text += t; true } else { false },
         }) {

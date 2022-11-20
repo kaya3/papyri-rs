@@ -13,14 +13,17 @@ static LEXER: Lazy<regex_lexer::Lexer<TokenKind>> = Lazy::new(
         .token(r"-?[0-9]+", TokenKind::Number)
         .token(r"</(?:[a-zA-Z_][a-zA-Z0-9_]*)?>", TokenKind::CloseTag)
         .token(r"\\(?:x[0-9a-fA-F]{2}|u[0-9a-fA-F]{4}|U[0-9a-fA-F]{8}|[^xuU])", TokenKind::Escape)
-        .token(r"&(?:[a-zA-Z][a-zA-Z0-9]*|#[0-9]+);", TokenKind::Entity)
+        .token(r"&(?:[a-zA-Z][a-zA-Z0-9]*|#[0-9]+|#x[0-9a-fA-F]+);", TokenKind::Entity)
         .token(r"`+", TokenKind::Verbatim)
-        .token(r"#[^\n]*(?:\n[^\S\n]*)?", TokenKind::Comment)
         .token(r"-->", TokenKind::RAngleComment)
-        .token(r#"[^#\sa-zA-Z0-9_\\\-\(\)\[\]\{\}<>/\.,=:~\|\?@\*\$`'"]+"#, TokenKind::RawText)
+        .token(r#"[^#\sa-zA-Z0-9_\\\-\(\)\[\]\{\}<>/\.,=:~\|\?@\*\$&`'"]+"#, TokenKind::RawText)
         .build()
         .expect("Failed to build regex_lexer")
 );
+
+fn is_paragraph_break(s: &str) -> bool {
+    s.chars().filter(|c| *c == '\n').count() >= 2
+}
 
 /// Tokenizes the given Papyri source file.
 pub fn tokenize(src: Rc<SourceFile>, strip_comments: bool, diagnostics: &mut Diagnostics) -> Vec<Token> {
@@ -29,11 +32,6 @@ pub fn tokenize(src: Rc<SourceFile>, strip_comments: bool, diagnostics: &mut Dia
     
     // Indicates whether a quote `'` or `"` should become a left or right quote.
     let mut quote_dir = QuoteDir::Left;
-    
-    // In most places, two newlines are needed to make a paragraph break; but a
-    // Comment token consumes its trailing newline, so this flag indicates
-    // whether only one newline is needed for a paragraph break.
-    let mut short_newline = false;
     
     // Holds errors to be emitted for the current token; these cannot be sent
     // to `diagnostics` until a span is known.
@@ -56,6 +54,26 @@ pub fn tokenize(src: Rc<SourceFile>, strip_comments: bool, diagnostics: &mut Dia
                         } else {
                             // no syntax error here; an unmatched `<!--` means
                             // the rest of the file is commented
+                            s = &src.src[cur..];
+                        }
+                        TokenKind::Comment
+                    },
+                    
+                    "#" => {
+                        while let Some(t) = token_stream.peek() {
+                            if t.kind == TokenKind::Whitespace && t.text.contains('\n') { break; }
+                            token_stream.next();
+                        }
+                        
+                        if let Some(close_tok) = token_stream.peek() {
+                            if is_paragraph_break(close_tok.text) {
+                                s = &src.src[cur..close_tok.span.start];
+                            } else {
+                                s = &src.src[cur..close_tok.span.end];
+                                token_stream.next();
+                            }
+                        } else {
+                            // no syntax error here; the rest of the file is commented
                             s = &src.src[cur..];
                         }
                         TokenKind::Comment
@@ -98,8 +116,7 @@ pub fn tokenize(src: Rc<SourceFile>, strip_comments: bool, diagnostics: &mut Dia
             },
             
             TokenKind::Whitespace => {
-                let newlines = s.chars().filter(|c| *c == '\n').count();
-                if newlines >= 2 || (short_newline && newlines >= 1) { kind = TokenKind::Newline; }
+                if is_paragraph_break(s) { kind = TokenKind::Newline; }
             },
             
             TokenKind::Verbatim => {
@@ -108,7 +125,7 @@ pub fn tokenize(src: Rc<SourceFile>, strip_comments: bool, diagnostics: &mut Dia
                     s = &src.src[cur..close_tok.span.end];
                     if close_tok.text.len() > backticks {
                         errors.push("too many backticks in closing delimiter");
-                    } else if backticks < 3 && s.contains("\n") {
+                    } else if backticks < 3 && s.contains('\n') {
                         errors.push("multiline verbatim string must be delimited by at least three backticks");
                     }
                 } else {
@@ -141,7 +158,6 @@ pub fn tokenize(src: Rc<SourceFile>, strip_comments: bool, diagnostics: &mut Dia
             TokenKind::Equals | TokenKind::LBrace | TokenKind::LPar | TokenKind::LSqb | TokenKind::RAngle | TokenKind::Newline | TokenKind::Whitespace => QuoteDir::Left,
             _ => QuoteDir::Right,
         };
-        short_newline = kind == TokenKind::Comment;
         cur = end;
         
         if kind == TokenKind::Comment && strip_comments {

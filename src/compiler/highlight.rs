@@ -1,6 +1,188 @@
-use crate::utils::str_ids;
+use std::ops::Range;
+
+use once_cell::sync::Lazy;
+
+use crate::utils::{str_ids, ice};
 use super::html::HTML;
 use super::tag::Tag;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TokenKind {
+    Comment,
+    CommentURL,
+    Decorator,
+    Keyword,
+    KeywordLiteral,
+    KeywordOp,
+    Name,
+    NameDef,
+    Number,
+    Op,
+    ParenLeft,
+    ParenRight,
+    ParenUnmatched,
+    Punctuation,
+    String,
+    TypeAnnotation,
+    URL,
+    Whitespace,
+    Invalid,
+}
+
+fn matching_paren(s: &str) -> &'static str {
+    match s {
+        "(" => ")",
+        "{" => "}",
+        "[" => "]",
+        _ => ice("not a paren"),
+    }
+}
+
+static URL_MATCHER: Lazy<regex_lexer::Lexer<bool>> = Lazy::new(|| {
+    regex_lexer::LexerBuilder::new()
+        .token(".", false)
+        .token("https?://[^\\s'\"`]+", true)
+        .build()
+        .expect("Failed to build regex_lexer")
+});
+
+pub struct LineHighlighter<'a> {
+    src: &'a str,
+    parts: Vec<HTML>,
+    paren_stack: Vec<(&'static str, u32)>,
+    paren_count: u32,
+    current_range: Range<usize>,
+    current_token_kind: Option<TokenKind>,
+}
+
+impl <'a> LineHighlighter<'a> {
+    pub fn new(src: &str) -> LineHighlighter {
+        LineHighlighter {
+            src,
+            parts: Vec::new(),
+            paren_stack: Vec::new(),
+            paren_count: 0,
+            current_range: 0..0,
+            current_token_kind: None,
+        }
+    }
+    
+    pub fn push(&mut self, range: Range<usize>, kind: TokenKind) {
+        let s = &self.src[range.clone()];
+        match kind {
+            TokenKind::Comment => {
+                self.push_with_possible_urls(range, kind, TokenKind::CommentURL);
+            },
+            TokenKind::String => {
+                self.push_with_possible_urls(range, kind, TokenKind::URL);
+            },
+            TokenKind::ParenLeft => {
+                self.paren_count += 1;
+                self.paren_stack.push((matching_paren(s), self.paren_count));
+                self.push_with_paren_no(range, kind, self.paren_count);
+            },
+            TokenKind::ParenRight => match self.paren_stack.last() {
+                Some((rpar, paren_no)) if *rpar == s => {
+                    self.push_with_paren_no(range, kind, *paren_no);
+                    self.paren_stack.pop();
+                },
+                _ => {
+                    self.push_other(range, TokenKind::ParenUnmatched);
+                },
+            },
+            _ => {
+                self.push_other(range, kind);
+            },
+        }
+    }
+    
+    fn push_with_possible_urls(&mut self, range: Range<usize>, kind: TokenKind, url_kind: TokenKind) {
+        let s = &self.src[range.clone()];
+        for t in URL_MATCHER.tokens(s) {
+            let span = (range.start + t.span.start)..(range.start + t.span.end);
+            if t.kind {
+                self.push_other(span, url_kind);
+                self.close_part();
+            } else {
+                self.push_other(span, kind);
+            }
+        }
+    }
+    
+    fn push_with_paren_no(&mut self, range: Range<usize>, kind: TokenKind, paren_no: u32) {
+        self.close_part();
+        let s = &self.src[range.clone()];
+        self.parts.push(LineHighlighter::make_token(kind, s, paren_no));
+        self.current_range = range.end..range.end;
+    }
+    
+    fn push_other(&mut self, range: Range<usize>, kind: TokenKind) {
+        if range.is_empty() {
+            // do nothing
+        } else if matches!(self.current_token_kind, Some(k) if k == kind) {
+            self.current_range.end = range.end;
+        } else {
+            self.close_part();
+            self.current_token_kind = Some(kind);
+            self.current_range = range;
+        }
+    }
+    
+    fn close_part(&mut self) {
+        if let Some(kind) = self.current_token_kind {
+            let s = &self.src[self.current_range.clone()];
+            self.parts.push(LineHighlighter::make_token(kind, s, 0));
+            self.current_range.start = self.current_range.end;
+            self.current_token_kind = None;
+        }
+    }
+    
+    pub fn take_line(&mut self) -> HTML {
+        self.close_part();
+        let line = HTML::seq(&self.parts);
+        self.parts.clear();
+        self.current_token_kind = None;
+        line
+    }
+    
+    fn make_token(kind: TokenKind, s: &str, paren_no: u32) -> HTML {
+        let css_class = match kind {
+            TokenKind::Comment => "comment",
+            TokenKind::CommentURL => return LineHighlighter::make_link_token(s, true),
+            TokenKind::Decorator => "decorator",
+            TokenKind::Invalid => "err",
+            TokenKind::Keyword => "keyword",
+            TokenKind::KeywordLiteral => "keyword-literal",
+            TokenKind::KeywordOp => "keyword-op",
+            TokenKind::Name => "name",
+            TokenKind::NameDef => "name-def",
+            TokenKind::Number => "number",
+            TokenKind::Op => "op",
+            TokenKind::ParenLeft => "lparen",
+            TokenKind::ParenRight => "rparen",
+            TokenKind::ParenUnmatched => "unmatched-paren",
+            TokenKind::Punctuation => "punctuation",
+            TokenKind::String => "string",
+            TokenKind::TypeAnnotation => "type-annotation",
+            TokenKind::URL => return LineHighlighter::make_link_token(s, false),
+            TokenKind::Whitespace => return HTML::text(s),
+        };
+        
+        let mut tag = Tag::new(str_ids::SPAN, HTML::text(s))
+            .str_attr(str_ids::CLASS, css_class);
+        if paren_no > 0 {
+            tag = tag.str_attr(str_ids::DATA_PAREN_NO, &format!("{}", paren_no));
+        }
+        HTML::from(tag)
+    }
+    
+    fn make_link_token(s: &str, is_comment: bool) -> HTML {
+        let mut tag = Tag::new(str_ids::A, HTML::text(s))
+            .str_attr(str_ids::HREF, s);
+        if is_comment { tag = tag.str_attr(str_ids::CLASS, "comment"); }
+        HTML::from(tag)
+    }
+}
 
 pub fn enumerate_lines(lines: Vec<HTML>, start: i64) -> HTML {
     let mut out = Vec::new();
@@ -21,54 +203,36 @@ fn no_highlighting(src: &str) -> Vec<HTML> {
 }
 
 #[cfg(not(feature="syntect"))]
-pub fn syntax_highlight(src: &str, _language: &str) -> Vec<HTML> {
-    no_highlighting(src)
+pub fn syntax_highlight(src: &str, language: &str) -> Vec<HTML> {
+    if language == "papyri" {
+        super::highlight_papyri::syntax_highlight_papyri(src)
+    } else {
+        no_highlighting(src)
+    }
 }
 
 #[cfg(feature="syntect")]
 pub fn syntax_highlight(src: &str, language: &str) -> Vec<HTML> {
-    syntect_highlighting::highlight(src, language)
+    if language == "papyri" {
+        super::highlight_papyri::syntax_highlight_papyri(src)
+    } else {
+        syntect_highlighting::highlight(src, language)
+    }
 }
-
 
 #[cfg(feature="syntect")]
 mod syntect_highlighting {
-    use std::ops::Range;
     use std::str::FromStr;
     use once_cell::sync::Lazy;
     use syntect::parsing::{SyntaxSet, Scope, ScopeStack, ParseState};
     use syntect::easy::ScopeRangeIterator;
     use syntect::highlighting::{ScopeSelector, ScopeSelectors};
     
-    use crate::utils::{ice, str_ids, text};
-    use super::{HTML, Tag};
-    
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    enum TokenKind {
-        Comment,
-        CommentURL,
-        Decorator,
-        Keyword,
-        KeywordLiteral,
-        KeywordOp,
-        Name,
-        NameDef,
-        Number,
-        Op,
-        ParenLeft,
-        ParenRight,
-        ParenUnmatched,
-        Punctuation,
-        String,
-        TypeAnnotation,
-        URL,
-        Whitespace,
-        Invalid,
-    }
+    use crate::utils::text;
+    use super::{HTML, TokenKind, LineHighlighter};
     
     struct SyntectCache {
         syntax_set: SyntaxSet,
-        url_matcher: regex_lexer::Lexer<bool>,
         
         comment: ScopeSelector,
         decorator: ScopeSelector,
@@ -94,11 +258,6 @@ mod syntect_highlighting {
     
     static CACHE: Lazy<SyntectCache> = Lazy::new(|| SyntectCache {
         syntax_set: SyntaxSet::load_defaults_nonewlines(),
-        url_matcher: regex_lexer::LexerBuilder::new()
-            .token(".", false)
-            .token("https?://[^\\s'\"`]+", true)
-            .build()
-            .expect("Failed to build regex_lexer"),
         
         comment: _selector("comment"),
         decorator: _selector("meta.annotation"),
@@ -114,15 +273,6 @@ mod syntect_highlighting {
         string: _selector("string"),
         type_annotation: _multiple_selectors("meta.annotation.type"),
     });
-    
-    fn matching_paren(s: &str) -> &'static str {
-        match s {
-            "(" => ")",
-            "{" => "}",
-            "[" => "]",
-            _ => ice("not a paren"),
-        }
-    }
     
     fn token_kind(s: &str, stack: &[Scope]) -> TokenKind {
         if text::is_whitespace(s) {
@@ -170,47 +320,23 @@ mod syntect_highlighting {
         };
         
         let mut state = ParseState::new(syntax);
-        let mut paren_stack = Vec::new();
-        let mut paren_count: u32 = 0;
         let mut stack = ScopeStack::new();
+        let mut line_highlighter = LineHighlighter::new(src);
         let mut out = Vec::new();
+        
         for line in src.lines() {
+            line_highlighter.src = line;
             match state.parse_line(line, &CACHE.syntax_set) {
                 Ok(ops) => {
-                    let mut line_highlighter = LineHighlighter::new(line);
                     for (range, op) in ScopeRangeIterator::new(&ops, line) {
                         stack.apply(op).unwrap();
                         if range.is_empty() { continue; }
                         
                         let s = &line[range.clone()];
                         let kind = token_kind(s, stack.as_slice());
-                        match kind {
-                            TokenKind::Comment => {
-                                line_highlighter.push_with_possible_urls(range, kind, TokenKind::CommentURL);
-                            },
-                            TokenKind::String => {
-                                line_highlighter.push_with_possible_urls(range, kind, TokenKind::URL);
-                            },
-                            TokenKind::ParenLeft => {
-                                paren_count += 1;
-                                paren_stack.push((matching_paren(s), paren_count));
-                                line_highlighter.push_with_paren_no(range, kind, paren_count);
-                            },
-                            TokenKind::ParenRight => match paren_stack.last() {
-                                Some((rpar, paren_no)) if *rpar == s => {
-                                    line_highlighter.push_with_paren_no(range, kind, *paren_no);
-                                    paren_stack.pop();
-                                },
-                                _ => {
-                                    line_highlighter.push(range, TokenKind::ParenUnmatched);
-                                },
-                            },
-                            _ => {
-                                line_highlighter.push(range, kind);
-                            },
-                        }
+                        line_highlighter.push(range, kind);
                     }
-                    out.push(line_highlighter.close());
+                    out.push(line_highlighter.take_line());
                 },
                 Err(_) => {
                     println!("Failed to parse: {}", line);
@@ -222,107 +348,5 @@ mod syntect_highlighting {
         // TODO: if paren_stack is not empty, need to go back and mark left-parens as unmatched
         
         out
-    }
-    
-    struct LineHighlighter<'a> {
-        line: &'a str,
-        parts: Vec<HTML>,
-        current_range: Range<usize>,
-        current_token_kind: Option<TokenKind>,
-    }
-    
-    impl <'a> LineHighlighter<'a> {
-        fn new(line: &str) -> LineHighlighter {
-            LineHighlighter {
-                line,
-                parts: Vec::new(),
-                current_range: 0..0,
-                current_token_kind: None,
-            }
-        }
-        
-        fn push_with_possible_urls(&mut self, range: Range<usize>, kind: TokenKind, url_kind: TokenKind) {
-            let s = &self.line[range.clone()];
-            for t in CACHE.url_matcher.tokens(s) {
-                let span = (range.start + t.span.start)..(range.start + t.span.end);
-                if t.kind {
-                    self.push(span, url_kind);
-                    self.close_part();
-                } else {
-                    self.push(span, kind);
-                }
-            }
-        }
-        
-        fn push_with_paren_no(&mut self, range: Range<usize>, kind: TokenKind, paren_no: u32) {
-            self.close_part();
-            let s = &self.line[range.clone()];
-            self.parts.push(make_token(kind, s, paren_no));
-            self.current_range = range.end..range.end;
-        }
-        
-        fn push(&mut self, range: Range<usize>, kind: TokenKind) {
-            if range.is_empty() {
-                // do nothing
-            } else if matches!(self.current_token_kind, Some(k) if k == kind) {
-                self.current_range.end = range.end;
-            } else {
-                self.close_part();
-                self.current_token_kind = Some(kind);
-                self.current_range = range;
-            }
-        }
-        
-        fn close_part(&mut self) {
-            if let Some(kind) = self.current_token_kind {
-                let s = &self.line[self.current_range.clone()];
-                self.parts.push(make_token(kind, s, 0));
-                self.current_range.start = self.current_range.end;
-                self.current_token_kind = None;
-            }
-        }
-        
-        fn close(mut self) -> HTML {
-            self.close_part();
-            HTML::seq(&self.parts)
-        }
-    }
-    
-    fn make_token(kind: TokenKind, s: &str, paren_no: u32) -> HTML {
-        let css_class = match kind {
-            TokenKind::Comment => "comment",
-            TokenKind::CommentURL => return make_link_token(s, true),
-            TokenKind::Decorator => "decorator",
-            TokenKind::Invalid => "err",
-            TokenKind::Keyword => "keyword",
-            TokenKind::KeywordLiteral => "keyword-literal",
-            TokenKind::KeywordOp => "keyword-op",
-            TokenKind::Name => "name",
-            TokenKind::NameDef => "name-def",
-            TokenKind::Number => "number",
-            TokenKind::Op => "op",
-            TokenKind::ParenLeft => "lparen",
-            TokenKind::ParenRight => "rparen",
-            TokenKind::ParenUnmatched => "unmatched-paren",
-            TokenKind::Punctuation => "punctuation",
-            TokenKind::String => "string",
-            TokenKind::TypeAnnotation => "type-annotation",
-            TokenKind::URL => return make_link_token(s, false),
-            TokenKind::Whitespace => return HTML::text(s),
-        };
-        
-        let mut tag = Tag::new(str_ids::SPAN, HTML::text(s))
-            .str_attr(str_ids::CLASS, css_class);
-        if paren_no > 0 {
-            tag = tag.str_attr(str_ids::DATA_PAREN_NO, &format!("{}", paren_no));
-        }
-        HTML::from(tag)
-    }
-    
-    fn make_link_token(s: &str, is_comment: bool) -> HTML {
-        let mut tag = Tag::new(str_ids::A, HTML::text(s))
-            .str_attr(str_ids::HREF, s);
-        if is_comment { tag = tag.str_attr(str_ids::CLASS, "comment"); }
-        HTML::from(tag)
     }
 }

@@ -32,7 +32,7 @@ impl Type {
     }
     
     pub fn optional(t: Type) -> Type {
-        if matches!(t, Type::Optional(..)) {
+        if matches!(t, Type::Optional(..) | Type::Unit) {
             t
         } else {
             Type::Optional(Box::new(t))

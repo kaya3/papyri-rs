@@ -52,6 +52,15 @@
     </>
 }
 
+@fn trim $s: str -> {
+    @match $s {
+        " $s " -> $s,
+        " $s" -> $s,
+        "$s " -> $s,
+        _ -> $s,
+    }
+}
+
 @fn h1 $v: inline -> <h1>$v</>
 @fn h2 $v: inline -> <h2>$v</>
 @fn h3 $v: inline -> <h3>$v</>

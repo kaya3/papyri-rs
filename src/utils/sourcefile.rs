@@ -3,7 +3,7 @@ use std::path::{PathBuf, Path};
 use std::rc::Rc;
 use once_cell::unsync::OnceCell;
 
-use super::SourceRange;
+use super::range::SourceRange;
 
 /// Indicates whether the given file path has a `.papyri` file extension.
 pub fn has_papyri_extension(path: &PathBuf) -> bool {
@@ -21,7 +21,8 @@ pub struct SourceFile {
 
 impl SourceFile {
     /// Creates a new synthetic source file which does not exist on the file
-    /// system. This is used for the standard library.
+    /// system. This is used for the standard library, and for syntax
+    /// highlighting of Papyri snippets.
     pub fn synthetic(path_str: &str, src: &str) -> Rc<SourceFile> {
         SourceFile::new(PathBuf::new(), path_str.to_string(), Box::from(src))
     }

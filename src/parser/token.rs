@@ -148,6 +148,7 @@ impl Token {
             TokenKind::Boolean |
             TokenKind::LPar |
             TokenKind::RPar |
+            TokenKind::LAngle |
             TokenKind::RAngle |
             TokenKind::RAngleSlash |
             TokenKind::Dot |
