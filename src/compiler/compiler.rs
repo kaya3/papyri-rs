@@ -1,5 +1,4 @@
 use std::rc::Rc;
-use indexmap::IndexMap;
 
 use crate::parser::{parse, AST, text};
 use crate::utils::taginfo::ContentKind;
@@ -53,14 +52,14 @@ pub struct Compiler<'a> {
 impl <'a> Compiler<'a> {
     fn new(diagnostics: &'a mut Diagnostics, loader: &'a mut ModuleLoader) -> Compiler<'a> {
         let frame = match loader.stdlib.as_ref() {
-            Some(stdlib) => stdlib.new_child_frame(IndexMap::new()),
+            Some(stdlib) => stdlib.new_child_frame(ValueMap::new()),
             None => get_natives_frame(),
         };
         Compiler {
             diagnostics,
             loader,
             frame,
-            exports: IndexMap::new(),
+            exports: ValueMap::new(),
         }
     }
     

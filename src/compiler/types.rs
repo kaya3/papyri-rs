@@ -1,10 +1,8 @@
-use indexmap::IndexMap;
-
 use crate::utils::{Diagnostics, ice_at, SourceRange, str_ids};
 use crate::parser::{ast, Token};
 use super::compiler::Compiler;
 use super::html::HTML;
-use super::value::Value;
+use super::value::{Value, ValueMap};
 
 #[derive(Clone, PartialEq, Eq)]
 pub enum Type {
@@ -152,11 +150,8 @@ impl <'a> Compiler<'a> {
             (Type::Str, Value::Bool(b)) => return Some(Token::bool_to_string(*b).into()),
             (Type::Str, Value::Int(i)) => return Some(i.to_string().into()),
             
-            (Type::Optional(..), _) |
-            (_, Value::Func(..)) => {},
-            
             (Type::Dict(t), Value::Dict(vs)) => {
-                let mut coerced_vs = IndexMap::new();
+                let mut coerced_vs = ValueMap::new();
                 let mut any_errors = false;
                 for (k, v) in vs.iter() {
                     if let Some(coerced_v) = self._coerce(v.clone(), t, range) {
@@ -183,6 +178,9 @@ impl <'a> Compiler<'a> {
                 if !any_errors { return Some(Value::list(coerced_vs)); }
             },
             
+            (_, Value::Func(..)) |
+            (Type::Inline, Value::Dict(..) | Value::List(..)) => {},
+            
             (Type::AnyHTML, _) => return Some(self.compile_value(value).into()),
             (Type::Block, _) => {
                 let mut r = self.compile_value(value);
@@ -191,7 +189,6 @@ impl <'a> Compiler<'a> {
                 }
                 return Some(Value::HTML(r));
             },
-            (Type::Inline, Value::Dict(..) | Value::List(..)) => {},
             (Type::Inline, _) => {
                 let v = self.compile_value(value);
                 return if v.is_block() {

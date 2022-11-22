@@ -1,7 +1,5 @@
 use std::rc::Rc;
 
-use indexmap::IndexMap;
-
 use crate::parser::ast;
 use crate::utils::{ice, ice_at};
 use super::compiler::Compiler;
@@ -12,7 +10,7 @@ use super::value::{Value, ValueMap};
 impl <'a> Compiler<'a> {
     pub fn evaluate_match(&mut self, match_: &ast::Match, type_hint: &Type) -> Option<Value> {
         let value = self.evaluate_node(&match_.value, &Type::AnyValue)?;
-        let mut bindings = IndexMap::new();
+        let mut bindings = ValueMap::new();
         for branch in match_.branches.iter() {
             bindings.clear();
             if self.bind_pattern(&branch.pattern, value.clone(), &mut bindings) {

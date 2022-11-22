@@ -19,7 +19,7 @@ pub struct Tag {
 
 impl Tag {
     pub fn new(name_id: NameID, content: HTML) -> Tag {
-        Tag::new_with_attrs(name_id, IndexMap::new(), content)
+        Tag::new_with_attrs(name_id, AttrMap::new(), content)
     }
     
     pub fn new_with_attrs(name_id: NameID, attributes: AttrMap, content: HTML) -> Tag {
@@ -59,7 +59,7 @@ impl <'a> Compiler<'a> {
             }
         };
         
-        let mut attrs: AttrMap = IndexMap::new();
+        let mut attrs = AttrMap::new();
         for attr in tag.attrs.iter() {
             match attr {
                 ast::TagAttrOrSpread::Attr(attr) => {

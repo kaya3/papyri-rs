@@ -40,13 +40,19 @@
 @fn underline $v: inline -> <u>$v</>
 
 @fn code($language?: implicit str) $v: str -> {
-    <code class="syntax-highlight">
-        @syntax_highlight(language=$language) $v
-    </>
+    @let(c=@match $language {
+        _: str -> "syntax-highlight lang-$language",
+        _ -> .,
+    }).
+    <code class?=$c>@syntax_highlight(language=$language) $v</>
 }
 @fn code_block($language?: implicit str, $first_line_no: int? = 1) $v: str -> {
+    @let(c=@match $language {
+        _: str -> "syntax-highlight lang-$language",
+        _ -> .,
+    }).
     <pre class="panel listing">
-        <code class="syntax-highlight">
+        <code class?=$c>
             @syntax_highlight(language=$language, code_block=True, first_line_no=$first_line_no) @fix_indentation $v
         </>
     </>

@@ -11,6 +11,7 @@ pub fn syntax_highlight_papyri(src: &str) -> Vec<HTML> {
     );
     
     let mut next_is_def = false;
+    let mut next_is_tag_name = false;
     let mut out = Vec::new();
     let mut line = LineHighlighter::new(src);
     
@@ -29,6 +30,8 @@ pub fn syntax_highlight_papyri(src: &str) -> Vec<HTML> {
             parser::TokenKind::Name => if next_is_def {
                 next_is_def = false;
                 TokenKind::NameDef
+            } else if next_is_tag_name {
+                TokenKind::Name
             } else {
                 TokenKind::Punctuation
             },
@@ -53,6 +56,8 @@ pub fn syntax_highlight_papyri(src: &str) -> Vec<HTML> {
             
             _ => TokenKind::Op,
         };
+        
+        next_is_tag_name = tok.kind == parser::TokenKind::LAngle;
         
         let mut cur = tok.range.start as usize;
         let mut do_close = false;

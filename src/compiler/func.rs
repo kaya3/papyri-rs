@@ -1,5 +1,4 @@
 use std::rc::Rc;
-
 use indexmap::IndexMap;
 
 use crate::parser::{ast, AST};
@@ -117,8 +116,8 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
             compiler,
             sig,
             spread_pos: Vec::new(),
-            spread_named: IndexMap::new(),
-            map: IndexMap::new(),
+            spread_named: ValueMap::new(),
+            map: ValueMap::new(),
             positional_arg_count: 0,
             any_errors: false,
         }
