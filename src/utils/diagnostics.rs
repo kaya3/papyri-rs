@@ -18,8 +18,8 @@ struct Diagnostic {
     range: SourceRange,
 }
 
-impl Diagnostic {
-    pub fn to_string(&self) -> String {
+impl ToString for Diagnostic {
+    fn to_string(&self) -> String {
         format!("{:?}: {}\n    in \"{}\" at {}", self.kind, self.msg, self.range.src.path_str, self.range.str_start())
     }
 }
@@ -29,6 +29,16 @@ pub struct Diagnostics {
     v: Vec<Diagnostic>,
     pub num_errors: usize,
     pub num_warnings: usize,
+}
+
+impl std::fmt::Debug for Diagnostics {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("{} error(s), {} warning(s)\n", self.num_errors, self.num_warnings))?;
+        for d in self.v.iter() {
+            f.write_fmt(format_args!("{}\n", d.to_string()))?;
+        }
+        Ok(())
+    }
 }
 
 impl Diagnostics {

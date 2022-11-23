@@ -12,20 +12,24 @@ pub fn syntax_highlight_papyri(src: &str) -> Vec<HTML> {
     
     let mut next_is_def = false;
     let mut next_is_tag_name = false;
-    let mut out = Vec::new();
     let mut line = LineHighlighter::new(src);
+    let mut out = Vec::new();
     
     for tok in tokens {
         let kind = match tok.kind {
             parser::TokenKind::Comment => TokenKind::Comment,
             
+            parser::TokenKind::RawText |
             parser::TokenKind::Whitespace |
-            parser::TokenKind::Newline => TokenKind::Whitespace,
+            parser::TokenKind::Newline => TokenKind::Plain,
             
+            parser::TokenKind::Boolean |
             parser::TokenKind::Escape |
             parser::TokenKind::Entity => TokenKind::KeywordLiteral,
             
-            parser::TokenKind::RawText => TokenKind::Punctuation,
+            parser::TokenKind::Number => TokenKind::Number,
+            parser::TokenKind::VarName => TokenKind::Name,
+            parser::TokenKind::Verbatim => TokenKind::String,
             
             parser::TokenKind::Name => if next_is_def {
                 next_is_def = false;
@@ -33,7 +37,7 @@ pub fn syntax_highlight_papyri(src: &str) -> Vec<HTML> {
             } else if next_is_tag_name {
                 TokenKind::Name
             } else {
-                TokenKind::Punctuation
+                TokenKind::Plain
             },
             
             parser::TokenKind::FuncName => match tok.as_str() {
@@ -41,11 +45,6 @@ pub fn syntax_highlight_papyri(src: &str) -> Vec<HTML> {
                 "@match" => TokenKind::Keyword,
                 _ => TokenKind::Decorator,
             },
-            
-            parser::TokenKind::VarName => TokenKind::Name,
-            parser::TokenKind::Number => TokenKind::Number,
-            parser::TokenKind::Boolean => TokenKind::KeywordLiteral,
-            parser::TokenKind::Verbatim => TokenKind::String,
             
             parser::TokenKind::LPar |
             parser::TokenKind::LSqb |

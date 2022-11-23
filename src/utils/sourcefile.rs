@@ -14,30 +14,30 @@ pub fn has_papyri_extension(path: &PathBuf) -> bool {
 /// than 4 GiB.
 pub struct SourceFile {
     pub path: Box<Path>,
-    pub path_str: String,
+    pub path_str: Box<str>,
     pub src: Box<str>,
     line_col_coords: OnceCell<Box<[(u32, u32)]>>,
 }
 
 impl SourceFile {
     /// Creates a new synthetic source file which does not exist on the file
-    /// system. This is used for the standard library, and for syntax
-    /// highlighting of Papyri snippets.
+    /// system. This is used for the standard library, syntax highlighting of
+    /// Papyri snippets, and tests.
     pub fn synthetic(path_str: &str, src: &str) -> Rc<SourceFile> {
-        SourceFile::new(PathBuf::new(), path_str.to_string(), Box::from(src))
+        SourceFile::new(PathBuf::new(), Box::from(path_str), Box::from(src))
     }
     
     /// Loads a source file from the given path.
     pub fn from_path(path: PathBuf) -> Result<Rc<SourceFile>, String> {
         fs::read_to_string(&path)
             .map(|src| {
-                let path_str = String::from(path.to_string_lossy());
+                let path_str: Box<str> = Box::from(path.to_string_lossy());
                 SourceFile::new(path, path_str, src.into_boxed_str())
             })
             .map_err(|e| e.to_string())
     }
     
-    fn new(path: PathBuf, path_str: String, src: Box<str>) -> Rc<SourceFile> {
+    fn new(path: PathBuf, path_str: Box<str>, src: Box<str>) -> Rc<SourceFile> {
         Rc::new(SourceFile {
             path: path.into_boxed_path(),
             path_str,
@@ -57,7 +57,8 @@ impl SourceFile {
     /// reporting diagnostics.
     pub fn index_to_line_col(&self, index: u32) -> (u32, u32) {
         self.line_col_coords.get_or_init(|| {
-            let mut coords = Vec::new();
+            // upper bound for the needed capacity
+            let mut coords = Vec::with_capacity(self.src.len() + 1);
             coords.push((1, 1));
             let mut line = 1;
             let mut col = 1;

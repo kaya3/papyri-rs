@@ -132,7 +132,7 @@ impl <'a> Compiler<'a> {
         self.coerce(value, type_hint, &var.range)
     }
     
-    fn evaluate_list(&mut self, list: &[AST], type_hint: &Type, range: &SourceRange) -> Option<Value> {
+    fn evaluate_list(&mut self, list: &[(AST, bool)], type_hint: &Type, range: &SourceRange) -> Option<Value> {
         let child_type_hint = match type_hint {
             Type::AnyValue => type_hint,
             Type::List(t) => t,
@@ -143,10 +143,17 @@ impl <'a> Compiler<'a> {
             },
         };
         
-        let children = list.iter()
-            .filter_map(|child| self.evaluate_node(child, child_type_hint))
-            .collect();
-        
+        let mut children = Vec::new();
+        for (child, is_spread) in list.iter() {
+            if *is_spread {
+                let Value::List(grandchildren) = self.evaluate_node(child, &Type::list(child_type_hint.clone()))? else {
+                    ice_at("failed to coerce", child.range());
+                };
+                children.extend(grandchildren.as_ref().iter().cloned());
+            } else if let Some(child) = self.evaluate_node(child, child_type_hint) {
+                children.push(child);
+            }
+        }
         Some(Value::list(children))
     }
     

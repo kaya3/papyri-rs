@@ -1,5 +1,5 @@
-use std::collections::HashSet;
 use std::rc::Rc;
+use indexmap::IndexSet;
 
 use crate::utils::{str_ids, ice_at};
 use super::ast::*;
@@ -54,7 +54,7 @@ impl <'a> Parser<'a> {
             );
             if rpar.is_none() { return None; };
             
-            let mut names_used = HashSet::new();
+            let mut names_used = IndexSet::new();
             let mut any_optional_params = false;
             let mut any_optional_named_params = false;
             
@@ -142,7 +142,7 @@ impl <'a> Parser<'a> {
         if rpar.is_none() { return None; }
         
         let mut any_named = false;
-        let mut names_used = HashSet::new();
+        let mut names_used = IndexSet::new();
         
         for arg in &args {
             if !arg.name_id.is_anonymous() {
@@ -212,7 +212,7 @@ impl <'a> Parser<'a> {
         ))
     }
     
-    fn parse_arg(&mut self) -> Option<Arg> {
+    pub fn parse_arg(&mut self) -> Option<Arg> {
         self.skip_whitespace();
         let spread = self.poll_if_kind(TokenKind::Asterisk);
         let spread_kind = match &spread {
@@ -233,7 +233,6 @@ impl <'a> Parser<'a> {
             return Some(Arg {range, spread_kind, name_id: str_ids::ANONYMOUS, value});
         };
         
-        let name_id = self.string_pool.insert(name.as_str());
         let range_start = match spread.as_ref() {
             Some(t) => t.range.clone(),
             None => name.range.clone(),
@@ -242,8 +241,9 @@ impl <'a> Parser<'a> {
         self.skip_whitespace();
         Some(if self.poll_if_kind(TokenKind::Equals).is_some() {
             if let Some(spread) = &spread {
-                self.diagnostics.syntax_error("spread not allowed for named argument (should be parameter?)", &spread.range);
+                self.diagnostics.syntax_error("spread not allowed for named argument", &spread.range);
             }
+            let name_id = self.string_pool.insert(name.as_str());
             let value = self.parse_value()?;
             let range = range_start.to_end(value.range().end);
             Arg {range, spread_kind: SpreadKind::NoSpread, name_id, value}

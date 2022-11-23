@@ -93,7 +93,7 @@ impl Arg {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SpreadKind {
     NoSpread,
     Positional,
@@ -199,7 +199,7 @@ pub enum AST {
     Match(Box<Match>),
     
     Group(Box<[AST]>, SourceRange),
-    List(Box<[AST]>, SourceRange),
+    List(Box<[(AST, bool)]>, SourceRange),
     Template(Box<[TemplatePart]>, SourceRange),
     Tag(Box<Tag>),
     VarName(VarName),
@@ -231,10 +231,10 @@ impl AST {
             AST::LiteralValue(Token {range, ..}) |
             AST::Verbatim(Token {range, ..}) |
             AST::VarName(VarName {range, ..}) |
-            AST::Text(.., range) |
             AST::Group(.., range) |
             AST::List(.., range) |
             AST::Template(.., range) |
+            AST::Text(.., range) |
             AST::Entity(range) |
             AST::Escape(range) |
             AST::Whitespace(range) |

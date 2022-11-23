@@ -1,7 +1,8 @@
 use std::borrow::BorrowMut;
 use std::cell::RefCell;
-use std::collections::HashSet;
 use std::rc::Rc;
+
+use indexmap::IndexSet;
 
 use crate::parser::AST;
 use crate::utils::{SourceRange, NameID};
@@ -23,7 +24,7 @@ pub struct InactiveFrame {
 struct Frame {
     lexical_parent: Option<InactiveFrame>,
     locals: ValueMap,
-    implicit: HashSet<NameID>,
+    implicit: IndexSet<NameID>,
 }
 
 impl ActiveFrame {
@@ -32,7 +33,7 @@ impl ActiveFrame {
             f: Rc::new(RefCell::new(Frame {
                 lexical_parent,
                 locals,
-                implicit: HashSet::new(),
+                implicit: IndexSet::new(),
             })),
         }
     }

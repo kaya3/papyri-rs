@@ -2,9 +2,10 @@
 #![allow(dead_code)]
 #![forbid(unsafe_code)]
 
-use std::collections::HashSet;
 use std::{fs, io};
 use std::path::PathBuf;
+
+use indexmap::IndexSet;
 
 mod config;
 mod parser;
@@ -35,7 +36,7 @@ fn pluralise(k: usize) -> &'static str {
 fn run_main() -> Result<(), String> {
     let options = config::get_config_from_args()?;
     
-    let mut source_paths = HashSet::new();
+    let mut source_paths = IndexSet::new();
     for pattern in options.paths {
         if !pattern.chars().any(|c| matches!(c, '*' | '?' | '[')) {
             let path = PathBuf::from(&pattern)

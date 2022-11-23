@@ -1,7 +1,6 @@
-use std::collections::HashSet;
+use indexmap::IndexSet;
 
 use crate::utils::{ice_at, NameID, taginfo};
-
 use super::ast::*;
 use super::queue::Parser;
 use super::token::{Token, TokenKind};
@@ -22,7 +21,7 @@ impl <'a> Parser<'a> {
         };
         
         let mut attrs = Vec::new();
-        let mut names_used: HashSet<NameID> = HashSet::new();
+        let mut names_used: IndexSet<NameID> = IndexSet::new();
         while let Some(attr) = self.parse_tag_attribute() {
             if let TagAttrOrSpread::Attr(attr) = &attr {
                 if !names_used.insert(attr.name_id) {

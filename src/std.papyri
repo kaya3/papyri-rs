@@ -1,7 +1,6 @@
 @fn bool $b: bool -> $b
 @fn int $i: int -> $i
 @fn str $s: str -> $s
-@fn list(*$_args: any list) $_: none -> $_args
 @fn dict(**$kwargs: any dict) $_: none -> $kwargs
 @fn inline $v: inline -> $v
 @fn block $v: block -> $v

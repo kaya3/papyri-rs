@@ -49,16 +49,13 @@ impl <'a> Parser<'a> {
             if let Some(child) = parse(self) {
                 children.push(child);
             } else {
-                // error
+                self.diagnostics.err_unmatched(open);
                 break None;
             }
             self.skip_whitespace();
             expect_end = self.poll_if_kind(TokenKind::Comma).is_none();
         };
         
-        if close.is_none() {
-            self.diagnostics.err_unmatched(open);
-        }
         (children, close)
     }
     
@@ -77,7 +74,7 @@ impl <'a> Parser<'a> {
             TokenKind::FuncName => self.parse_func(tok),
             TokenKind::Ellipsis => Some(self.parse_ellipsis_group(tok)),
             TokenKind::LBrace => Some(self.parse_group(tok)),
-            TokenKind::LSqb => Some(self.parse_list(tok)),
+            TokenKind::LSqb => self.parse_list(tok),
             TokenKind::LAngle if self.has_next(|t| matches!(t.kind, TokenKind::Name | TokenKind::VarName)) => self.parse_tag(tok),
             TokenKind::Quote(..) => self.parse_template(tok),
             
@@ -95,7 +92,7 @@ impl <'a> Parser<'a> {
             TokenKind::FuncName => self.parse_func(tok),
             
             TokenKind::LBrace => Some(self.parse_group(tok)),
-            TokenKind::LSqb => Some(self.parse_list(tok)),
+            TokenKind::LSqb => self.parse_list(tok),
             TokenKind::LAngle if self.has_next(|t| matches!(t.kind, TokenKind::Name | TokenKind::VarName)) => self.parse_tag(tok),
             
             TokenKind::CloseTag |
@@ -160,14 +157,22 @@ impl <'a> Parser<'a> {
         AST::Group(children.into_boxed_slice(), range)
     }
     
-    fn parse_list(&mut self, open: Token) -> AST {
+    fn parse_list(&mut self, open: Token) -> Option<AST> {
         let (children, close) = self.parse_comma_separated_until(
             &open,
-            |_self| _self.parse_value(),
+            |_self| {
+                let arg = _self.parse_arg()?;
+                if arg.spread_kind == SpreadKind::Named {
+                    _self.diagnostics.syntax_error("named spread not allowed in list", &arg.range);
+                } else if !arg.is_positional() {
+                    _self.diagnostics.syntax_error("named argument not allowed in list", &arg.range);
+                }
+                Some((arg.value, arg.spread_kind == SpreadKind::Positional))
+            },
             TokenKind::RSqb,
         );
         
-        let range = AST::seq_range(open, &children, close);
-        AST::List(children.into_boxed_slice(), range)
+        let range = open.range.to_end(close?.range.end);
+        Some(AST::List(children.into_boxed_slice(), range))
     }
 }

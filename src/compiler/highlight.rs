@@ -8,8 +8,8 @@ use super::tag::Tag;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TokenKind {
+    Plain,
     Comment,
-    CommentURL,
     Decorator,
     Keyword,
     KeywordLiteral,
@@ -24,8 +24,7 @@ pub enum TokenKind {
     Punctuation,
     String,
     TypeAnnotation,
-    URL,
-    Whitespace,
+    URL(bool),
     Invalid,
 }
 
@@ -70,11 +69,9 @@ impl <'a> LineHighlighter<'a> {
     pub fn push(&mut self, range: Range<usize>, kind: TokenKind) {
         let s = &self.src[range.clone()];
         match kind {
-            TokenKind::Comment => {
-                self.push_with_possible_urls(range, kind, TokenKind::CommentURL);
-            },
+            TokenKind::Comment |
             TokenKind::String => {
-                self.push_with_possible_urls(range, kind, TokenKind::URL);
+                self.push_with_possible_urls(range, kind, TokenKind::URL(kind == TokenKind::Comment));
             },
             TokenKind::ParenLeft => {
                 self.paren_count += 1;
@@ -147,8 +144,10 @@ impl <'a> LineHighlighter<'a> {
     
     fn make_token(kind: TokenKind, s: &str, paren_no: u32) -> HTML {
         let css_class = match kind {
+            TokenKind::Plain => return HTML::text(s),
+            TokenKind::URL(is_comment) => return LineHighlighter::make_link_token(s, is_comment),
+            
             TokenKind::Comment => "comment",
-            TokenKind::CommentURL => return LineHighlighter::make_link_token(s, true),
             TokenKind::Decorator => "decorator",
             TokenKind::Invalid => "err",
             TokenKind::Keyword => "keyword",
@@ -164,8 +163,6 @@ impl <'a> LineHighlighter<'a> {
             TokenKind::Punctuation => "punctuation",
             TokenKind::String => "string",
             TokenKind::TypeAnnotation => "type-annotation",
-            TokenKind::URL => return LineHighlighter::make_link_token(s, false),
-            TokenKind::Whitespace => return HTML::text(s),
         };
         
         let mut tag = Tag::new(str_ids::SPAN, HTML::text(s))
@@ -276,7 +273,7 @@ mod syntect_highlighting {
     
     fn token_kind(s: &str, stack: &[Scope]) -> TokenKind {
         if text::is_whitespace(s) {
-            TokenKind::Whitespace
+            TokenKind::Plain
         } else if CACHE.invalid.does_match(stack).is_some() {
             TokenKind::Invalid
         } else if CACHE.comment.does_match(stack).is_some() {
