@@ -209,7 +209,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "papyri"
+name = "papyri-lang"
 version = "0.3.4"
 dependencies = [
  "aho-corasick",

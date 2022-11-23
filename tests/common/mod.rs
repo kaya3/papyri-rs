@@ -1,4 +1,4 @@
-pub type TestResult = Result<(), papyri::utils::Diagnostics>;
+pub type TestResult = Result<(), papyri_lang::utils::Diagnostics>;
 
 #[macro_export]
 macro_rules! assert_ok {
@@ -6,7 +6,7 @@ macro_rules! assert_ok {
         $(
             #[test]
             fn $name() -> $crate::common::TestResult {
-                assert_eq!($expected, papyri::compile_str($src)?);
+                assert_eq!($expected, papyri_lang::compile_str($src)?);
                 Ok(())
             }
         )*

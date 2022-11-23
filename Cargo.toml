@@ -1,8 +1,14 @@
 [package]
-name = "papyri"
+name = "papyri-lang"
 version = "0.3.4"
 edition = "2021"
 license = "MIT"
+description = "Compiler for the Papyri markup language"
+keywords = ["papyri", "markup", "html", "markup-language", "programming-language"]
+categories = ["compilers", "command-line-utilities"]
+homepage = "https://github.com/kaya3/papyri-rs"
+repository = "https://github.com/kaya3/papyri-rs"
+readme = "README.md"
 
 [profile.release]
 codegen-units = 1
