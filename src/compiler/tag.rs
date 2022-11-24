@@ -44,7 +44,7 @@ impl From<Tag> for HTML {
 impl <'a> Compiler<'a> {
     pub fn compile_tag(&mut self, tag: &ast::Tag) -> HTML {
         let tag_name_id = match &tag.name {
-            ast::TagName::Fixed(name_id) => *name_id,
+            ast::TagName::Literal(name_id) => *name_id,
             ast::TagName::Variable(var) => match self.evaluate_var(var, &Type::Str) {
                 Some(Value::Str(name)) => {
                     if text::is_identifier(&name) {

@@ -29,7 +29,6 @@ pub enum TokenKind {
     RBrace,
     LAngle,
     RAngle,
-    RAngleSlash,
     RAngleComment,
     
     Dot,
@@ -128,10 +127,7 @@ impl Token {
     /// Returns the raw text of this Verbatim token.
     pub fn get_verbatim_text(&self) -> &str {
         if self.kind != TokenKind::Verbatim { ice("token is not Verbatim"); }
-        let s = self.as_str();
-        let mut i = 0;
-        while s.chars().nth(i).unwrap() == '`' { i += 1; }
-        &s[i..s.len()-i]
+        self.as_str().trim_matches('`')
     }
     
     /// Indicates whether this Verbatim token is a multi-line string literal.
@@ -150,7 +146,6 @@ impl Token {
             TokenKind::RPar |
             TokenKind::LAngle |
             TokenKind::RAngle |
-            TokenKind::RAngleSlash |
             TokenKind::Dot |
             TokenKind::Comma |
             TokenKind::Equals |

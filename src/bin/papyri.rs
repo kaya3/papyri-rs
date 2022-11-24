@@ -4,13 +4,11 @@
 
 use std::{fs, io};
 use std::path::PathBuf;
-
 use indexmap::IndexSet;
 
-mod config;
-mod parser;
-mod compiler;
-mod utils;
+use papyri_lang::compiler;
+use papyri_lang::config;
+use papyri_lang::utils;
 
 fn is_unchanged(src_path: &PathBuf, out_path: &PathBuf) -> Result<bool, String> {
     let src_modified = match fs::metadata(src_path)
@@ -35,6 +33,11 @@ fn pluralise(k: usize) -> &'static str {
 
 fn run_main() -> Result<(), String> {
     let options = config::get_config_from_args()?;
+    
+    if options.print_version {
+        println!("Papyri compiler version {}", env!("CARGO_PKG_VERSION"));
+        return Ok(());
+    }
     
     let mut source_paths = IndexSet::new();
     for pattern in options.paths {

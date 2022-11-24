@@ -47,9 +47,10 @@ impl <'a> Parser<'a> {
         self.skip_whitespace();
         let lpar = self.poll_if_kind(TokenKind::LPar);
         if let Some(lpar) = &lpar {
-            let (raw_params, rpar) = self.parse_comma_separated_until(
+            let (raw_params, rpar) = self.parse_separated_until(
                 lpar,
-                |_self| _self.parse_param(),
+                Parser::parse_param,
+                TokenKind::Comma,
                 TokenKind::RPar,
             );
             if rpar.is_none() { return None; };
@@ -134,9 +135,10 @@ impl <'a> Parser<'a> {
             return Some(Vec::new());
         };
         
-        let (args, rpar) = self.parse_comma_separated_until(
+        let (args, rpar) = self.parse_separated_until(
             &lpar,
-            |_self| _self.parse_arg(),
+            Parser::parse_arg,
+            TokenKind::Comma,
             TokenKind::RPar,
         );
         if rpar.is_none() { return None; }

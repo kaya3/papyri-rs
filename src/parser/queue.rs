@@ -87,25 +87,4 @@ impl <'a> Parser<'a> {
     pub fn poll_if_kind(&mut self, kind: TokenKind) -> Option<Token> {
         self.poll_if(|tok| tok.kind == kind)
     }
-    
-    /// Removes up to and returns the next non-whitespace token in the queue,
-    /// if it exists and matches the given kind.
-    pub fn poll_ignoring_whitespace_if_kind(&mut self, kind: TokenKind) -> Option<Token> {
-        if self.tokens.len() < 2 {
-            return self.poll_if_kind(kind);
-        }
-        
-        let peek1 = self.tokens.last();
-        let peek2 = self.tokens.get(self.tokens.len() - 2);
-        match (peek1, peek2) {
-            (Some(tok), _) if tok.kind == kind => {
-                self.poll()
-            },
-            (Some(ws), Some(tok)) if ws.is_whitespace() && tok.kind == kind => {
-                self.poll();
-                self.poll()
-            },
-            _ => None,
-        }
-    }
 }

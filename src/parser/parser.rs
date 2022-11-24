@@ -31,13 +31,13 @@ impl <'a> Parser<'a> {
             }
         };
         
-        while nodes.last().filter(|node| node.is_whitespace()).is_some() {
+        while matches!(nodes.last(), Some(node) if node.is_whitespace()) {
             nodes.pop();
         }
         (nodes, end)
     }
     
-    pub fn parse_comma_separated_until<T>(&mut self, open: &Token, parse: impl Fn(&mut Self) -> Option<T>, close_kind: TokenKind) -> (Vec<T>, Option<Token>) {
+    pub fn parse_separated_until<T>(&mut self, open: &Token, parse: impl Fn(&mut Self) -> Option<T>, sep_kind: TokenKind, close_kind: TokenKind) -> (Vec<T>, Option<Token>) {
         let mut children = Vec::new();
         let mut expect_end = false;
         let close = loop {
@@ -53,7 +53,7 @@ impl <'a> Parser<'a> {
                 break None;
             }
             self.skip_whitespace();
-            expect_end = self.poll_if_kind(TokenKind::Comma).is_none();
+            expect_end = sep_kind != TokenKind::Whitespace && self.poll_if_kind(sep_kind).is_none();
         };
         
         (children, close)
@@ -158,7 +158,7 @@ impl <'a> Parser<'a> {
     }
     
     fn parse_list(&mut self, open: Token) -> Option<AST> {
-        let (children, close) = self.parse_comma_separated_until(
+        let (children, close) = self.parse_separated_until(
             &open,
             |_self| {
                 let arg = _self.parse_arg()?;
@@ -169,6 +169,7 @@ impl <'a> Parser<'a> {
                 }
                 Some((arg.value, arg.spread_kind == SpreadKind::Positional))
             },
+            TokenKind::Comma,
             TokenKind::RSqb,
         );
         

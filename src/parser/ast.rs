@@ -20,7 +20,7 @@ pub enum TagAttrOrSpread {
 
 #[derive(Debug)]
 pub enum TagName {
-    Fixed(NameID),
+    Literal(NameID),
     Variable(VarName),
 }
 
@@ -133,25 +133,50 @@ pub struct MatchBranch {
 #[derive(Debug)]
 pub enum MatchPattern {
     Ignore(SourceRange),
-    SpreadIgnore(SourceRange),
-    EmptyHTML(SourceRange),
+    LiteralNone(SourceRange),
     Literal(Token),
     LiteralName(SourceRange, NameID),
     VarName(VarName),
-    SpreadVarName(VarName),
     Regex(SourceRange, regex::Regex, Box<[VarName]>),
     Typed(SourceRange, Box<MatchPattern>, TypeAnnotation),
     TypeOf(SourceRange, Box<MatchPattern>, VarName),
     ExactList(SourceRange, Box<[MatchPattern]>),
     SpreadList(SourceRange, Box<[MatchPattern]>, usize),
+    Dict(SourceRange, Box<DictMatchPattern>),
     Tag(SourceRange, Box<TagMatchPattern>),
+}
+
+#[derive(Debug)]
+pub enum PositionalMatchPattern {
+    One(MatchPattern),
+    Spread(MatchPattern),
+}
+
+#[derive(Debug)]
+pub enum NamedMatchPattern {
+    One(NameID, MatchPattern),
+    Spread(MatchPattern),
+}
+
+impl NamedMatchPattern {
+    pub fn range(&self) -> &SourceRange {
+        match self {
+            NamedMatchPattern::One(_, p) |
+            NamedMatchPattern::Spread(p) => p.range(),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct DictMatchPattern {
+    pub attrs: IndexMap<NameID, MatchPattern>,
+    pub spread: Option<MatchPattern>,
 }
 
 #[derive(Debug)]
 pub struct TagMatchPattern {
     pub name: MatchPattern,
-    pub attrs: IndexMap<NameID, MatchPattern>,
-    pub spread: Option<MatchPattern>,
+    pub attrs: MatchPattern,
     pub content: MatchPattern,
 }
 
@@ -159,26 +184,17 @@ impl MatchPattern {
     pub fn range(&self) -> &SourceRange {
         match self {
             MatchPattern::Ignore(range) |
-            MatchPattern::SpreadIgnore(range) |
             MatchPattern::Typed(range, ..) |
             MatchPattern::TypeOf(range, ..) |
             MatchPattern::ExactList(range, ..) |
             MatchPattern::SpreadList(range, ..) |
+            MatchPattern::Dict(range, ..) |
             MatchPattern::Tag(range, ..) |
             MatchPattern::Regex(range, ..) |
-            MatchPattern::EmptyHTML(range) |
+            MatchPattern::LiteralNone(range) |
             MatchPattern::LiteralName(range, ..) |
             MatchPattern::Literal(Token {range, ..}) |
-            MatchPattern::VarName(VarName {range, ..}) |
-            MatchPattern::SpreadVarName(VarName {range, ..}) => range,
-        }
-    }
-    
-    pub fn is_spread(&self) -> bool {
-        match self {
-            MatchPattern::SpreadIgnore(..) | MatchPattern::SpreadVarName(..) => true,
-            MatchPattern::Typed(_, child, _) => child.is_spread(),
-            _ => false,
+            MatchPattern::VarName(VarName {range, ..}) => range,
         }
     }
 }

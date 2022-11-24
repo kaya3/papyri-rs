@@ -7,6 +7,10 @@ const DEFAULT_WEB_ROOT: &str = "https://kaya3.github.io/papyri/";
 /// papyri
 /// Compiles Papyri to HTML.
 pub struct ProgramArgs {
+    #[arg(long = "version")]
+    /// Print version number and then exit
+    pub print_version: bool,
+    
     #[arg(short, long)]
     /// Force recompile of unchanged source files
     pub force: bool,

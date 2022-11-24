@@ -11,7 +11,7 @@ impl <'a> Parser<'a> {
         let (name, name_str) = match name_tok.kind {
             TokenKind::Name => {
                 let lc_name = name_tok.as_str().to_ascii_lowercase();
-                (TagName::Fixed(self.string_pool.insert(&lc_name)), Some(lc_name))
+                (TagName::Literal(self.string_pool.insert(&lc_name)), Some(lc_name))
             },
             TokenKind::VarName => {
                 let var_name = self.parse_var_name(name_tok);
@@ -20,23 +20,24 @@ impl <'a> Parser<'a> {
             _ => ice_at("invalid open tag token", &langle.range),
         };
         
-        let mut attrs = Vec::new();
+        let (attrs, Some(rangle)) = self.parse_separated_until(
+            &langle,
+            Parser::parse_tag_attribute,
+            TokenKind::Whitespace,
+            TokenKind::RAngle,
+        ) else {
+            self.diagnostics.syntax_error("expected '>' or '/>'", &langle.range);
+            return None;
+        };
+        
         let mut names_used: IndexSet<NameID> = IndexSet::new();
-        while let Some(attr) = self.parse_tag_attribute() {
-            if let TagAttrOrSpread::Attr(attr) = &attr {
+        for attr in attrs.iter() {
+            if let TagAttrOrSpread::Attr(attr) = attr {
                 if !names_used.insert(attr.name_id) {
                     self.diagnostics.error(&format!("repeated attribute '{}'", self.string_pool.get(attr.name_id)), &attr.range)
                 }
             }
-            attrs.push(attr);
         }
-        
-        let Some(rangle) = self.poll_if_kind(TokenKind::RAngle)
-            .or_else(|| self.poll_ignoring_whitespace_if_kind(TokenKind::RAngleSlash))
-            else {
-                self.diagnostics.syntax_error("expected '>' or '/>'", &langle.range);
-                return None;
-            };
         
         let mut tag = Tag {
             range: langle.range.to_end(rangle.range.end),
@@ -45,8 +46,8 @@ impl <'a> Parser<'a> {
             children: Box::from([]),
         };
         
-        let self_closing = rangle.kind == TokenKind::RAngleSlash
-            || matches!(tag.name, TagName::Fixed(name_id) if taginfo::is_self_closing(name_id));
+        let self_closing = rangle.as_str() == "/>"
+            || matches!(tag.name, TagName::Literal(name_id) if taginfo::is_self_closing(name_id));
         
         if !self_closing {
             let (children, Some(close)) = self.parse_nodes_until(|tok| tok.is_close_tag(&name_str)) else {
@@ -60,7 +61,8 @@ impl <'a> Parser<'a> {
     }
     
     fn parse_tag_attribute(&mut self) -> Option<TagAttrOrSpread> {
-        if let Some(spread) = self.poll_ignoring_whitespace_if_kind(TokenKind::Asterisk) {
+        self.skip_whitespace();
+        if let Some(spread) = self.poll_if_kind(TokenKind::Asterisk) {
             if spread.range.len() != 2 {
                 self.diagnostics.syntax_error("positional spread not allowed here", &spread.range);
             }
@@ -68,11 +70,16 @@ impl <'a> Parser<'a> {
                 .map(TagAttrOrSpread::Spread);
         }
         
-        let name = self.poll_ignoring_whitespace_if_kind(TokenKind::Name)?;
+        self.skip_whitespace();
+        let name = self.poll_if_kind(TokenKind::Name)?;
         let mut range = name.range.clone();
         let name_id = self.string_pool.insert(name.as_str());
-        let question_mark = self.poll_ignoring_whitespace_if_kind(TokenKind::QuestionMark);
-        if self.poll_ignoring_whitespace_if_kind(TokenKind::Equals).is_none() {
+        
+        self.skip_whitespace();
+        let question_mark = self.poll_if_kind(TokenKind::QuestionMark);
+        
+        self.skip_whitespace();
+        if self.poll_if_kind(TokenKind::Equals).is_none() {
             return match question_mark {
                 Some(q) => {
                     self.diagnostics.syntax_error("expected '=' after '?'", &q.range);
