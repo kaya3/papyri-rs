@@ -19,6 +19,7 @@ pub enum SyntaxError {
     
     TagUnmatchedOpen,
     TagUnmatchedClose,
+    TagDuplicateAttr(String),
     
     SpreadNotAllowed,
     SpreadPositionalNotAllowed,
@@ -71,6 +72,7 @@ impl std::fmt::Display for SyntaxError {
             SyntaxError::UnexpectedEOF => f.write_str("unexpected end of source"),
             SyntaxError::TagUnmatchedOpen => f.write_str("unmatched opening tag"),
             SyntaxError::TagUnmatchedClose => f.write_str("unmatched closing tag"),
+            SyntaxError::TagDuplicateAttr(name) => write!(f, "duplicate attribute name '{name}'"),
             SyntaxError::SpreadNotAllowed => f.write_str("spread not allowed here"),
             SyntaxError::SpreadPositionalNotAllowed => f.write_str("positional spread not allowed here"),
             SyntaxError::SpreadNamedNotAllowed => f.write_str("named spread not allowed here"),

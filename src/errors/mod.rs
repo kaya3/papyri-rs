@@ -11,7 +11,7 @@ pub use warning::Warning;
 
 mod sink;
 mod sink_base;
-pub use sink::Diagnostics;
+pub use sink::{Diagnostics, PapyriError};
 
 /// Reports an internal compiler error, indicating a bug or mistake in the
 /// Papyri compiler. Use `ice_at` instead if the error corresponds with some

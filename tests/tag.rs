@@ -1,3 +1,5 @@
+use papyri_lang::errors::PapyriError;
+
 mod common;
 
 assert_ok! {
@@ -74,5 +76,52 @@ assert_ok! {
     spread_attribute(
         "<span **@dict(id=`foo`).>Foo</span>",
         r#"<p><span id="foo">Foo</span></p>"#,
+    );
+    
+    empty_spread_attribute(
+        "<span **@dict(hidden=.).>Foo</span>",
+        r#"<p><span hidden>Foo</span></p>"#,
+    );
+}
+
+assert_err! {
+    unclosed_tag(
+        "<span>",
+        PapyriError::SyntaxError(..),
+    );
+    
+    unmatched_closing_tag(
+        "</span>",
+        PapyriError::SyntaxError(..),
+    );
+    
+    incorrect_closing_tag(
+        "<span></div>",
+        PapyriError::SyntaxError(..),
+    );
+    
+    unclosed_template(
+        r#"<span id="foobar>Foobar</span>"#,
+        PapyriError::SyntaxError(..),
+    );
+    
+    unmatched_self_closing(
+        "<br></br>",
+        PapyriError::SyntaxError(..),
+    );
+    
+    duplicate_attribute(
+        "<span id=`foo` id=`bar`>Foobar</span>",
+        PapyriError::SyntaxError(..),
+    );
+    
+    invalid_tag_name(
+        "@let(t=`12345`). <$t>Foobar</>",
+        PapyriError::NameError(..),
+    );
+    
+    duplicate_attribute_var(
+        "<span id=`foo` **@dict(id=`bar`).>Foobar</span>",
+        PapyriError::RuntimeError(..),
     );
 }

@@ -72,6 +72,12 @@ impl <T: fmt::Display> DiagnosticSink<T> {
         self.num_errors == 0 && self.num_warnings == 0
     }
     
+    /// Indicates whether the collection has any diagnostics matching the given
+    /// predicate. Used for tests to assert that a diagnostic is reported.
+    pub fn has_any(&self, predicate: impl Fn(&T) -> bool) -> bool {
+        self.v.iter().any(|d| predicate(&d.msg))
+    }
+    
     /// Clears the collection, making it empty.
     pub fn clear(&mut self) {
         self.v.clear();

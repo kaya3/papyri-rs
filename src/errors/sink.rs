@@ -41,7 +41,7 @@ impl Diagnostics {
         self.add(Severity::Error, PapyriError::TypeError(e), range);
     }
     
-    /// Reports an error which occurs while importing a Papyri module.
+    /// Reports an error which occurs while loading a Papyri module.
     pub fn module_error(&mut self, path: std::path::PathBuf, e: ModuleError, range: &SourceRange) {
         self.add(Severity::Error, PapyriError::ModuleError(path, e), range);
     }

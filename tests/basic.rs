@@ -1,3 +1,5 @@
+use papyri_lang::errors::PapyriError;
+
 mod common;
 
 assert_ok! {
@@ -49,5 +51,17 @@ assert_ok! {
     multiline_comment(
         "<!-- Nothing\nhere -->\nSomething",
         "<p>Something</p>",
+    );
+}
+
+assert_err! {
+    verbatim_eof(
+        "`some string literal",
+        PapyriError::SyntaxError(..),
+    );
+    
+    raise(
+        "@raise `foobar`",
+        PapyriError::RuntimeError(..),
     );
 }

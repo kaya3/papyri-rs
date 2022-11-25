@@ -1,6 +1,6 @@
 use indexmap::IndexSet;
 
-use crate::errors::{ice_at, SyntaxError, RuntimeError};
+use crate::errors::{ice_at, SyntaxError};
 use crate::utils::{NameID, taginfo};
 use super::ast::*;
 use super::queue::Parser;
@@ -33,7 +33,7 @@ impl <'a> Parser<'a> {
             if let TagAttrOrSpread::Attr(attr) = attr {
                 if !names_used.insert(attr.name_id) {
                     let name = self.string_pool.get(attr.name_id).to_string();
-                    self.diagnostics.runtime_error(RuntimeError::AttrMultipleValues(name), &attr.range)
+                    self.diagnostics.syntax_error(SyntaxError::TagDuplicateAttr(name), &attr.range)
                 }
             }
         }

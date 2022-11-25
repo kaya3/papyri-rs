@@ -14,6 +14,25 @@ macro_rules! assert_ok {
 }
 
 #[macro_export]
+macro_rules! assert_err {
+    ($($name: ident ($src: expr, $expected: pat$(,)?);)*) => {
+        $(
+            #[test]
+            fn $name() -> $crate::common::TestResult {
+                let Err(diagnostics) = papyri_lang::compile_str($src) else {
+                    panic!("No errors");
+                };
+                if diagnostics.has_any(|d| matches!(d, $expected)) {
+                    Ok(())
+                } else {
+                    Err(diagnostics)
+                }
+            }
+        )*
+    }
+}
+
+#[macro_export]
 macro_rules! assert_matches {
     ($($name: ident ($val: expr, $pattern: expr$(,)?);)*) => {
         $(
