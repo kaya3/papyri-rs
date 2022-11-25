@@ -6,7 +6,7 @@ use super::range::SourceRange;
 
 /// Determines whether the given file path has the `.papyri` extension.
 pub fn is_papyri_file(path: &path::Path) -> bool {
-    matches!(path.extension(), Some(ext) if &ext.to_ascii_lowercase() == "papyri")
+    matches!(path.extension(), Some(ext) if ext.eq_ignore_ascii_case("papyri"))
 }
 
 /// Determines whether the given file path appears to a Papyri library, i.e. a
@@ -55,13 +55,6 @@ impl SourceFile {
         })
     }
     
-    /// Returns a span at the end of this source file. Used to report syntax
-    /// errors where an unexpected end-of-file occurs.
-    pub fn eof_range(src: Rc<SourceFile>) -> SourceRange {
-        let end = src.src.len() as u32;
-        SourceRange {src, start: end, end}
-    }
-    
     /// Converts an index in this source file to (line, col) numbers, used for
     /// reporting diagnostics.
     pub fn index_to_line_col(&self, index: u32) -> (u32, u32) {
@@ -81,5 +74,14 @@ impl SourceFile {
             }
             coords.into_boxed_slice()
         })[index as usize]
+    }
+}
+
+impl SourceRange {
+    /// Returns a span at the end of this source file. Used to report syntax
+    /// errors where an unexpected end-of-file occurs.
+    pub fn eof(src: Rc<SourceFile>) -> SourceRange {
+        let end = src.src.len() as u32;
+        SourceRange {src, start: end, end}
     }
 }

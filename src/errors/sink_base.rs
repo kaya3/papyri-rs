@@ -82,16 +82,18 @@ impl <T: fmt::Display> DiagnosticSink<T> {
     /// Returns a string summarising the numbers of errors and warnings in this
     /// collection.
     pub fn summary(&self) -> String {
-        if self.num_errors > 0 {
+        let errors = self.num_errors;
+        let warnings = self.num_warnings;
+        if errors > 0 {
             format!(
-                "failed, {} error{}, {} warning{}",
-                self.num_errors, text::pluralise(self.num_errors),
-                self.num_warnings, text::pluralise(self.num_warnings),
+                "failed, {errors} error{}, {warnings} warning{}",
+                text::pluralise(errors),
+                text::pluralise(warnings),
             )
-        } else if self.num_warnings > 0 {
+        } else if warnings > 0 {
             format!(
-                "OK, {} warning{}",
-                self.num_warnings, text::pluralise(self.num_warnings),
+                "OK, {warnings} warning{}",
+                text::pluralise(warnings),
             )
         } else {
             "OK".to_string()
@@ -103,7 +105,7 @@ impl <T: fmt::Display> DiagnosticSink<T> {
     pub fn print(&self, ignore_warnings: bool) {
         for diag in &self.v {
             if !ignore_warnings || diag.severity != Severity::Warning {
-                eprintln!("{}", diag.to_string());
+                eprintln!("{diag}");
             }
         }
     }

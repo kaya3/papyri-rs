@@ -46,8 +46,9 @@ impl StringPool {
     /// be called with IDs assigned by this pool, or constant IDs assigned in
     /// the `str_ids` module.
     pub fn get(&self, id: NameID) -> &str {
-        let Some(s) = self.0.get_index(id.0 as usize) else {
-            ice(&format!("no string with ID {}", id.0));
+        let id = id.0 as usize;
+        let Some(s) = self.0.get_index(id) else {
+            ice(&format!("no string with ID {id}"));
         };
         s.as_ref()
     }

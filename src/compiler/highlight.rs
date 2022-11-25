@@ -337,7 +337,6 @@ mod syntect_highlighting {
                     out.push(line_highlighter.take_line());
                 },
                 Err(_) => {
-                    println!("Failed to parse: {}", line);
                     out.push(HTML::text(line));
                 },
             }

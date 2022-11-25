@@ -23,7 +23,7 @@ impl HTML {
                 if as_html {
                     write!(w, "{}", text::encode_entities(&t, false))?;
                 } else {
-                    write!(w, "{}", t)?;
+                    write!(w, "{t}")?;
                 }
             },
             HTML::Whitespace => {
@@ -41,7 +41,8 @@ impl HTML {
 impl Tag {
     fn render_to<T: io::Write>(&self, w: &mut T, string_pool: &StringPool, as_html: bool) -> Result<(), io::Error> {
         if as_html {
-            write!(w, "<{}", string_pool.get(self.name_id))?;
+            let name = string_pool.get(self.name_id);
+            write!(w, "<{name}")?;
             for (k, v) in &self.attributes {
                 write!(w, " {}", string_pool.get(*k))?;
                 if let Some(v) = v {
@@ -60,7 +61,8 @@ impl Tag {
                 _ => {},
             }
         } else if !taginfo::is_self_closing(self.name_id) {
-            write!(w, "</{}>", string_pool.get(self.name_id))?;
+            let name = string_pool.get(self.name_id);
+            write!(w, "</{name}>")?;
         }
         Ok(())
     }

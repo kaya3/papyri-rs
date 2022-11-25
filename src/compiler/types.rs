@@ -96,18 +96,18 @@ impl Type {
 impl std::fmt::Display for Type {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Type::AnyValue => write!(f, "any"),
-            Type::AnyHTML => write!(f, "html"),
-            Type::Block => write!(f, "block"),
-            Type::Inline => write!(f, "inline"),
-            Type::Unit => write!(f, "none"),
-            Type::Bool => write!(f, "bool"),
-            Type::Int => write!(f, "int"),
-            Type::Str => write!(f, "str"),
-            Type::Function => write!(f, "function"),
-            Type::Dict(t) => write!(f, "{} dict", t),
-            Type::List(t) => write!(f, "{} list", t),
-            Type::Optional(t) => write!(f, "{}?", t),
+            Type::AnyValue => f.write_str("any"),
+            Type::AnyHTML => f.write_str("html"),
+            Type::Block => f.write_str("block"),
+            Type::Inline => f.write_str("inline"),
+            Type::Unit => f.write_str("none"),
+            Type::Bool => f.write_str("bool"),
+            Type::Int => f.write_str("int"),
+            Type::Str => f.write_str("str"),
+            Type::Function => f.write_str("function"),
+            Type::Dict(t) => write!(f, "{t} dict"),
+            Type::List(t) => write!(f, "{t} list"),
+            Type::Optional(t) => write!(f, "{t}?"),
         }
     }
 }

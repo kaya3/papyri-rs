@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use crate::errors::{Diagnostics, SyntaxError};
-use crate::utils::{SourceFile, StringPool};
+use crate::utils::{SourceFile, StringPool, SourceRange};
 use super::token::{Token, TokenKind};
 use super::tokenizer::tokenize;
 
@@ -43,7 +43,7 @@ impl <'a> Parser<'a> {
     pub fn expect_poll(&mut self) -> Option<Token> {
         let t = self.poll();
         if t.is_none() {
-            let eof_range = SourceFile::eof_range(self.src.clone());
+            let eof_range = SourceRange::eof(self.src.clone());
             self.diagnostics.syntax_error(SyntaxError::UnexpectedEOF, &eof_range);
         }
         t

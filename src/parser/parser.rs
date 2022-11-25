@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use super::ast::*;
 use crate::errors::{Diagnostics, ice_at, SyntaxError};
-use crate::utils::{SourceFile, StringPool};
+use crate::utils::{SourceFile, StringPool, SourceRange};
 use super::queue::Parser;
 use super::token::{TokenKind, Token};
 
@@ -52,7 +52,7 @@ impl <'a> Parser<'a> {
                 children.push(child);
             } else {
                 self.diagnostics.err_unmatched(open);
-                self.diagnostics.syntax_error(SyntaxError::TokenExpectedWasEOF(close_kind), &SourceFile::eof_range(open.range.src.clone()));
+                self.diagnostics.syntax_error(SyntaxError::TokenExpectedWasEOF(close_kind), &SourceRange::eof(open.range.src.clone()));
                 return None;
             }
             self.skip_whitespace();
@@ -79,7 +79,10 @@ impl <'a> Parser<'a> {
             TokenKind::LBrace => Some(self.parse_group(tok)),
             TokenKind::LSqb => self.parse_list(tok),
             TokenKind::LAngle if self.has_next(|t| matches!(t.kind, TokenKind::Name | TokenKind::VarName)) => self.parse_tag(tok),
-            TokenKind::Quote(..) => self.parse_template(tok),
+            TokenKind::Quote(..) => {
+                let (parts, range) = self.parse_template_parts(tok)?;
+                Some(AST::Template(parts.into_boxed_slice(), range))
+            },
             
             _ => {
                 self.diagnostics.syntax_error(SyntaxError::ExpectedValue, &tok.range);

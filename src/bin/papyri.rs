@@ -7,7 +7,7 @@ use papyri_lang::{compiler, config, errors, utils};
 
 fn is_unchanged(src_path: &PathBuf, out_path: &PathBuf) -> Result<bool, String> {
     let src_modified = match fs::metadata(src_path)
-        .map_err(|e| format!("Failed to read file metadata of \"{}\": {}", src_path.to_string_lossy(), e))?
+        .map_err(|e| format!("Failed to read file metadata of \"{}\": {e}", src_path.to_string_lossy()))?
         .modified() {
             Ok(src_modified) => src_modified,
             Err(_) => return Ok(false),
@@ -26,7 +26,8 @@ fn run_main() -> Result<(), String> {
     let options = config::get_config_from_args()?;
     
     if options.print_version {
-        println!("Papyri compiler version {}", env!("CARGO_PKG_VERSION"));
+        let version = env!("CARGO_PKG_VERSION");
+        println!("Papyri compiler version {version}");
         return Ok(());
     }
     
@@ -35,10 +36,10 @@ fn run_main() -> Result<(), String> {
         if pattern.chars().any(|c| matches!(c, '*' | '?' | '[')) {
             // glob pattern
             let paths = glob::glob(&pattern)
-                .map_err(|e| format!("Pattern error in \"{}\": {}", &pattern, e))?;
+                .map_err(|e| format!("Pattern error in \"{pattern}\": {e}"))?;
             
             for entry in paths {
-                let path = entry.map_err(|e| format!("Path error: {}", e))?;
+                let path = entry.map_err(|e| format!("Path error: {e}"))?;
                 if utils::is_papyri_file(&path) {
                     source_paths.insert(path);
                 }
@@ -47,11 +48,11 @@ fn run_main() -> Result<(), String> {
             // filename
             let path = PathBuf::from(&pattern)
                 .canonicalize()
-                .map_err(|e| format!("\"{}\": {}", pattern, e))?;
+                .map_err(|e| format!("\"{pattern}\": {e}"))?;
             if utils::is_papyri_file(&path) {
                 source_paths.insert(path);
             } else {
-                eprintln!("source file \"{}\" is not a Papyri file", &pattern);
+                eprintln!("source file \"{pattern}\" is not a Papyri file");
             }
         }
     }
@@ -70,7 +71,7 @@ fn run_main() -> Result<(), String> {
         
         if utils::is_papyri_library(&src_path) {
             if !options.silent {
-                println!("{} (library, skipping)", src_path_str);
+                println!("{src_path_str} (library, skipping)");
             }
             num_skipped += 1;
             continue;
@@ -83,7 +84,7 @@ fn run_main() -> Result<(), String> {
         
         if !options.force && is_unchanged(&src_path, &out_path)? {
             if !options.silent {
-                println!("{} (unchanged, skipping)", src_path.to_string_lossy());
+                println!("{src_path_str} (unchanged, skipping)");
             }
             num_skipped += 1;
             continue;
@@ -104,18 +105,18 @@ fn run_main() -> Result<(), String> {
         
         diagnostics.print(options.ignore_warnings);
         if !diagnostics.is_empty() {
-            eprintln!("{} ({})", src_path_str, diagnostics.summary());
+            eprintln!("{src_path_str} ({})", diagnostics.summary());
         } else if !options.silent {
-            println!("{} (OK)", src_path_str);
+            println!("{src_path_str} (OK)");
         }
         
         if diagnostics.num_errors == 0 {
             let out_file = fs::File::create(&out_path)
-                .map_err(|e| format!("Failed to create \"{}\": {}", out_path.to_string_lossy(), e))?;
+                .map_err(|e| format!("Failed to create \"{}\": {e}", out_path.to_string_lossy()))?;
             
             let mut out_writer = io::BufWriter::new(out_file);
             out.render_to(&mut out_writer, &mut loader.string_pool, !options.text)
-                .map_err(|e| format!("Failed to write \"{}\": {}", out_path.to_string_lossy(), e))?;
+                .map_err(|e| format!("Failed to write \"{}\": {e}", out_path.to_string_lossy()))?;
             
             num_ok += 1;
         } else {
@@ -123,18 +124,18 @@ fn run_main() -> Result<(), String> {
         }
     }
     
-    let msg = format!("{} OK, {} failed, {} skipped", num_ok, num_failed, num_skipped);
+    let msg = format!("{num_ok} OK, {num_failed} failed, {num_skipped} skipped");
     if num_failed > 0 {
         Err(msg)
     } else {
-        if !options.silent { println!("{}", msg); }
+        if !options.silent { println!("{msg}"); }
         Ok(())
     }
 }
 
 fn main() {
     if let Err(msg) = run_main() {
-        eprintln!("{}", msg);
+        eprintln!("{msg}");
         std::process::exit(1);
     }
 }

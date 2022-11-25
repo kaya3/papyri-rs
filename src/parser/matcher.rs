@@ -1,6 +1,6 @@
 use indexmap::IndexMap;
 
-use crate::errors::{ice, ice_at, SyntaxError};
+use crate::errors::{ice_at, SyntaxError};
 use crate::utils::{taginfo, SourceRange};
 use super::ast::*;
 use super::queue::Parser;
@@ -218,13 +218,11 @@ impl <'a> Parser<'a> {
     }
     
     fn parse_template_pattern(&mut self, open: Token) -> Option<MatchPattern> {
-        let AST::Template(parts, range) = self.parse_template(open)? else {
-            ice("parse did not return template");
-        };
+        let (parts, range) = self.parse_template_parts(open)?;
         
         let mut regex_str = "^(?:".to_string();
         let mut vars = Vec::new();
-        for part in parts.into_vec() {
+        for part in parts {
             match part {
                 TemplatePart::Literal(range) => {
                     regex_str += &regex::escape(range.as_str());

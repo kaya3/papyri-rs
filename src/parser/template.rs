@@ -1,10 +1,11 @@
 use crate::errors::ice_at;
+use crate::utils::SourceRange;
 use super::ast::*;
 use super::queue::Parser;
 use super::token::{Token, TokenKind};
 
 impl <'a> Parser<'a> {
-    pub fn parse_template(&mut self, open: Token) -> Option<AST> {
+    pub fn parse_template_parts(&mut self, open: Token) -> Option<(Vec<TemplatePart>, SourceRange)> {
         let TokenKind::Quote(open_kind, _) = open.kind else {
             ice_at("invalid template token", &open.range);
         };
@@ -56,8 +57,8 @@ impl <'a> Parser<'a> {
             self.diagnostics.err_unmatched(&tok);
         }
         
-        Some(AST::Template(
-            parts.into_boxed_slice(),
+        Some((
+            parts,
             open.range.to_end(close.range.end),
         ))
     }

@@ -58,7 +58,7 @@ impl HTML {
             
             Value::Func(f) => {
                 let name = string_pool.get(f.name_id());
-                HTML::tag(str_ids::CODE, format!("(@fn {})", name).into())
+                HTML::tag(str_ids::CODE, format!("(@fn {name})").into())
             },
         }
     }
@@ -110,11 +110,11 @@ impl HTML {
         let link_tag = Tag::new(str_ids::LINK, HTML::Empty)
             .str_attr(str_ids::REL, "stylesheet")
             .str_attr(str_ids::TYPE, "text/css")
-            .str_attr(str_ids::HREF, &format!("{}papyri.css", web_root));
+            .str_attr(str_ids::HREF, &format!("{web_root}papyri.css"));
         
         let script_tag = Tag::new(str_ids::SCRIPT, HTML::Empty)
             .str_attr(str_ids::TYPE, "text/javascript")
-            .str_attr(str_ids::SRC, &format!("{}papyri.js", web_root));
+            .str_attr(str_ids::SRC, &format!("{web_root}papyri.js"));
         
         HTML::seq(&[
             HTML::DocType,

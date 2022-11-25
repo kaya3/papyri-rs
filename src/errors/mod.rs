@@ -17,12 +17,12 @@ pub use sink::Diagnostics;
 /// Papyri compiler. Use `ice_at` instead if the error corresponds with some
 /// code in a Papyri source file.
 pub fn ice(msg: &str) -> ! {
-    panic!("Internal compiler error: {}", msg);
+    panic!("Internal compiler error: {msg}");
 }
 
 /// Reports an internal compiler error, indicating a bug or mistake in the
 /// Papyri compiler. Use `ice` instead if the error does not correspond with
 /// any particular code in a Papyri source file.
 pub fn ice_at(msg: &str, range: &crate::utils::SourceRange) -> ! {
-    panic!("Internal compiler error: {} at {:?}", msg, range);
+    panic!("Internal compiler error: {msg} at {range:?}");
 }
