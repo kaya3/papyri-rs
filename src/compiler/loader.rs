@@ -40,7 +40,7 @@ impl ModuleLoader {
     
     pub fn get_initial_frame(&self) -> ActiveFrame {
         match self.stdlib.as_ref() {
-            Some(stdlib) => stdlib.new_child_frame(ValueMap::new()),
+            Some(stdlib) => stdlib.new_child_frame(ValueMap::new(), None),
             None => get_natives_frame(),
         }
     }

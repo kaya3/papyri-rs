@@ -107,7 +107,7 @@ impl <'a> Compiler<'a> {
     fn add_attr(&mut self, attrs: &mut AttrMap, name_id: NameID, value: Option<Rc<str>>, range: &SourceRange) {
         if attrs.insert(name_id, value).is_some() {
             let name = self.get_name(name_id).to_string();
-            self.diagnostics.runtime_error(RuntimeError::AttrMultipleValues(name), range);
+            self.runtime_error(RuntimeError::AttrMultipleValues(name), range);
         }
     }
 }

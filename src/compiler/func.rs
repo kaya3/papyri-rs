@@ -291,7 +291,7 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
             if self.map.contains_key(&param.name_id) { continue; }
             let Some(v) = &param.default_value else {
                 let name = self.compiler.get_name(param.name_id).to_string();
-                self.compiler.diagnostics.runtime_error(RuntimeError::ParamMissing(name), call_range);
+                self.compiler.runtime_error(RuntimeError::ParamMissing(name), call_range);
                 return None;
             };
             self.map.insert(param.name_id, v.clone());
@@ -305,7 +305,7 @@ impl <'a> Compiler<'a> {
     pub fn compile_func_def(&mut self, def: &ast::FuncDef) -> Func {
         Func::NonNative(Rc::new(NonNativeFunc {
             name_id: def.name_id,
-            closure: self.frame.to_inactive(),
+            closure: self.frame().to_inactive(),
             signature: self.compile_func_signature(&def.signature),
             body: def.body.clone(),
         }))
@@ -355,13 +355,14 @@ impl <'a> Compiler<'a> {
     }
     
     pub fn evaluate_func_call_with_bindings(&mut self, func: Func, bindings: ValueMap, type_hint: &Type, call_range: &SourceRange) -> Option<Value> {
-        match func {
+        match &func {
             Func::NonNative(f) => {
-                let frame = f.closure.new_child_frame(bindings);
+                let call = (func.clone(), call_range.clone());
+                let frame = f.closure.new_child_frame(bindings, Some(call));
                 self.evaluate_in_frame(frame, f.body.as_ref(), type_hint)
             },
             Func::Native(f, _) => {
-                self.evaluate_native_func(f, bindings, call_range)
+                self.evaluate_native_func(*f, bindings, call_range)
             },
         }
     }

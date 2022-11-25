@@ -14,24 +14,41 @@ impl fmt::Display for Severity {
     }
 }
 
+pub type StackTrace = Box<[(String, SourceRange)]>;
+
 /// Holds information about an error or warning which has occurred during
 /// compilation of a Papyri source file.
 struct Diagnostic<T: fmt::Display> {
     severity: Severity,
     msg: T,
     range: SourceRange,
+    trace: Option<StackTrace>,
+}
+
+fn write_trace_line(f: &mut fmt::Formatter<'_>, range: &SourceRange, func_name: Option<&str>) -> fmt::Result {
+    write!(f, "    File \"{}\", {}", range.src.path_str, range.str_start())?;
+    if let Some(func_name) = func_name {
+        write!(f, ", in {func_name}")?;
+    }
+    writeln!(f)
 }
 
 impl <T: fmt::Display> fmt::Display for Diagnostic<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}: {}\n    in \"{}\" at {}",
-            self.severity,
-            self.msg,
-            self.range.src.path_str,
-            self.range.str_start(),
-        )
+        if let Some(trace) = &self.trace {
+            writeln!(f, "Traceback (most recent call last):")?;
+            let mut in_func = None;
+            for (func_name, call_range) in trace.iter() {
+                write_trace_line(f, call_range, in_func)?;
+                in_func = Some(func_name.as_str());
+            }
+            write_trace_line(f, &self.range, in_func)?;
+            writeln!(f, "{}", self.msg)?;
+        } else {
+            writeln!(f, "{}", self.msg)?;
+            write_trace_line(f, &self.range, None)?;
+        }
+        Ok(())
     }
 }
 
@@ -44,13 +61,10 @@ pub struct DiagnosticSink<T: fmt::Display> {
 
 impl <T: fmt::Display> fmt::Debug for DiagnosticSink<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.summary())?;
-        f.write_str("\n")?;
         for d in self.v.iter() {
-            f.write_str(&d.to_string())?;
-            f.write_str("\n")?;
+            writeln!(f, "{}", d)?;
         }
-        Ok(())
+        writeln!(f, "{}", &self.summary())
     }
 }
 
@@ -113,12 +127,12 @@ impl <T: fmt::Display> DiagnosticSink<T> {
         }
     }
     
-    pub fn add(&mut self, severity: Severity, msg: T, range: &SourceRange) {
+    pub fn add(&mut self, severity: Severity, msg: T, range: &SourceRange, trace: Option<StackTrace>) {
         if severity == Severity::Warning {
             self.num_warnings += 1;
         } else {
             self.num_errors += 1;
         }
-        self.v.push(Diagnostic {severity, msg, range: range.clone()});
+        self.v.push(Diagnostic {severity, msg, range: range.clone(), trace});
     }
 }

@@ -11,6 +11,7 @@ pub use warning::Warning;
 
 mod sink;
 mod sink_base;
+pub use sink_base::StackTrace;
 pub use sink::{Diagnostics, PapyriError};
 
 /// Reports an internal compiler error, indicating a bug or mistake in the

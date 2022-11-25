@@ -110,7 +110,7 @@ pub enum TemplatePart {
     VarName(VarName),
     Escape(SourceRange),
     Entity(SourceRange),
-    Whitespace
+    Whitespace,
 }
 
 #[derive(Debug)]

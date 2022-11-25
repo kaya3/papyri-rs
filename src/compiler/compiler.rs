@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use crate::errors::{Diagnostics, ice, ice_at, Warning};
+use crate::errors::{Diagnostics, ice, ice_at, Warning, RuntimeError};
 use crate::parser::{parse, AST, text};
 use crate::utils::{SourceFile, SourceRange, NameID, str_ids, taginfo};
 use super::frame::{ActiveFrame, InactiveFrame};
@@ -38,13 +38,13 @@ pub fn compile_stdlib(loader: &mut ModuleLoader) -> InactiveFrame {
     } else if !matches!(result, HTML::Empty) {
         ice("Standard library had non-empty output");
     }
-    InactiveFrame::from(compiler.frame)
+    InactiveFrame::from(compiler.call_stack.pop().unwrap())
 }
 
 pub struct Compiler<'a> {
     pub diagnostics: &'a mut Diagnostics,
     pub loader: &'a mut ModuleLoader,
-    pub frame: ActiveFrame,
+    pub call_stack: Vec<ActiveFrame>,
     pub exports: ValueMap,
 }
 
@@ -54,9 +54,13 @@ impl <'a> Compiler<'a> {
         Compiler {
             diagnostics,
             loader,
-            frame,
+            call_stack: vec![frame],
             exports: ValueMap::new(),
         }
+    }
+    
+    pub fn runtime_error(&mut self, e: RuntimeError, range: &SourceRange) {
+        self.diagnostics.runtime_error(e, self.stack_trace(), range);
     }
     
     pub fn get_name(&self, name_id: NameID) -> &str {

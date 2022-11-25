@@ -14,7 +14,7 @@ impl <'a> Compiler<'a> {
         for branch in match_.branches.iter() {
             bindings.clear();
             if self.bind_pattern(&branch.pattern, value.clone(), &mut bindings) {
-                let frame = self.frame.to_inactive().new_child_frame(bindings);
+                let frame = self.frame().to_inactive().new_child_frame(bindings, None);
                 return self.evaluate_in_frame(frame, &branch.then, type_hint);
             }
         }

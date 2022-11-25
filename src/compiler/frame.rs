@@ -1,19 +1,19 @@
-use std::borrow::BorrowMut;
 use std::cell::RefCell;
 use std::rc::Rc;
-
 use indexmap::IndexSet;
 
-use crate::errors::{NameError, RuntimeError, Warning};
+use crate::errors::{NameError, RuntimeError, Warning, StackTrace};
 use crate::parser::AST;
 use crate::utils::{SourceRange, NameID};
 use super::compiler::Compiler;
+use super::func::Func;
 use super::types::Type;
 use super::value::{Value, ValueMap};
 
 #[derive(Debug)]
 pub struct ActiveFrame {
     f: Rc<RefCell<Frame>>,
+    call: Option<(Func, SourceRange)>,
 }
 
 #[derive(Debug, Clone)]
@@ -29,13 +29,14 @@ struct Frame {
 }
 
 impl ActiveFrame {
-    pub fn new(lexical_parent: Option<InactiveFrame>, locals: ValueMap) -> ActiveFrame {
+    pub fn new(lexical_parent: Option<InactiveFrame>, locals: ValueMap, call: Option<(Func, SourceRange)>) -> ActiveFrame {
         ActiveFrame {
             f: Rc::new(RefCell::new(Frame {
                 lexical_parent,
                 locals,
                 implicit: IndexSet::new(),
             })),
+            call,
         }
     }
     
@@ -56,8 +57,8 @@ impl ActiveFrame {
 }
 
 impl InactiveFrame {
-    pub fn new_child_frame(&self, locals: ValueMap) -> ActiveFrame {
-        ActiveFrame::new(Some(self.clone()), locals)
+    pub fn new_child_frame(&self, locals: ValueMap, func: Option<(Func, SourceRange)>) -> ActiveFrame {
+        ActiveFrame::new(Some(self.clone()), locals, func)
     }
 }
 
@@ -85,8 +86,23 @@ impl Frame {
 }
 
 impl <'a> Compiler<'a> {
+    pub fn frame(&self) -> &ActiveFrame {
+        self.call_stack.last().unwrap()
+    }
+    
+    pub fn stack_trace(&self) -> StackTrace {
+        let mut calls = Vec::new();
+        for frame in self.call_stack.iter() {
+            if let Some((func, call_range)) = &frame.call {
+                let func_name = format!("@{}", self.get_name(func.name_id()));
+                calls.push((func_name, call_range.clone()));
+            }
+        }
+        calls.into_boxed_slice()
+    }
+    
     pub fn get_var(&mut self, name_id: NameID, range: &SourceRange) -> Option<Value> {
-        let r = self.frame.get(name_id, false);
+        let r = self.frame().get(name_id, false);
         if r.is_none() {
             let name = self.get_name(name_id).to_string();
             self.diagnostics.name_error(NameError::NoSuchVariable(name), range);
@@ -95,13 +111,13 @@ impl <'a> Compiler<'a> {
     }
     
     pub fn get_implicit(&mut self, name_id: NameID, default_value: Option<Value>, range: &SourceRange) -> Option<Value> {
-        let r = self.frame.get(name_id, true);
+        let r = self.frame().get(name_id, true);
         if r.is_none() {
             if default_value.is_none() {
                 let name = self.get_name(name_id).to_string();
-                self.diagnostics.runtime_error(RuntimeError::ParamMissingImplicit(name), range);
+                self.runtime_error(RuntimeError::ParamMissingImplicit(name), range);
             }
-            if self.frame.get(name_id, false).is_some() {
+            if self.frame().get(name_id, false).is_some() {
                 let name = self.get_name(name_id).to_string();
                 self.diagnostics.warning(Warning::NameNotImplicit(name), range);
             }
@@ -110,8 +126,7 @@ impl <'a> Compiler<'a> {
     }
     
     pub fn set_var(&mut self, name_id: NameID, value: Value, implicit: bool, range: &SourceRange) {
-        let frame = self.frame.borrow_mut();
-        if frame.set(name_id, value, implicit) {
+        if self.frame().set(name_id, value, implicit) {
             let name = self.get_name(name_id).to_string();
             self.diagnostics.warning(Warning::NameAlreadyDeclared(name), range);
         }
@@ -123,10 +138,10 @@ impl <'a> Compiler<'a> {
         }
     }
     
-    pub fn evaluate_in_frame(&mut self, mut frame: ActiveFrame, node: &AST, type_hint: &Type) -> Option<Value> {
-        std::mem::swap(&mut self.frame, &mut frame);
+    pub fn evaluate_in_frame(&mut self, frame: ActiveFrame, node: &AST, type_hint: &Type) -> Option<Value> {
+        self.call_stack.push(frame);
         let result = self.evaluate_node(node, type_hint);
-        std::mem::swap(&mut self.frame, &mut frame);
+        self.call_stack.pop();
         result
     }
 }

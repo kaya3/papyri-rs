@@ -11,7 +11,7 @@ use super::compiler::Compiler;
 use super::types::Type;
 use super::value::{Value, ValueMap};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NativeFunc {
     Export,
     FixIndentation,
@@ -77,7 +77,7 @@ pub fn get_natives_frame() -> ActiveFrame {
         (f.name_id(), Value::Func(Func::Native(f, sig)))
     }).collect();
     
-    ActiveFrame::new(None, bindings)
+    ActiveFrame::new(None, bindings, None)
 }
 
 impl NativeFunc {
@@ -179,7 +179,7 @@ impl <'a> Compiler<'a> {
                     ice_at("failed to unpack", call_range);
                 };
                 
-                self.diagnostics.runtime_error(RuntimeError::Raised(content.clone()), call_range);
+                self.runtime_error(RuntimeError::Raised(content.clone()), call_range);
                 return None;
             },
             
