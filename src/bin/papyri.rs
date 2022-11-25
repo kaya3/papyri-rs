@@ -90,7 +90,7 @@ fn run_main() -> Result<(), String> {
         }
         
         diagnostics.clear();
-        let result = loader.load_uncached(src_path.clone(), &mut diagnostics)
+        let result = loader.load_uncached(&src_path, &mut diagnostics)
             .map_err(|e| format!("Error loading \"{src_path_str}\":\n{e}"))?;
         
         let out = if options.text {

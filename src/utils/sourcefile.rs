@@ -1,18 +1,17 @@
-use std::fs;
-use std::path::{PathBuf, Path};
+use std::{fs, path};
 use std::rc::Rc;
 use once_cell::unsync::OnceCell;
 
 use super::range::SourceRange;
 
 /// Determines whether the given file path has the `.papyri` extension.
-pub fn is_papyri_file(path: &PathBuf) -> bool {
+pub fn is_papyri_file(path: &path::Path) -> bool {
     matches!(path.extension(), Some(ext) if &ext.to_ascii_lowercase() == "papyri")
 }
 
 /// Determines whether the given file path appears to a Papyri library, i.e. a
 /// file with the `.lib.papyri` extension.
-pub fn is_papyri_library(path: &PathBuf) -> bool {
+pub fn is_papyri_library(path: &path::Path) -> bool {
     let s = path.to_string_lossy().to_ascii_lowercase();
     s.ends_with(".lib.papyri")
 }
@@ -20,7 +19,7 @@ pub fn is_papyri_library(path: &PathBuf) -> bool {
 /// Represents a Papyri source file. The source as a string must be smaller
 /// than 4 GiB.
 pub struct SourceFile {
-    pub path: Box<Path>,
+    pub path: Box<path::Path>,
     pub path_str: Box<str>,
     pub src: Box<str>,
     line_col_coords: OnceCell<Box<[(u32, u32)]>>,
@@ -31,21 +30,25 @@ impl SourceFile {
     /// system. This is used for the standard library, syntax highlighting of
     /// Papyri snippets, and tests.
     pub fn synthetic(path_str: &str, src: &str) -> Rc<SourceFile> {
-        SourceFile::new(PathBuf::new(), Box::from(path_str), Box::from(src))
+        SourceFile::new(
+            path::PathBuf::new().into_boxed_path(),
+            Box::from(path_str),
+            Box::from(src),
+        )
     }
     
     /// Loads a source file from the given path.
-    pub fn from_path(path: PathBuf) -> Result<Rc<SourceFile>, std::io::Error> {
+    pub fn from_path(path: &path::Path) -> Result<Rc<SourceFile>, std::io::Error> {
         fs::read_to_string(&path)
             .map(|src| {
                 let path_str: Box<str> = Box::from(path.to_string_lossy());
-                SourceFile::new(path, path_str, src.into_boxed_str())
+                SourceFile::new(Box::from(path), path_str, src.into_boxed_str())
             })
     }
     
-    fn new(path: PathBuf, path_str: Box<str>, src: Box<str>) -> Rc<SourceFile> {
+    fn new(path: Box<path::Path>, path_str: Box<str>, src: Box<str>) -> Rc<SourceFile> {
         Rc::new(SourceFile {
-            path: path.into_boxed_path(),
+            path,
             path_str,
             src,
             line_col_coords: OnceCell::new(),

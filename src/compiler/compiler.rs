@@ -2,8 +2,7 @@ use std::rc::Rc;
 
 use crate::errors::{Diagnostics, ice, ice_at, Warning};
 use crate::parser::{parse, AST, text};
-use crate::utils::taginfo::ContentKind;
-use crate::utils::{SourceFile, SourceRange, str_ids, NameID};
+use crate::utils::{SourceFile, SourceRange, NameID, str_ids, taginfo};
 use super::frame::{ActiveFrame, InactiveFrame};
 use super::html::HTML;
 use super::loader::ModuleLoader;
@@ -18,7 +17,7 @@ pub struct CompileResult {
 pub fn compile(src: Rc<SourceFile>, loader: &mut ModuleLoader, diagnostics: &mut Diagnostics) -> CompileResult {
     let root = parse(src, diagnostics, &mut loader.string_pool);
     let mut compiler = Compiler::new(diagnostics, loader);
-    let out = compiler.compile_sequence(&root, ContentKind::REQUIRE_P);
+    let out = compiler.compile_sequence(&root, taginfo::ContentKind::REQUIRE_P);
     CompileResult {
         out,
         exports: compiler.exports,
@@ -31,7 +30,7 @@ pub fn compile_stdlib(loader: &mut ModuleLoader) -> InactiveFrame {
     let mut diagnostics = Diagnostics::new();
     let root = parse(stdlib_src, &mut diagnostics, &mut loader.string_pool);
     let mut compiler = Compiler::new(&mut diagnostics, loader);
-    let result = compiler.compile_sequence(&root, ContentKind::REQUIRE_P);
+    let result = compiler.compile_sequence(&root, taginfo::ContentKind::REQUIRE_P);
     
     if !compiler.diagnostics.is_empty() {
         diagnostics.print(false);
@@ -76,7 +75,7 @@ impl <'a> Compiler<'a> {
                 HTML::Empty
             },
             
-            AST::Group(group, ..) => self.compile_sequence(group, ContentKind::ALLOW_P),
+            AST::Group(group, ..) => self.compile_sequence(group, taginfo::ContentKind::ALLOW_P),
             AST::Tag(tag) => self.compile_tag(tag),
             
             AST::FuncCall(..) |

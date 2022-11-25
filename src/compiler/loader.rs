@@ -45,13 +45,13 @@ impl ModuleLoader {
         }
     }
     
-    pub fn load_uncached(&mut self, path: path::PathBuf, diagnostics: &mut Diagnostics) -> Result<CompileResult, ModuleError> {
+    pub fn load_uncached(&mut self, path: &path::Path, diagnostics: &mut Diagnostics) -> Result<CompileResult, ModuleError> {
         let src = SourceFile::from_path(path)
             .map_err(ModuleError::IOError)?;
         Ok(compile(src, self, diagnostics))
     }
     
-    pub fn load_cached(&mut self, path: path::PathBuf, diagnostics: &mut Diagnostics) -> Result<CachedCompileResult, ModuleError> {
+    pub fn load_cached(&mut self, path: &path::Path, diagnostics: &mut Diagnostics) -> Result<CachedCompileResult, ModuleError> {
         let k = fs::canonicalize(&path)
             .map_err(ModuleError::IOError)?;
         match self.get(&k) {
@@ -69,7 +69,7 @@ impl ModuleLoader {
                     }
                 }
             },
-            ModuleState::Loaded(result) => Ok(result),
+            ModuleState::Loaded(cached_result) => Ok(cached_result),
             ModuleState::Busy => Err(ModuleError::CircularImport),
             ModuleState::Error => Err(ModuleError::PreviousError),
         }

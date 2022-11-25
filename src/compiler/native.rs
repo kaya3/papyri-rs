@@ -129,7 +129,7 @@ impl <'a> Compiler<'a> {
                 path.pop();
                 path.push(format!("{}.papyri", path_str));
                 
-                match self.loader.load_cached(path.clone(), self.diagnostics) {
+                match self.loader.load_cached(&path, self.diagnostics) {
                     Ok((module_out, module_exports)) => {
                         return Some(if f == NativeFunc::Import {
                             Value::Dict(module_exports)
