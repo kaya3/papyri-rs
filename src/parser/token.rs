@@ -44,6 +44,12 @@ pub enum TokenKind {
     Quote(QuoteKind, QuoteDir),
 }
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum QuoteKind {Single, Double}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum QuoteDir {Left, Right}
+
 impl std::fmt::Display for TokenKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
@@ -57,7 +63,7 @@ impl std::fmt::Display for TokenKind {
             TokenKind::Name => "name",
             TokenKind::FuncName => "function name",
             TokenKind::VarName => "variable name",
-            TokenKind::Number => "number",
+            TokenKind::Number => "number literal",
             TokenKind::Boolean => "bool literal",
             TokenKind::Verbatim => "string literal",
             TokenKind::CloseTag => "closing tag",
@@ -79,36 +85,30 @@ impl std::fmt::Display for TokenKind {
             TokenKind::Bar => "'|'",
             TokenKind::Asterisk => "'*' or '**'",
             TokenKind::QuestionMark => "'?'",
-            TokenKind::Quote(kind, dir) => match (kind, dir) {
-                (QuoteKind::Single, QuoteDir::Left) => "left single-quote",
-                (QuoteKind::Single, QuoteDir::Right) => "right single-quote",
-                (QuoteKind::Double, QuoteDir::Left) => "left double-quote",
-                (QuoteKind::Double, QuoteDir::Right) => "right double-quote",
+            TokenKind::Quote(k, _) => match k {
+                QuoteKind::Single => "single-quote",
+                QuoteKind::Double => "double-quote",
             },
         })
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum QuoteKind {
-    Single,
-    Double,
-}
-
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum QuoteDir {
-    Left,
-    Right,
-}
-
+#[derive(Clone)]
 pub struct Token {
     pub kind: TokenKind,
     pub range: SourceRange,
 }
 
-impl ToString for Token {
-    fn to_string(&self) -> String {
-        self.as_str().to_string()
+impl std::fmt::Display for Token {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // some TokenKind descriptions are like `'*' or '**'`, which is not
+        // helpful for describing an actual token
+        match self.kind {
+            TokenKind::RAngle |
+            TokenKind::RAngleComment |
+            TokenKind::Asterisk => write!(f, "'{}'", self.as_str()),
+            _ => std::fmt::Display::fmt(&self.kind, f),
+        }
     }
 }
 
@@ -140,7 +140,7 @@ impl Token {
     pub fn is_close_tag(&self, name: &Option<String>) -> bool {
         self.kind == TokenKind::CloseTag && {
             let s = self.as_str();
-            s == "</>" || matches!(name, Some(t) if t == &s[2..s.len() - 1].to_ascii_lowercase())
+            s == "</>" || matches!(name, Some(t) if t.eq_ignore_ascii_case(&s[2..s.len() - 1]))
         }
     }
     

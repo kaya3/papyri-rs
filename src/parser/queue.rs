@@ -8,12 +8,12 @@ use super::tokenizer::tokenize;
 impl Diagnostics {
     /// Reports a syntax error caused by an unexpected token.
     pub fn err_unexpected_token(&mut self, tok: &Token) {
-        self.syntax_error(SyntaxError::TokenUnexpected(tok.kind), &tok.range);
+        self.syntax_error(SyntaxError::TokenUnexpected(tok.clone()), &tok.range);
     }
     
     /// Reports a syntax error caused by an unmatched opening token.
     pub fn err_unmatched(&mut self, tok: &Token) {
-        self.syntax_error(SyntaxError::TokenUnmatched(tok.kind), &tok.range);
+        self.syntax_error(SyntaxError::TokenUnmatched(tok.clone()), &tok.range);
     }
 }
 
@@ -54,7 +54,7 @@ impl <'a> Parser<'a> {
     pub fn expect_poll_kind(&mut self, kind: TokenKind) -> Option<Token> {
         match self.tokens.last() {
             Some(tok) if tok.kind != kind => {
-                self.diagnostics.syntax_error(SyntaxError::TokenExpectedWas(kind, tok.kind), &tok.range);
+                self.diagnostics.syntax_error(SyntaxError::TokenExpectedWas(kind, tok.clone()), &tok.range);
                 None
             },
             _ => self.expect_poll(),

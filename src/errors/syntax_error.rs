@@ -1,11 +1,11 @@
-use crate::parser::TokenKind;
+use crate::parser::{TokenKind, Token};
 
 pub enum SyntaxError {
     TokenExpected(TokenKind),
-    TokenExpectedWas(TokenKind, TokenKind),
+    TokenExpectedWas(TokenKind, Token),
     TokenExpectedWasEOF(TokenKind),
-    TokenUnexpected(TokenKind),
-    TokenUnmatched(TokenKind),
+    TokenUnexpected(Token),
+    TokenUnmatched(Token),
     TokenInvalidNumber(std::num::ParseIntError),
     TokenInvalidEntity,
     TokenInvalidEscape,
@@ -56,11 +56,11 @@ pub enum SyntaxError {
 impl std::fmt::Display for SyntaxError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            SyntaxError::TokenExpected(kind) => write!(f, "expected '{kind}'"),
-            SyntaxError::TokenExpectedWas(kind, was) => write!(f, "expected '{kind}', was '{was}'"),
-            SyntaxError::TokenExpectedWasEOF(kind) => write!(f, "expected '{kind}', was end of course"),
-            SyntaxError::TokenUnexpected(kind) => write!(f, "unexpected '{kind}'"),
-            SyntaxError::TokenUnmatched(kind) => write!(f, "unmatched '{kind}'"),
+            SyntaxError::TokenExpected(kind) => write!(f, "expected {kind}"),
+            SyntaxError::TokenExpectedWas(kind, token) => write!(f, "expected {kind}, was {token}"),
+            SyntaxError::TokenExpectedWasEOF(kind) => write!(f, "expected {kind}, was end of course"),
+            SyntaxError::TokenUnexpected(token) => write!(f, "unexpected {token}"),
+            SyntaxError::TokenUnmatched(token) => write!(f, "unmatched {token}"),
             SyntaxError::TokenInvalidNumber(e) => write!(f, "invalid number ({e})"),
             SyntaxError::TokenInvalidEntity => f.write_str("invalid entity"),
             SyntaxError::TokenInvalidEscape => f.write_str("invalid Unicode escape"),

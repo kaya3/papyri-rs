@@ -1,25 +1,18 @@
 
-use std::{fs, io};
-use std::path::PathBuf;
+use std::{fs, io, path};
 use indexmap::IndexSet;
 
 use papyri_lang::{compiler, config, errors, utils};
 
-fn is_unchanged(src_path: &PathBuf, out_path: &PathBuf) -> Result<bool, String> {
-    let src_modified = match fs::metadata(src_path)
-        .map_err(|e| format!("Failed to read file metadata of \"{}\": {e}", src_path.to_string_lossy()))?
-        .modified() {
-            Ok(src_modified) => src_modified,
-            Err(_) => return Ok(false),
-        };
-    
-    let out_modified = match fs::metadata(out_path)
-        .map(|metadata| metadata.modified()) {
-            Ok(Ok(out_modified)) => out_modified,
-            _ => return Ok(false),
-        };
-    
-    Ok(src_modified <= out_modified)
+fn modified_time(p: &path::Path) -> Result<std::time::SystemTime, io::Error> {
+    fs::metadata(p).and_then(|m| m.modified())
+}
+
+fn is_unchanged(src_path: &path::Path, out_path: &path::Path) -> bool {
+    match (modified_time(src_path), modified_time(out_path)) {
+        (Ok(src_time), Ok(out_time)) => src_time <= out_time,
+        _ => false,
+    }
 }
 
 fn run_main() -> Result<(), String> {
@@ -36,28 +29,28 @@ fn run_main() -> Result<(), String> {
         if pattern.chars().any(|c| matches!(c, '*' | '?' | '[')) {
             // glob pattern
             let paths = glob::glob(&pattern)
-                .map_err(|e| format!("Pattern error in \"{pattern}\": {e}"))?;
+                .map_err(|e| format!("Pattern error in \"{pattern}\":\n{e}"))?;
             
             for entry in paths {
-                let path = entry.map_err(|e| format!("Path error: {e}"))?;
+                let path = entry.map_err(|e| format!("File error in \"{pattern}\":\n{e}"))?;
                 if utils::is_papyri_file(&path) {
                     source_paths.insert(path);
                 }
             }
         } else {
             // filename
-            let path = PathBuf::from(&pattern)
+            let path = path::PathBuf::from(&pattern)
                 .canonicalize()
-                .map_err(|e| format!("\"{pattern}\": {e}"))?;
+                .map_err(|e| format!("File error in \"{pattern}\":\n{e}"))?;
             if utils::is_papyri_file(&path) {
                 source_paths.insert(path);
             } else {
-                eprintln!("source file \"{pattern}\" is not a Papyri file");
+                eprintln!("Source file \"{pattern}\" is not a Papyri file");
             }
         }
     }
     
-    let mut source_paths: Vec<PathBuf> = source_paths.into_iter().collect();
+    let mut source_paths: Vec<path::PathBuf> = source_paths.into_iter().collect();
     source_paths.sort();
     
     let mut num_ok = 0;
@@ -82,7 +75,7 @@ fn run_main() -> Result<(), String> {
             errors::ice(&format!("Failed to set extension of \"{}\"", out_path.to_string_lossy()));
         }
         
-        if !options.force && is_unchanged(&src_path, &out_path)? {
+        if !options.force && is_unchanged(&src_path, &out_path) {
             if !options.silent {
                 println!("{src_path_str} (unchanged, skipping)");
             }
@@ -112,11 +105,11 @@ fn run_main() -> Result<(), String> {
         
         if diagnostics.num_errors == 0 {
             let out_file = fs::File::create(&out_path)
-                .map_err(|e| format!("Failed to create \"{}\": {e}", out_path.to_string_lossy()))?;
+                .map_err(|e| format!("Failed to create \"{}\":\n{e}", out_path.to_string_lossy()))?;
             
             let mut out_writer = io::BufWriter::new(out_file);
             out.render_to(&mut out_writer, &mut loader.string_pool, !options.text)
-                .map_err(|e| format!("Failed to write \"{}\": {e}", out_path.to_string_lossy()))?;
+                .map_err(|e| format!("Failed to write \"{}\":\n{e}", out_path.to_string_lossy()))?;
             
             num_ok += 1;
         } else {

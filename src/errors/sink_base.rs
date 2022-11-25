@@ -3,16 +3,13 @@ use std::fmt;
 use crate::utils::{SourceRange, text};
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub enum Severity {
-    Warning,
-    Error,
-}
+pub enum Severity {Warning, Error}
 
 impl fmt::Display for Severity {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
-            Severity::Error => "Error",
             Severity::Warning => "Warning",
+            Severity::Error => "Error",
         })
     }
 }

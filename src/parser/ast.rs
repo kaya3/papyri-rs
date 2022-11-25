@@ -94,11 +94,7 @@ impl Arg {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SpreadKind {
-    NoSpread,
-    Positional,
-    Named,
-}
+pub enum SpreadKind {NoSpread, Positional, Named}
 
 #[derive(Debug)]
 pub struct FuncCall {
