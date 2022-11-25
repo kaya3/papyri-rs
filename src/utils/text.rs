@@ -10,6 +10,12 @@ pub fn is_whitespace(s: &str) -> bool {
     s.chars().all(char::is_whitespace)
 }
 
+/// Returns either the empty string, or the string "s", to pluralise a word
+/// given a quantity.
+pub fn pluralise(quantity: usize) -> &'static str {
+    if quantity == 1 { "" } else { "s" }
+}
+
 /// Strips indentation from the start of each line of the given string. The
 /// indentation of the first line with any non-whitespace characters is removed
 /// from all lines. Leading and trailing whitespace of the whole string is also

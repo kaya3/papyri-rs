@@ -1,3 +1,5 @@
+use crate::errors::SyntaxError;
+
 use super::ast::*;
 use super::queue::Parser;
 use super::token::{Token, TokenKind};
@@ -7,7 +9,7 @@ impl <'a> Parser<'a> {
         self.skip_whitespace();
         let primitive_token = self.expect_poll_kind(TokenKind::Name)?;
         if !primitive_token.is_primitive_type() {
-            self.diagnostics.syntax_error(&format!("'{}' is not a type", primitive_token.as_str()), &primitive_token.range);
+            self.diagnostics.syntax_error(SyntaxError::TokenInvalidPrimitiveType, &primitive_token.range);
             return None;
         };
         

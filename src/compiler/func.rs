@@ -1,8 +1,9 @@
 use std::rc::Rc;
 use indexmap::IndexMap;
 
+use crate::errors::{ice_at, TypeError, NameError, RuntimeError};
 use crate::parser::{ast, AST};
-use crate::utils::{Diagnostics, SourceRange, ice_at, NameID};
+use crate::utils::{SourceRange, NameID};
 use super::compiler::Compiler;
 use super::frame::InactiveFrame;
 use super::native::NativeFunc;
@@ -218,14 +219,16 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
             tmp_type = param.type_.component_type();
             (&tmp_type, &mut self.spread_named)
         } else {
-            self.compiler.diagnostics.name_error(&format!("no such parameter '{}'", self.compiler.get_name(name_id)), range);
+            let name = self.compiler.get_name(name_id).to_string();
+            self.compiler.diagnostics.name_error(NameError::NoSuchParameter(name), range);
             self.any_errors = true;
             return;
         };
         match self.compiler.coerce(value, type_, range) {
             Some(v) => {
                 if map.insert(name_id, v).is_some() {
-                    self.compiler.diagnostics.error(&format!("received multiple values for parameter '{}'", self.compiler.get_name(name_id)), range);
+                    let name = self.compiler.get_name(name_id).to_string();
+                    self.compiler.diagnostics.name_error(NameError::NoSuchParameter(name), range);
                     self.any_errors = true;
                 }
             },
@@ -245,9 +248,11 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
     
     pub fn build(mut self, call_range: &SourceRange) -> Option<ValueMap> {
         if self.positional_arg_count > self.sig.positional_params.len() {
-            self.compiler.diagnostics.err_positional_args_count(
-                self.sig.positional_params.len(),
-                self.positional_arg_count,
+            self.compiler.diagnostics.type_error(
+                TypeError::TooManyPositionalArgs(
+                    self.sig.positional_params.len(),
+                    self.positional_arg_count,
+                ),
                 call_range,
             );
             return None;
@@ -270,9 +275,11 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
         if self.positional_arg_count < self.sig.positional_params.len() {
             for param in &self.sig.positional_params[self.positional_arg_count..] {
                 let Some(v) = &param.default_value else {
-                    self.compiler.diagnostics.err_positional_args_count(
-                        self.sig.positional_params.iter().filter(|p| p.default_value.is_none()).count(),
-                        self.positional_arg_count,
+                    self.compiler.diagnostics.type_error(
+                        TypeError::NotEnoughPositionalArgs(
+                            self.sig.positional_params.iter().filter(|p| p.default_value.is_none()).count(),
+                            self.positional_arg_count,
+                        ),
                         call_range,
                     );
                     return None;
@@ -283,7 +290,8 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
         for param in self.sig.named_params.values() {
             if self.map.contains_key(&param.name_id) { continue; }
             let Some(v) = &param.default_value else {
-                self.compiler.diagnostics.error(&format!("missing required argument '{}'", self.compiler.get_name(param.name_id)), call_range);
+                let name = self.compiler.get_name(param.name_id).to_string();
+                self.compiler.diagnostics.runtime_error(RuntimeError::ParamMissing(name), call_range);
                 return None;
             };
             self.map.insert(param.name_id, v.clone());
@@ -339,16 +347,11 @@ impl <'a> Compiler<'a> {
     }
     
     pub fn evaluate_func_call(&mut self, call: &ast::FuncCall, type_hint: &Type) -> Option<Value> {
-        match self.get_var(call.name_id, &call.range)? {
-            Value::Func(f) => {
-                let bindings = f.signature().bind_call(self, call)?;
-                self.evaluate_func_call_with_bindings(f, bindings, type_hint, &call.range)
-            },
-            _ => {
-                self.diagnostics.type_error(&format!("'{}' is not a function", self.get_name(call.name_id)), &call.range);
-                None
-            },
-        }
+        let Value::Func(f) = self.evaluate_var(&call.func, &Type::Function)? else {
+            ice_at("failed to coerce", &call.func.range);
+        };
+        let bindings = f.signature().bind_call(self, call)?;
+        self.evaluate_func_call_with_bindings(f, bindings, type_hint, &call.range)
     }
     
     pub fn evaluate_func_call_with_bindings(&mut self, func: Func, bindings: ValueMap, type_hint: &Type, call_range: &SourceRange) -> Option<Value> {
@@ -361,16 +364,5 @@ impl <'a> Compiler<'a> {
                 self.evaluate_native_func(f, bindings, call_range)
             },
         }
-    }
-}
-
-impl Diagnostics {
-    pub fn err_positional_args_count(&mut self, expected: usize, was: usize, range: &SourceRange) {
-        self.type_error(&format!(
-            "{} positional arguments (expected {}, was {})",
-            if was < expected { "not enough" } else { "too many" },
-            expected,
-            was,
-        ), range);
     }
 }

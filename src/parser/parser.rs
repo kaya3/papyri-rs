@@ -1,7 +1,8 @@
 use std::rc::Rc;
 
 use super::ast::*;
-use crate::utils::{Diagnostics, ice_at, SourceFile, StringPool};
+use crate::errors::{Diagnostics, ice_at, SyntaxError};
+use crate::utils::{SourceFile, StringPool};
 use super::queue::Parser;
 use super::token::{TokenKind, Token};
 
@@ -37,26 +38,28 @@ impl <'a> Parser<'a> {
         (nodes, end)
     }
     
-    pub fn parse_separated_until<T>(&mut self, open: &Token, parse: impl Fn(&mut Self) -> Option<T>, sep_kind: TokenKind, close_kind: TokenKind) -> (Vec<T>, Option<Token>) {
+    pub fn parse_separated_until<T>(&mut self, open: &Token, parse: impl Fn(&mut Self) -> Option<T>, sep_kind: TokenKind, close_kind: TokenKind) -> Option<(Vec<T>, Token)> {
         let mut children = Vec::new();
         let mut expect_end = false;
         let close = loop {
             self.skip_whitespace();
             let close = if expect_end { self.expect_poll_kind(close_kind) } else { self.poll_if_kind(close_kind) };
-            if close.is_some() {
+            if let Some(close) = close {
                 break close;
             }
+            
             if let Some(child) = parse(self) {
                 children.push(child);
             } else {
                 self.diagnostics.err_unmatched(open);
-                break None;
+                self.diagnostics.syntax_error(SyntaxError::TokenExpectedWasEOF(close_kind), &SourceFile::eof_range(open.range.src.clone()));
+                return None;
             }
             self.skip_whitespace();
             expect_end = sep_kind != TokenKind::Whitespace && self.poll_if_kind(sep_kind).is_none();
         };
         
-        (children, close)
+        Some((children, close))
     }
     
     pub fn parse_value(&mut self) -> Option<AST> {
@@ -79,7 +82,7 @@ impl <'a> Parser<'a> {
             TokenKind::Quote(..) => self.parse_template(tok),
             
             _ => {
-                self.diagnostics.syntax_error("expected value", &tok.range);
+                self.diagnostics.syntax_error(SyntaxError::ExpectedValue, &tok.range);
                 None
             }
         }
@@ -98,7 +101,7 @@ impl <'a> Parser<'a> {
             TokenKind::CloseTag |
             TokenKind::RBrace |
             TokenKind::RSqb => {
-                self.diagnostics.err_unexpected_token(&tok);
+                self.diagnostics.err_unmatched(&tok);
                 None
             },
             
@@ -163,17 +166,19 @@ impl <'a> Parser<'a> {
             |_self| {
                 let arg = _self.parse_arg()?;
                 if arg.spread_kind == SpreadKind::Named {
-                    _self.diagnostics.syntax_error("named spread not allowed in list", &arg.range);
+                    _self.diagnostics.syntax_error(SyntaxError::SpreadNamedNotAllowed, &arg.range);
                 } else if !arg.is_positional() {
-                    _self.diagnostics.syntax_error("named argument not allowed in list", &arg.range);
+                    _self.diagnostics.syntax_error(SyntaxError::ArgNamedNotAllowed, &arg.range);
                 }
                 Some((arg.value, arg.spread_kind == SpreadKind::Positional))
             },
             TokenKind::Comma,
             TokenKind::RSqb,
-        );
+        )?;
         
-        let range = open.range.to_end(close?.range.end);
-        Some(AST::List(children.into_boxed_slice(), range))
+        Some(AST::List(
+            children.into_boxed_slice(),
+            open.range.to_end(close.range.end),
+        ))
     }
 }

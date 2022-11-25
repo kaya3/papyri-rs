@@ -6,7 +6,7 @@ use super::html::HTML;
 use super::tag::Tag;
 
 impl HTML {
-    pub fn render_to<T: io::Write>(&self, w: &mut T, string_pool: &mut StringPool, as_html: bool) -> Result<(), io::Error> {
+    pub fn render_to<T: io::Write>(&self, w: &mut T, string_pool: &StringPool, as_html: bool) -> Result<(), io::Error> {
         match self {
             HTML::DocType => {
                 if as_html { write!(w, "<!DOCTYPE html>\n")?; }
@@ -21,7 +21,7 @@ impl HTML {
             },
             HTML::Text(t) => {
                 if as_html {
-                    write!(w, "{}", text::encode_entity(&t, false))?;
+                    write!(w, "{}", text::encode_entities(&t, false))?;
                 } else {
                     write!(w, "{}", t)?;
                 }
@@ -39,13 +39,13 @@ impl HTML {
 }
 
 impl Tag {
-    fn render_to<T: io::Write>(&self, w: &mut T, string_pool: &mut StringPool, as_html: bool) -> Result<(), io::Error> {
+    fn render_to<T: io::Write>(&self, w: &mut T, string_pool: &StringPool, as_html: bool) -> Result<(), io::Error> {
         if as_html {
             write!(w, "<{}", string_pool.get(self.name_id))?;
             for (k, v) in &self.attributes {
                 write!(w, " {}", string_pool.get(*k))?;
                 if let Some(v) = v {
-                    write!(w, "=\"{}\"", text::encode_entity(v, true))?;
+                    write!(w, "=\"{}\"", text::encode_entities(v, true))?;
                 }
             }
             write!(w, ">")?;

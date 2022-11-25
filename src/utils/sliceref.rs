@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use super::diagnostics::ice;
+use crate::errors::ice;
 
 #[derive(Debug, Clone)]
 /// A reference-counted pointer to a slice, allowing reference-counted pointers

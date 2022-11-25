@@ -1,5 +1,6 @@
+use crate::errors::{Diagnostics, ice_at};
 use crate::parser;
-use crate::utils::{Diagnostics, SourceFile, ice_at};
+use crate::utils::SourceFile;
 use super::highlight::{TokenKind, LineHighlighter};
 use super::html::HTML;
 

@@ -1,7 +1,8 @@
 use std::rc::Rc;
 use indexmap::IndexSet;
 
-use crate::utils::{str_ids, ice_at};
+use crate::errors::{ice_at, SyntaxError};
+use crate::utils::str_ids;
 use super::ast::*;
 use super::queue::Parser;
 use super::token::{Token, TokenKind};
@@ -32,7 +33,7 @@ impl <'a> Parser<'a> {
         let content = self.parse_value()?;
         Some(FuncCall {
             range: at.range.to_end(content.range().end),
-            name_id,
+            func: VarName {name_id, range: at.range},
             args,
             content,
         })
@@ -47,13 +48,12 @@ impl <'a> Parser<'a> {
         self.skip_whitespace();
         let lpar = self.poll_if_kind(TokenKind::LPar);
         if let Some(lpar) = &lpar {
-            let (raw_params, rpar) = self.parse_separated_until(
+            let (raw_params, _) = self.parse_separated_until(
                 lpar,
                 Parser::parse_param,
                 TokenKind::Comma,
                 TokenKind::RPar,
-            );
-            if rpar.is_none() { return None; };
+            )?;
             
             let mut names_used = IndexSet::new();
             let mut any_optional_params = false;
@@ -68,19 +68,20 @@ impl <'a> Parser<'a> {
                 let is_spread = spread.is_some();
                 
                 if !names_used.insert(param.name_id) {
-                    self.diagnostics.syntax_error(&format!("duplicate parameter name '{}'", self.string_pool.get(param.name_id)), &param.range);
+                    let name = self.string_pool.get(param.name_id).to_string();
+                    self.diagnostics.syntax_error(SyntaxError::ParamDuplicateName(name), &param.range);
                 } else if is_positional && (!named_params.is_empty() || spread_named_param.is_some()) {
-                    self.diagnostics.syntax_error("positional parameter cannot occur after named parameter", &param.range);
+                    self.diagnostics.syntax_error(SyntaxError::ParamPositionalAfterNamed, &param.range);
                 } else if is_required && (if is_positional { any_optional_params } else { any_optional_named_params }) {
-                    self.diagnostics.syntax_error("required parameter canot occur after optional parameter", &param.range);
+                    self.diagnostics.syntax_error(SyntaxError::ParamRequiredAfterOptional, &param.range);
                 } else if is_positional && param.is_implicit {
-                    self.diagnostics.syntax_error("positional parameter cannot be implicit", &param.range);
+                    self.diagnostics.syntax_error(SyntaxError::ParamPositionalImplicit, &param.range);
                 } else if is_spread && param.is_implicit {
-                    self.diagnostics.syntax_error("spread parameter cannot be implicit", &param.range);
+                    self.diagnostics.syntax_error(SyntaxError::ParamSpreadImplicit, &param.range);
                 } else if param.is_implicit && param.default_value.is_some() {
-                    self.diagnostics.syntax_error("implicit parameter cannot have default", &param.range);
+                    self.diagnostics.syntax_error(SyntaxError::ParamDefaultImplicit, &param.range);
                 } else if (if is_positional { &spread_param } else { &spread_named_param }).is_some() {
-                    let msg = if is_spread { "cannot have multiple spread parameters" } else { "parameter cannot occur after spread parameter" };
+                    let msg = if is_spread { SyntaxError::ParamMultipleSpread } else { SyntaxError::ParamAfterSpread };
                     self.diagnostics.syntax_error(msg, &param.range);
                 }
                 
@@ -95,13 +96,13 @@ impl <'a> Parser<'a> {
                     },
                     (false, true) => {
                         if is_underscore {
-                            self.diagnostics.syntax_error("dict spread parameter name cannot begin with underscore", &param.range);
+                            self.diagnostics.syntax_error(SyntaxError::ParamNamedSpreadUnderscore, &param.range);
                         }
                         spread_named_param = Some(param);
                     },
                     (true, true) => {
                         if !is_underscore {
-                            self.diagnostics.syntax_error("positional spread parameter name must begin with underscore", &param.range);
+                            self.diagnostics.syntax_error(SyntaxError::ParamPositionalSpreadNoUnderscore, &param.range);
                         }
                         spread_param = Some(param);
                     },
@@ -111,9 +112,9 @@ impl <'a> Parser<'a> {
         
         let (content_param, spread, _) = self.parse_param()?;
         if let Some(spread) = spread {
-            self.diagnostics.syntax_error("content parameter cannot be spread", &spread.range);
+            self.diagnostics.syntax_error(SyntaxError::ParamContentSpread, &spread.range);
         } else if let Some(value) = content_param.default_value.as_ref() {
-            self.diagnostics.syntax_error("content parameter cannot have default value", value.range());
+            self.diagnostics.syntax_error(SyntaxError::ParamContentDefault, value.range());
         }
         
         let mut range = content_param.range.clone();
@@ -135,13 +136,12 @@ impl <'a> Parser<'a> {
             return Some(Vec::new());
         };
         
-        let (args, rpar) = self.parse_separated_until(
+        let (args, _) = self.parse_separated_until(
             &lpar,
             Parser::parse_arg,
             TokenKind::Comma,
             TokenKind::RPar,
-        );
-        if rpar.is_none() { return None; }
+        )?;
         
         let mut any_named = false;
         let mut names_used = IndexSet::new();
@@ -149,13 +149,14 @@ impl <'a> Parser<'a> {
         for arg in &args {
             if !arg.name_id.is_anonymous() {
                 if !names_used.insert(arg.name_id) {
-                    self.diagnostics.syntax_error("duplicate named argument", &arg.range);
+                    let name = self.string_pool.get(arg.name_id).to_string();
+                    self.diagnostics.syntax_error(SyntaxError::ArgDuplicateName(name), &arg.range);
                 }
                 any_named = true;
             } else if arg.spread_kind == SpreadKind::Named {
                 any_named = true;
             } else if any_named {
-                self.diagnostics.syntax_error("positional argument cannot occur after named argument", &arg.range);
+                self.diagnostics.syntax_error(SyntaxError::ArgPositionalAfterNamed, &arg.range);
             }
         };
         
@@ -188,7 +189,7 @@ impl <'a> Parser<'a> {
             None
         };
         if default_value.is_some() && spread.is_some() {
-            self.diagnostics.syntax_error("default value not allowed for spread parameter", default_value.as_ref().unwrap().range());
+            self.diagnostics.syntax_error(SyntaxError::ParamSpreadDefault, default_value.as_ref().unwrap().range());
         }
         
         let end = default_value.as_ref().map(|v| v.range().end)
@@ -243,7 +244,7 @@ impl <'a> Parser<'a> {
         self.skip_whitespace();
         Some(if self.poll_if_kind(TokenKind::Equals).is_some() {
             if let Some(spread) = &spread {
-                self.diagnostics.syntax_error("spread not allowed for named argument", &spread.range);
+                self.diagnostics.syntax_error(SyntaxError::ArgSpreadNamed, &spread.range);
             }
             let name_id = self.string_pool.insert(name.as_str());
             let value = self.parse_value()?;

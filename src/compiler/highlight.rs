@@ -2,7 +2,8 @@ use std::ops::Range;
 
 use once_cell::sync::Lazy;
 
-use crate::utils::{str_ids, ice};
+use crate::errors::ice;
+use crate::utils::str_ids;
 use super::html::HTML;
 use super::tag::Tag;
 
@@ -168,7 +169,7 @@ impl <'a> LineHighlighter<'a> {
         let mut tag = Tag::new(str_ids::SPAN, HTML::text(s))
             .str_attr(str_ids::CLASS, css_class);
         if paren_no > 0 {
-            tag = tag.str_attr(str_ids::DATA_PAREN_NO, &format!("{}", paren_no));
+            tag = tag.str_attr(str_ids::DATA_PAREN_NO, &paren_no.to_string());
         }
         HTML::from(tag)
     }

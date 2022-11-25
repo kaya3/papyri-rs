@@ -1,4 +1,4 @@
-pub type TestResult = Result<(), papyri_lang::utils::Diagnostics>;
+pub type TestResult = Result<(), papyri_lang::errors::Diagnostics>;
 
 #[macro_export]
 macro_rules! assert_ok {

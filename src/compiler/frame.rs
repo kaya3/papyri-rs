@@ -4,6 +4,7 @@ use std::rc::Rc;
 
 use indexmap::IndexSet;
 
+use crate::errors::{NameError, RuntimeError, Warning};
 use crate::parser::AST;
 use crate::utils::{SourceRange, NameID};
 use super::compiler::Compiler;
@@ -87,7 +88,8 @@ impl <'a> Compiler<'a> {
     pub fn get_var(&mut self, name_id: NameID, range: &SourceRange) -> Option<Value> {
         let r = self.frame.get(name_id, false);
         if r.is_none() {
-            self.diagnostics.name_error(&format!("'{}' not declared", self.get_name(name_id)), range);
+            let name = self.get_name(name_id).to_string();
+            self.diagnostics.name_error(NameError::NoSuchVariable(name), range);
         }
         r
     }
@@ -96,10 +98,12 @@ impl <'a> Compiler<'a> {
         let r = self.frame.get(name_id, true);
         if r.is_none() {
             if default_value.is_none() {
-                self.diagnostics.name_error(&format!("missing required implicit parameter '{}'", self.get_name(name_id)), range);
+                let name = self.get_name(name_id).to_string();
+                self.diagnostics.runtime_error(RuntimeError::ParamMissingImplicit(name), range);
             }
             if self.frame.get(name_id, false).is_some() {
-                self.diagnostics.warning(&format!("variable '{}' exists but is not declared as implicit", self.get_name(name_id)), range);
+                let name = self.get_name(name_id).to_string();
+                self.diagnostics.warning(Warning::NameNotImplicit(name), range);
             }
         }
         r.or(default_value)
@@ -108,7 +112,8 @@ impl <'a> Compiler<'a> {
     pub fn set_var(&mut self, name_id: NameID, value: Value, implicit: bool, range: &SourceRange) {
         let frame = self.frame.borrow_mut();
         if frame.set(name_id, value, implicit) {
-            self.diagnostics.warning(&format!("'{}' already declared in current scope", self.get_name(name_id)), range);
+            let name = self.get_name(name_id).to_string();
+            self.diagnostics.warning(Warning::NameAlreadyDeclared(name), range);
         }
     }
     

@@ -1,8 +1,9 @@
 use std::rc::Rc;
 use indexmap::IndexMap;
 
+use crate::errors::{ice, ice_at, NameError, RuntimeError};
 use crate::parser::ast;
-use crate::utils::{ice_at, str_ids, NameID, taginfo, text, ice, SourceRange};
+use crate::utils::{str_ids, NameID, taginfo, text, SourceRange};
 use super::compiler::Compiler;
 use super::html::HTML;
 use super::types::Type;
@@ -50,7 +51,7 @@ impl <'a> Compiler<'a> {
                     if text::is_identifier(&name) {
                         self.loader.string_pool.insert(&name.to_ascii_lowercase())
                     } else {
-                        self.diagnostics.error(&format!("invalid tag name '{}'", name), &var.range);
+                        self.diagnostics.name_error(NameError::InvalidTag(name), &var.range);
                         str_ids::ANONYMOUS
                     }
                 },
@@ -105,7 +106,8 @@ impl <'a> Compiler<'a> {
     
     fn add_attr(&mut self, attrs: &mut AttrMap, name_id: NameID, value: Option<Rc<str>>, range: &SourceRange) {
         if attrs.insert(name_id, value).is_some() {
-            self.diagnostics.error(&format!("repeated attribute '{}'", self.get_name(name_id)), range);
+            let name = self.get_name(name_id).to_string();
+            self.diagnostics.runtime_error(RuntimeError::AttrMultipleValues(name), range);
         }
     }
 }

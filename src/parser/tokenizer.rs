@@ -1,7 +1,8 @@
 use std::rc::Rc;
 use once_cell::sync::Lazy;
 
-use crate::utils::{Diagnostics, SourceRange, SourceFile};
+use crate::errors::{Diagnostics, SyntaxError};
+use crate::utils::{SourceRange, SourceFile};
 use super::token::{Token, TokenKind, QuoteDir, QuoteKind};
 
 // Later patterns take priority
@@ -33,9 +34,9 @@ pub fn tokenize(src: Rc<SourceFile>, strip_comments: bool, diagnostics: &mut Dia
     // Indicates whether a quote `'` or `"` should become a left or right quote.
     let mut quote_dir = QuoteDir::Left;
     
-    // Holds errors to be emitted for the current token; these cannot be sent
+    // Holds an error to be emitted for the current token; this cannot be sent
     // to `diagnostics` until a span is known.
-    let mut errors: Vec<&str> = Vec::new();
+    let mut error_kind: Option<SyntaxError> = None;
     
     // Collects the output tokens.
     let mut tokens: Vec<Token> = Vec::new();
@@ -123,13 +124,13 @@ pub fn tokenize(src: Rc<SourceFile>, strip_comments: bool, diagnostics: &mut Dia
                 if let Some(close_tok) = token_stream.find(|t| t.kind == TokenKind::Verbatim && t.text.len() >= backticks) {
                     s = &src.src[cur..close_tok.span.end];
                     if close_tok.text.len() > backticks {
-                        errors.push("too many backticks in closing delimiter");
+                        error_kind = Some(SyntaxError::TokenVerbatimTooManyBackticks);
                     } else if backticks < 3 && s.contains('\n') {
-                        errors.push("multiline verbatim string must be delimited by at least three backticks");
+                        error_kind = Some(SyntaxError::TokenVerbatimMultilineNotEnoughBackticks);
                     }
                 } else {
                     s = &src.src[cur..];
-                    errors.push("unexpected end of file in verbatim string");
+                    error_kind = Some(SyntaxError::TokenVerbatimEOF);
                 }
             },
             TokenKind::RAngleComment => {
@@ -148,10 +149,11 @@ pub fn tokenize(src: Rc<SourceFile>, strip_comments: bool, diagnostics: &mut Dia
                 end: end as u32,
             }
         };
-        for msg in &errors {
+        
+        if let Some(msg) = error_kind {
             diagnostics.syntax_error(msg, &tok.range);
+            error_kind = None;
         }
-        errors.clear();
         
         quote_dir = match kind {
             TokenKind::Equals | TokenKind::LBrace | TokenKind::LPar | TokenKind::LSqb | TokenKind::RAngle | TokenKind::Newline | TokenKind::Whitespace => QuoteDir::Left,

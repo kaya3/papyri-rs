@@ -1,6 +1,7 @@
 use indexmap::IndexMap;
 
-use crate::utils::{taginfo, ice_at, ice, SourceRange};
+use crate::errors::{ice, ice_at, SyntaxError};
+use crate::utils::{taginfo, SourceRange};
 use super::ast::*;
 use super::queue::Parser;
 use super::token::{Token, TokenKind};
@@ -8,21 +9,16 @@ use super::text;
 
 impl <'a> Parser<'a> {
     pub fn parse_match(&mut self, at: Token) -> Option<Match> {
-        let Some(value) = self.parse_value() else {
-            self.diagnostics.syntax_error("expected argument", &at.range);
-            return None;
-        };
+        let value = self.parse_value()?;
         
         self.skip_whitespace();
         let open = self.expect_poll_kind(TokenKind::LBrace)?;
-        let (branches, Some(close)) = self.parse_separated_until(
+        let (branches, close) = self.parse_separated_until(
             &open,
             Parser::parse_match_branch,
             TokenKind::Comma,
             TokenKind::RBrace,
-        ) else {
-            return None;
-        };
+        )?;
         
         Some(Match {
             range: at.range.to_end(close.range.end),
@@ -63,11 +59,11 @@ impl <'a> Parser<'a> {
             TokenKind::Quote(..) => self.parse_template_pattern(tok),
             
             TokenKind::Name => {
-                self.diagnostics.syntax_error("pattern cannot be bare name; use $ for variable name, or backticks for string literal", &tok.range);
+                self.diagnostics.syntax_error(SyntaxError::PatternBareName, &tok.range);
                 None
             },
             TokenKind::Asterisk => {
-                self.diagnostics.syntax_error("spread not allowed here", &tok.range);
+                self.diagnostics.syntax_error(SyntaxError::SpreadNotAllowed, &tok.range);
                 None
             },
             _ => {
@@ -84,7 +80,7 @@ impl <'a> Parser<'a> {
         Some(match asterisk {
             Some(asterisk) => {
                 if asterisk.range.len() != 1 {
-                    self.diagnostics.syntax_error("named spread not allowed here", &asterisk.range);
+                    self.diagnostics.syntax_error(SyntaxError::SpreadNamedNotAllowed, &asterisk.range);
                 }
                 PositionalMatchPattern::Spread(pattern)
             },
@@ -98,7 +94,7 @@ impl <'a> Parser<'a> {
         match tok.kind {
             TokenKind::Name => {
                 if tok.as_str().starts_with("_") {
-                    self.diagnostics.syntax_error("dict attribute name cannot begin with underscore", &tok.range);
+                    self.diagnostics.syntax_error(SyntaxError::PatternNamedUnderscore, &tok.range);
                 }
                 self.skip_whitespace();
                 let equals = if allow_lone_name { self.poll_if_kind(TokenKind::Equals) } else { self.expect_poll_kind(TokenKind::Equals) };
@@ -108,7 +104,7 @@ impl <'a> Parser<'a> {
             },
             TokenKind::Asterisk => {
                 if tok.range.len() != 2 {
-                    self.diagnostics.syntax_error("positional spread not allowed here", &tok.range);
+                    self.diagnostics.syntax_error(SyntaxError::SpreadPositionalNotAllowed, &tok.range);
                 }
                 let pattern = self.parse_match_pattern()?;
                 Some(NamedMatchPattern::Spread(pattern))
@@ -121,14 +117,12 @@ impl <'a> Parser<'a> {
     }
     
     fn parse_list_pattern(&mut self, lsqb: Token) -> Option<MatchPattern> {
-        let (children, Some(rsqb)) = self.parse_separated_until(
+        let (children, rsqb) = self.parse_separated_until(
             &lsqb,
             Parser::parse_positional_match_pattern,
             TokenKind::Comma,
             TokenKind::RSqb,
-        ) else {
-            return None;
-        };
+        )?;
         
         let mut child_patterns = Vec::new();
         let mut spread_index = None;
@@ -138,7 +132,7 @@ impl <'a> Parser<'a> {
                 PositionalMatchPattern::One(child) => child,
                 PositionalMatchPattern::Spread(child) => {
                     if spread_index.is_some() {
-                        self.diagnostics.syntax_error("cannot have multiple spreads", child.range())
+                        self.diagnostics.syntax_error(SyntaxError::PatternMultipleSpreads, child.range())
                     }
                     spread_index = Some(i);
                     child
@@ -156,14 +150,12 @@ impl <'a> Parser<'a> {
     }
     
     fn parse_dict_pattern(&mut self, lpar: Token) -> Option<MatchPattern> {
-        let (parts, Some(rpar)) = self.parse_separated_until(
+        let (parts, rpar) = self.parse_separated_until(
             &lpar,
             |_self| _self.parse_named_match_pattern(false),
             TokenKind::Comma,
             TokenKind::RPar,
-        ) else {
-            return None;
-        };
+        )?;
         
         // cannot simplify `(**P)` to `P`, since the former checks that the value is a dictionary
         self.make_dict_pattern(parts, lpar.range.to_end(rpar.range.end), false)
@@ -190,15 +182,12 @@ impl <'a> Parser<'a> {
             },
         };
         
-        let (raw_attrs, Some(rangle)) = self.parse_separated_until(
+        let (raw_attrs, rangle) = self.parse_separated_until(
             &langle,
             |_self| _self.parse_named_match_pattern(true),
             TokenKind::Whitespace,
             TokenKind::RAngle,
-        ) else {
-            self.diagnostics.syntax_error("expected '>' or '/>'", &langle.range);
-            return None;
-        };
+        )?;
         
         // can simplify `(**P)` to `P`, because the tag attributes are always a dictionary
         let attrs = self.make_dict_pattern(raw_attrs, langle.range.to_end(rangle.range.end), true)?;
@@ -219,7 +208,7 @@ impl <'a> Parser<'a> {
         };
         
         if close_tag.kind == TokenKind::CloseTag && !close_tag.is_close_tag(&name_str) {
-            self.diagnostics.syntax_error("non-matching close tag; write </> for unnamed tag", &close_tag.range);
+            self.diagnostics.syntax_error(SyntaxError::PatternIncorrectCloseTag, &close_tag.range);
         }
         
         Some(MatchPattern::Tag(
@@ -272,13 +261,14 @@ impl <'a> Parser<'a> {
         for part in parts.into_iter() {
             let part_range = part.range().clone();
             if spread.is_some() {
-                self.diagnostics.syntax_error("cannot have more match parts after named spread", &part_range);
+                self.diagnostics.syntax_error(SyntaxError::PatternNamedAfterSpread, &part_range);
                 break;
             }
             match part {
                 NamedMatchPattern::One(name_id, child) => {
                     if attrs.insert(name_id, child).is_some() {
-                        self.diagnostics.syntax_error(&format!("duplicate attribute '{}'", self.string_pool.get(name_id)), &part_range);
+                        let name = self.string_pool.get(name_id).to_string();
+                        self.diagnostics.syntax_error(SyntaxError::PatternDuplicateName(name), &part_range);
                     }
                 },
                 NamedMatchPattern::Spread(child) => {

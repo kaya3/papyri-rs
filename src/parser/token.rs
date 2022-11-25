@@ -1,4 +1,5 @@
-use crate::utils::{SourceRange, ice};
+use crate::errors::ice;
+use crate::utils::SourceRange;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum TokenKind {
@@ -41,6 +42,51 @@ pub enum TokenKind {
     Asterisk,
     QuestionMark,
     Quote(QuoteKind, QuoteDir),
+}
+
+impl std::fmt::Display for TokenKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            TokenKind::Undetermined => "(unknown token)",
+            TokenKind::Comment => "comment",
+            TokenKind::Whitespace => "whitespace",
+            TokenKind::Newline => "paragraph break",
+            TokenKind::Escape => "escape sequence",
+            TokenKind::Entity => "entity",
+            TokenKind::RawText => "text",
+            TokenKind::Name => "name",
+            TokenKind::FuncName => "function name",
+            TokenKind::VarName => "variable name",
+            TokenKind::Number => "number",
+            TokenKind::Boolean => "bool literal",
+            TokenKind::Verbatim => "string literal",
+            TokenKind::CloseTag => "closing tag",
+            TokenKind::LPar => "'('",
+            TokenKind::RPar => "')'",
+            TokenKind::LSqb => "'['",
+            TokenKind::RSqb => "']'",
+            TokenKind::LBrace => "'{'",
+            TokenKind::RBrace => "'}'",
+            TokenKind::LAngle => "'<'",
+            TokenKind::RAngle => "'>' or '/>'",
+            TokenKind::RAngleComment => "'-->'",
+            TokenKind::Dot => "'.'",
+            TokenKind::Ellipsis => "ellipsis",
+            TokenKind::Comma => "comma",
+            TokenKind::Equals => "'='",
+            TokenKind::Colon => "':'",
+            TokenKind::Arrow => "'->'",
+            TokenKind::Bar => "'|'",
+            TokenKind::Asterisk => "'*' or '**'",
+            TokenKind::QuestionMark => "'?'",
+            TokenKind::Quote(kind, dir) => match (kind, dir) {
+                (QuoteKind::Single, QuoteDir::Left) => "left single-quote",
+                (QuoteKind::Single, QuoteDir::Right) => "right single-quote",
+                (QuoteKind::Double, QuoteDir::Left) => "left double-quote",
+                (QuoteKind::Double, QuoteDir::Right) => "right double-quote",
+            },
+        })
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]

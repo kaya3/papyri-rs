@@ -1,8 +1,9 @@
 use std::rc::Rc;
 use indexmap::IndexMap;
 
+use crate::errors::{ice_at, SyntaxError};
 use crate::parser::{ast, AST, Token, TokenKind, text};
-use crate::utils::{ice_at, NameID, str_ids, SliceRef, SourceRange};
+use crate::utils::{NameID, str_ids, SliceRef, SourceRange};
 use super::compiler::Compiler;
 use super::func::Func;
 use super::html::HTML;
@@ -195,7 +196,7 @@ impl <'a> Compiler<'a> {
             TokenKind::Number => match i64::from_str_radix(tok.as_str(), 10) {
                 Ok(value) => Some(Value::int(value)),
                 Err(err) => {
-                    self.diagnostics.syntax_error(&err.to_string(), &tok.range);
+                    self.diagnostics.syntax_error(SyntaxError::TokenInvalidNumber(err), &tok.range);
                     None
                 },
             },

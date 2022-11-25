@@ -1,7 +1,8 @@
 use std::rc::Rc;
 use indexmap::IndexMap;
 
-use crate::utils::{ice_at, str_ids, text, NameID, SourceRange};
+use crate::errors::{ice_at, RuntimeError, Warning};
+use crate::utils::{str_ids, text, NameID, SourceRange};
 use super::frame::ActiveFrame;
 use super::func::{FuncSignature, FuncParam, Func};
 use super::highlight::{syntax_highlight, enumerate_lines};
@@ -105,7 +106,8 @@ impl <'a> Compiler<'a> {
                 
                 for (k, v) in args.iter() {
                     if self.exports.insert(k.clone(), v.clone()).is_some() {
-                        self.diagnostics.warning(&format!("'{}' already exported", self.get_name(*k)), call_range);
+                        let name = self.get_name(*k).to_string();
+                        self.diagnostics.warning(Warning::NameAlreadyExported(name), call_range);
                     }
                 }
             },
@@ -127,19 +129,20 @@ impl <'a> Compiler<'a> {
                 path.pop();
                 path.push(format!("{}.papyri", path_str));
                 
-                let module = match self.loader.load_cached(path, self.diagnostics) {
-                    Ok(module) => module,
-                    Err(msg) => {
-                        self.diagnostics.error(&format!("{} when loading module \"{}\"", msg, *path_str), call_range);
+                match self.loader.load_cached(path.clone(), self.diagnostics) {
+                    Ok((module_out, module_exports)) => {
+                        return Some(if f == NativeFunc::Import {
+                            Value::Dict(module_exports)
+                        } else {
+                            self.set_vars(module_exports.as_ref(), false, call_range);
+                            Value::from(&module_out)
+                        });
+                    },
+                    Err(e) => {
+                        self.diagnostics.module_error(path, e, call_range);
                         return None;
                     },
-                };
-                return Some(if f == NativeFunc::Import {
-                    Value::Dict(module.exports.clone())
-                } else {
-                    self.set_vars(module.exports.as_ref(), false, call_range);
-                    Value::from(&module.out)
-                });
+                }
             },
             
             NativeFunc::Implicit | NativeFunc::Let => {
@@ -176,7 +179,7 @@ impl <'a> Compiler<'a> {
                     ice_at("failed to unpack", call_range);
                 };
                 
-                self.diagnostics.runtime_error(content, call_range);
+                self.diagnostics.runtime_error(RuntimeError::Raised(content.clone()), call_range);
                 return None;
             },
             
@@ -197,7 +200,7 @@ impl <'a> Compiler<'a> {
                 };
                 
                 let first_line_no = if let Value::Int(i) = first_line_no {
-                    if !block { self.diagnostics.warning("cannot enumerate lines in inline syntax highlight", call_range); }
+                    if !block { self.diagnostics.warning(Warning::InlineHighlightEnumerate, call_range); }
                     *i
                 } else { 1 };
                 
@@ -205,7 +208,7 @@ impl <'a> Compiler<'a> {
                 return Some(if *block {
                     enumerate_lines(r, first_line_no)
                 } else {
-                    if r.len() > 1 { self.diagnostics.warning("multi-line string in inline syntax highlight", call_range); }
+                    if r.len() > 1 { self.diagnostics.warning(Warning::InlineHighlightMultiline, call_range); }
                     HTML::seq(&r)
                 }.into());
             }

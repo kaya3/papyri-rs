@@ -1,6 +1,7 @@
 use indexmap::IndexSet;
 
-use crate::utils::{ice_at, NameID, taginfo};
+use crate::errors::{ice_at, SyntaxError, RuntimeError};
+use crate::utils::{NameID, taginfo};
 use super::ast::*;
 use super::queue::Parser;
 use super::token::{Token, TokenKind};
@@ -20,21 +21,19 @@ impl <'a> Parser<'a> {
             _ => ice_at("invalid open tag token", &langle.range),
         };
         
-        let (attrs, Some(rangle)) = self.parse_separated_until(
+        let (attrs, rangle) = self.parse_separated_until(
             &langle,
             Parser::parse_tag_attribute,
             TokenKind::Whitespace,
             TokenKind::RAngle,
-        ) else {
-            self.diagnostics.syntax_error("expected '>' or '/>'", &langle.range);
-            return None;
-        };
+        )?;
         
         let mut names_used: IndexSet<NameID> = IndexSet::new();
         for attr in attrs.iter() {
             if let TagAttrOrSpread::Attr(attr) = attr {
                 if !names_used.insert(attr.name_id) {
-                    self.diagnostics.error(&format!("repeated attribute '{}'", self.string_pool.get(attr.name_id)), &attr.range)
+                    let name = self.string_pool.get(attr.name_id).to_string();
+                    self.diagnostics.runtime_error(RuntimeError::AttrMultipleValues(name), &attr.range)
                 }
             }
         }
@@ -51,7 +50,7 @@ impl <'a> Parser<'a> {
         
         if !self_closing {
             let (children, Some(close)) = self.parse_nodes_until(|tok| tok.is_close_tag(&name_str)) else {
-                self.diagnostics.syntax_error("unmatched opening tag", &tag.range);
+                self.diagnostics.syntax_error(SyntaxError::TagUnmatchedOpen, &tag.range);
                 return None;
             };
             tag.range.end = close.range.end;
@@ -64,7 +63,7 @@ impl <'a> Parser<'a> {
         self.skip_whitespace();
         if let Some(spread) = self.poll_if_kind(TokenKind::Asterisk) {
             if spread.range.len() != 2 {
-                self.diagnostics.syntax_error("positional spread not allowed here", &spread.range);
+                self.diagnostics.syntax_error(SyntaxError::SpreadPositionalNotAllowed, &spread.range);
             }
             return self.parse_value()
                 .map(TagAttrOrSpread::Spread);
@@ -82,7 +81,7 @@ impl <'a> Parser<'a> {
         if self.poll_if_kind(TokenKind::Equals).is_none() {
             return match question_mark {
                 Some(q) => {
-                    self.diagnostics.syntax_error("expected '=' after '?'", &q.range);
+                    self.diagnostics.syntax_error(SyntaxError::TokenExpected(TokenKind::Equals), &q.range);
                     None
                 },
                 None => Some(TagAttrOrSpread::Attr(TagAttribute {

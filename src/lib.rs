@@ -1,11 +1,15 @@
+
+#![forbid(unsafe_code)]
+
 pub mod compiler;
 pub mod config;
+pub mod errors;
 pub mod parser;
 pub mod utils;
 
-pub fn compile_str(src: &str) -> Result<String, utils::Diagnostics> {
+pub fn compile_str(src: &str) -> Result<String, errors::Diagnostics> {
     let mut loader = compiler::ModuleLoader::new();
-    let mut diagnostics = utils::Diagnostics::new();
+    let mut diagnostics = errors::Diagnostics::new();
     let result = compiler::compile(
         utils::SourceFile::synthetic("<string>", src),
         &mut loader,

@@ -1,18 +1,18 @@
 use std::rc::Rc;
 
+use crate::errors::{Diagnostics, ice, ice_at, Warning};
 use crate::parser::{parse, AST, text};
 use crate::utils::taginfo::ContentKind;
-use crate::utils::{Diagnostics, ice_at, ice, SourceFile, SourceRange, str_ids, NameID};
+use crate::utils::{SourceFile, SourceRange, str_ids, NameID};
 use super::frame::{ActiveFrame, InactiveFrame};
 use super::html::HTML;
 use super::loader::ModuleLoader;
-use super::native::get_natives_frame;
 use super::types::Type;
 use super::value::{Value, ValueMap};
 
 pub struct CompileResult {
     pub out: HTML,
-    pub exports: Rc<ValueMap>,
+    pub exports: ValueMap,
 }
 
 pub fn compile(src: Rc<SourceFile>, loader: &mut ModuleLoader, diagnostics: &mut Diagnostics) -> CompileResult {
@@ -21,7 +21,7 @@ pub fn compile(src: Rc<SourceFile>, loader: &mut ModuleLoader, diagnostics: &mut
     let out = compiler.compile_sequence(&root, ContentKind::REQUIRE_P);
     CompileResult {
         out,
-        exports: Rc::new(compiler.exports),
+        exports: compiler.exports,
     }
 }
 
@@ -51,10 +51,7 @@ pub struct Compiler<'a> {
 
 impl <'a> Compiler<'a> {
     fn new(diagnostics: &'a mut Diagnostics, loader: &'a mut ModuleLoader) -> Compiler<'a> {
-        let frame = match loader.stdlib.as_ref() {
-            Some(stdlib) => stdlib.new_child_frame(ValueMap::new()),
-            None => get_natives_frame(),
-        };
+        let frame = loader.get_initial_frame();
         Compiler {
             diagnostics,
             loader,
@@ -71,7 +68,7 @@ impl <'a> Compiler<'a> {
         match node {
             AST::FuncDef(def) => {
                 if def.name_id.is_anonymous() {
-                    self.diagnostics.warning("anonymous function not expected here", &def.range);
+                    self.diagnostics.warning(Warning::AnonymousFunctionInText, &def.range);
                 } else {
                     let f = self.compile_func_def(def);
                     self.set_var(def.name_id, Value::Func(f), false, node.range());

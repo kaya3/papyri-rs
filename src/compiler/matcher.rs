@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
+use crate::errors::{ice, ice_at, Warning};
 use crate::parser::ast;
-use crate::utils::{ice, ice_at};
 use super::compiler::Compiler;
 use super::html::HTML;
 use super::types::Type;
@@ -19,8 +19,8 @@ impl <'a> Compiler<'a> {
             }
         }
         
-        self.diagnostics.warning("no matching branch", &match_.range);
-        None
+        self.diagnostics.warning(Warning::NoMatchingBranch, &match_.range);
+        Some(Value::Unit)
     }
     
     fn bind_pattern(&mut self, pattern: &ast::MatchPattern, value: Value, bindings: &mut ValueMap) -> bool {
@@ -145,8 +145,8 @@ impl <'a> Compiler<'a> {
     
     fn bind_one(&mut self, var: &ast::VarName, value: Value, bindings: &mut ValueMap) {
         if bindings.insert(var.name_id, value).is_some() {
-            let msg = format!("name '{}' already bound in this pattern", self.get_name(var.name_id));
-            self.diagnostics.warning(&msg, &var.range);
+            let name = self.get_name(var.name_id).to_string();
+            self.diagnostics.warning(Warning::PatternNameAlreadyBound(name), &var.range);
         }
     }
 }

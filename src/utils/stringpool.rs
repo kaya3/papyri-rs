@@ -1,7 +1,7 @@
 use indexmap::IndexSet;
 
+use crate::errors::ice;
 use super::const_strs::CONST_STRS;
-use super::diagnostics::ice;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 /// Represents an interned name. Two names in the same `StringPool` will have

@@ -5,9 +5,16 @@ use once_cell::unsync::OnceCell;
 
 use super::range::SourceRange;
 
-/// Indicates whether the given file path has a `.papyri` file extension.
-pub fn has_papyri_extension(path: &PathBuf) -> bool {
-    matches!(path.extension(), Some(s) if s.to_string_lossy().to_ascii_lowercase() == "papyri")
+/// Determines whether the given file path has the `.papyri` extension.
+pub fn is_papyri_file(path: &PathBuf) -> bool {
+    matches!(path.extension(), Some(ext) if &ext.to_ascii_lowercase() == "papyri")
+}
+
+/// Determines whether the given file path appears to a Papyri library, i.e. a
+/// file with the `.lib.papyri` extension.
+pub fn is_papyri_library(path: &PathBuf) -> bool {
+    let s = path.to_string_lossy().to_ascii_lowercase();
+    s.ends_with(".lib.papyri")
 }
 
 /// Represents a Papyri source file. The source as a string must be smaller
@@ -28,13 +35,12 @@ impl SourceFile {
     }
     
     /// Loads a source file from the given path.
-    pub fn from_path(path: PathBuf) -> Result<Rc<SourceFile>, String> {
+    pub fn from_path(path: PathBuf) -> Result<Rc<SourceFile>, std::io::Error> {
         fs::read_to_string(&path)
             .map(|src| {
                 let path_str: Box<str> = Box::from(path.to_string_lossy());
                 SourceFile::new(path, path_str, src.into_boxed_str())
             })
-            .map_err(|e| e.to_string())
     }
     
     fn new(path: PathBuf, path_str: Box<str>, src: Box<str>) -> Rc<SourceFile> {

@@ -1,4 +1,5 @@
-use crate::utils::{Diagnostics, ice_at, SourceRange, str_ids};
+use crate::errors::{Diagnostics, ice_at, TypeError};
+use crate::utils::{SourceRange, str_ids};
 use crate::parser::{ast, Token};
 use super::compiler::Compiler;
 use super::html::HTML;
@@ -92,13 +93,7 @@ impl Type {
     }
 }
 
-impl ToString for Type {
-    fn to_string(&self) -> String {
-        format!("{:?}", self)
-    }
-}
-
-impl std::fmt::Debug for Type {
+impl std::fmt::Display for Type {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Type::AnyValue => write!(f, "any"),
@@ -110,16 +105,22 @@ impl std::fmt::Debug for Type {
             Type::Int => write!(f, "int"),
             Type::Str => write!(f, "str"),
             Type::Function => write!(f, "function"),
-            Type::Dict(t) => write!(f, "{:?} dict", t),
-            Type::List(t) => write!(f, "{:?} list", t),
-            Type::Optional(t) => write!(f, "{:?}?", t),
+            Type::Dict(t) => write!(f, "{} dict", t),
+            Type::List(t) => write!(f, "{} list", t),
+            Type::Optional(t) => write!(f, "{}?", t),
         }
+    }
+}
+
+impl std::fmt::Debug for Type {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(self, f)
     }
 }
 
 impl Diagnostics {
     pub fn err_expected_type(&mut self, expected: &Type, was: &Type, range: &SourceRange) {
-        self.type_error(&format!("expected {:?}, was {:?}", expected, was), range);
+        self.type_error(TypeError::ExpectedWas(expected.clone(), was.clone()), range);
     }
 }
 

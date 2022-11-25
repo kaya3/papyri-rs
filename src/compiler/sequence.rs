@@ -1,3 +1,4 @@
+use crate::errors::TypeError;
 use crate::parser::ast::AST;
 use crate::utils::taginfo::{ContentKind, content_kind};
 use crate::utils::{str_ids, NameID};
@@ -26,13 +27,13 @@ impl <'a> Compiler<'a> {
         for child in sequence {
             if let AST::ParagraphBreak(range) = child {
                 if forbid_breaks {
-                    self.diagnostics.error("paragraph break not allowed here", range);
+                    self.diagnostics.type_error(TypeError::InlineParagraphBreak, range);
                 }
                 comp.newline();
             } else {
                 let child_html = self.compile_node(child);
                 if child_html.is_block() && !allow_blocks {
-                    self.diagnostics.warning("block content not allowed here", child.range());
+                    self.diagnostics.type_error(TypeError::InlineBlockContent, child.range());
                 }
                 comp.push(child_html);
             }

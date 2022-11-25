@@ -1,18 +1,19 @@
 use std::rc::Rc;
 
-use crate::utils::{Diagnostics, SourceFile, StringPool};
+use crate::errors::{Diagnostics, SyntaxError};
+use crate::utils::{SourceFile, StringPool};
 use super::token::{Token, TokenKind};
 use super::tokenizer::tokenize;
 
 impl Diagnostics {
     /// Reports a syntax error caused by an unexpected token.
     pub fn err_unexpected_token(&mut self, tok: &Token) {
-        self.syntax_error(&format!("unexpected {:?}", tok.kind), &tok.range);
+        self.syntax_error(SyntaxError::TokenUnexpected(tok.kind), &tok.range);
     }
     
     /// Reports a syntax error caused by an unmatched opening token.
     pub fn err_unmatched(&mut self, tok: &Token) {
-        self.syntax_error(&format!("unmatched {:?}", tok.kind), &tok.range);
+        self.syntax_error(SyntaxError::TokenUnmatched(tok.kind), &tok.range);
     }
 }
 
@@ -43,7 +44,7 @@ impl <'a> Parser<'a> {
         let t = self.poll();
         if t.is_none() {
             let eof_range = SourceFile::eof_range(self.src.clone());
-            self.diagnostics.syntax_error("unexpected end of source", &eof_range);
+            self.diagnostics.syntax_error(SyntaxError::UnexpectedEOF, &eof_range);
         }
         t
     }
@@ -53,7 +54,7 @@ impl <'a> Parser<'a> {
     pub fn expect_poll_kind(&mut self, kind: TokenKind) -> Option<Token> {
         match self.tokens.last() {
             Some(tok) if tok.kind != kind => {
-                self.diagnostics.syntax_error(&format!("expected {:?}, was {:?}", kind, tok.kind), &tok.range);
+                self.diagnostics.syntax_error(SyntaxError::TokenExpectedWas(kind, tok.kind), &tok.range);
                 None
             },
             _ => self.expect_poll(),

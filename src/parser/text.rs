@@ -3,12 +3,15 @@ use aho_corasick::{AhoCorasick, MatchKind, AhoCorasickBuilder};
 use htmlentity::entity;
 use once_cell::sync::Lazy;
 
-use crate::utils::{ice_at, SourceRange, Diagnostics};
+use crate::errors::{Diagnostics, ice_at, SyntaxError};
+use crate::utils::SourceRange;
 use super::ast::*;
 use super::queue::Parser;
 use super::token::{Token, TokenKind};
 
-pub fn encode_entity(s: &str, escape_quotes: bool) -> String {
+/// Encodes the characters `<`, `>` and `&` in a string as HTML entities. If
+/// `escape_quotes` is true, the characters `'` and `"` are additionally encoded.
+pub fn encode_entities(s: &str, escape_quotes: bool) -> String {
     entity::encode(
         s,
         if escape_quotes { entity::EntitySet::SpecialChars } else { entity::EntitySet::Html },
@@ -16,10 +19,12 @@ pub fn encode_entity(s: &str, escape_quotes: bool) -> String {
     ).into_iter().collect()
 }
 
+/// Decodes a string containing an HTML entity to the character that entity
+/// represents. If the string is not a valid entity, a syntax error is reported.
 pub fn decode_entity(range: &SourceRange, diagnostics: &mut Diagnostics) -> String {
     let s = range.as_str();
     let decoded = entity::decode(s).iter().collect();
-    if s == decoded { diagnostics.syntax_error("invalid entity", range); }
+    if s == decoded { diagnostics.syntax_error(SyntaxError::TokenInvalidEntity, range); }
     decoded
 }
 
@@ -33,8 +38,8 @@ pub fn unescape_char(range: &SourceRange, diagnostics: &mut Diagnostics) -> char
             match char::from_u32(char_code) {
                 Some(c) => c,
                 None => {
+                    diagnostics.syntax_error(SyntaxError::TokenInvalidEscape, range);
                     // replacement character
-                    diagnostics.error("invalid unicode escape", range);
                     '\u{FFFD}'
                 },
             }

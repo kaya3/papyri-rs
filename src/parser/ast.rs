@@ -103,7 +103,7 @@ pub enum SpreadKind {
 #[derive(Debug)]
 pub struct FuncCall {
     pub range: SourceRange,
-    pub name_id: NameID,
+    pub func: VarName,
     pub args: Box<[Arg]>,
     pub content: AST
 }
