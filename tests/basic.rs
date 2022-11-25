@@ -52,6 +52,21 @@ assert_ok! {
         "<!-- Nothing\nhere -->\nSomething",
         "<p>Something</p>",
     );
+    
+    line_comment_with_backticks(
+        "# ```\nFoobar",
+        "<p>Foobar</p>",
+    );
+    
+    multiline_comment_with_escape(
+        r"<!-- \-->Foobar",
+        "<p>Foobar</p>",
+    );
+    
+    multiline_comment_with_backticks(
+        r"<!-- ``` -->Foobar",
+        "<p>Foobar</p>",
+    );
 }
 
 assert_err! {

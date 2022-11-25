@@ -16,7 +16,8 @@ static LEXER: Lazy<regex_lexer::Lexer<TokenKind>> = Lazy::new(
         .token(r"\\(?:x[0-9a-fA-F]{2}|u[0-9a-fA-F]{4}|U[0-9a-fA-F]{8}|[^xuU])", TokenKind::Escape)
         .token(r"&(?:[a-zA-Z][a-zA-Z0-9]*|#[0-9]+|#x[0-9a-fA-F]+);", TokenKind::Entity)
         .token(r"`+", TokenKind::Verbatim)
-        .token(r"-->", TokenKind::RAngleComment)
+        // need to ensure that `<!-- \-->` recognises the end of the comment
+        .token(r"\\?-->", TokenKind::RAngleComment)
         .token(r#"[^#\sa-zA-Z0-9_\\\-\(\)\[\]\{\}<>/\.,=:~\|\?@\*\$&`'"]+"#, TokenKind::RawText)
         .build()
         .expect("Failed to build regex_lexer")

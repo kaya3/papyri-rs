@@ -14,6 +14,7 @@ assert_matches! {
     typed_bool("True", "_: bool");
     typed_list("[1, 2]", "_: int list");
     typed_dict("@dict(x=1, y=2).", "_: int dict");
+    typed_function("@fn $x -> $x", "_: function");
     
     spread_list("[1, 2, 3]", "[1, *[2, 3]]");
     spread_dict("@dict(x=1, y=2, z=3).", "(x=1, **(y=2, z=3))");
@@ -21,4 +22,26 @@ assert_matches! {
     tag_simple("<span>Foo</span>", "<span> _ </span>");
     tag_attr("<span id=`foobar`>Foo</span>", "<span id=`foobar`> _ </span>");
     tag_wildcard_name("<span>Foo</span>", "<_> _ </>");
+}
+
+assert_ok! {
+    list_part(
+        "@match [1, 2, 3] {[$x, *_] -> $x}",
+        "<p>1</p>",
+    );
+    
+    dict_part(
+        "@match @dict(x=1, y=2, z=3). {(x=$x, **_) -> $x}",
+        "<p>1</p>",
+    );
+    
+    template_part(
+        r#"@match `hello world` {"hello $x" -> $x}"#,
+        "<p>world</p>",
+    );
+    
+    type_of(
+        "@match `foobar` {_: $t -> $t}",
+        "<p>str</p>",
+    );
 }
