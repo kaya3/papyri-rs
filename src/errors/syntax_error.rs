@@ -2,6 +2,7 @@ use crate::parser::{TokenKind, Token};
 
 pub enum SyntaxError {
     TokenExpected(TokenKind),
+    TokenExpectedDoctype,
     TokenExpectedWas(TokenKind, Token),
     TokenExpectedWasEOF(TokenKind),
     TokenUnexpected(Token),
@@ -57,6 +58,7 @@ impl std::fmt::Display for SyntaxError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             SyntaxError::TokenExpected(kind) => write!(f, "expected {kind}"),
+            SyntaxError::TokenExpectedDoctype => f.write_str("expected 'DOCTYPE'"),
             SyntaxError::TokenExpectedWas(kind, token) => write!(f, "expected {kind}, was {token}"),
             SyntaxError::TokenExpectedWasEOF(kind) => write!(f, "expected {kind}, was end of course"),
             SyntaxError::TokenUnexpected(token) => write!(f, "unexpected {token}"),

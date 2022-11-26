@@ -40,6 +40,7 @@ pub enum TokenKind {
     Arrow,
     Bar,
     Asterisk,
+    ExclamationMark,
     QuestionMark,
     Quote(QuoteKind, QuoteDir),
 }
@@ -84,6 +85,7 @@ impl std::fmt::Display for TokenKind {
             TokenKind::Arrow => "'->'",
             TokenKind::Bar => "'|'",
             TokenKind::Asterisk => "'*' or '**'",
+            TokenKind::ExclamationMark => "'!'",
             TokenKind::QuestionMark => "'?'",
             TokenKind::Quote(k, _) => match k {
                 QuoteKind::Single => "single-quote",
@@ -197,6 +199,7 @@ impl Token {
             TokenKind::Equals |
             TokenKind::Colon |
             TokenKind::Asterisk |
+            TokenKind::ExclamationMark |
             TokenKind::QuestionMark |
             TokenKind::Arrow |
             TokenKind::RawText => Some(self.as_str()),

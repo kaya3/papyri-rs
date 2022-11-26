@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use crate::parser::Token;
 use crate::utils::{str_ids, StringPool, NameID, taginfo};
-use super::tag::Tag;
+use super::tag::{Tag, AttrMap};
 use super::value::Value;
 
 #[derive(Debug, Clone)]
@@ -11,7 +11,6 @@ pub enum HTML {
     Tag(Rc<Tag>),
     Sequence(Rc<[HTML]>),
     Text(Rc<str>),
-    DocType,
     Whitespace,
     RawNewline,
 }
@@ -107,6 +106,9 @@ impl HTML {
     }
     
     pub fn wrap_page(self, title: Option<HTML>, web_root: &str) -> HTML {
+        let mut doctype_html = AttrMap::new();
+        doctype_html.insert(str_ids::HTML, None);
+        
         let link_tag = Tag::new(str_ids::LINK, HTML::Empty)
             .str_attr(str_ids::REL, "stylesheet")
             .str_attr(str_ids::TYPE, "text/css")
@@ -117,7 +119,7 @@ impl HTML {
             .str_attr(str_ids::SRC, &format!("{web_root}papyri.js"));
         
         HTML::seq(&[
-            HTML::DocType,
+            Tag::new_with_attrs(str_ids::_DOCTYPE, doctype_html, HTML::Empty).into(),
             HTML::tag(str_ids::HTML, HTML::seq(&[
                 HTML::tag(str_ids::HEAD, HTML::seq(&[
                     title.map_or(HTML::Empty, |t| HTML::tag(str_ids::TITLE, t)),

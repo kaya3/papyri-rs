@@ -1,7 +1,7 @@
 use indexmap::IndexSet;
 
 use crate::errors::{ice_at, SyntaxError};
-use crate::utils::{NameID, taginfo};
+use crate::utils::{NameID, taginfo, str_ids};
 use super::ast::*;
 use super::queue::Parser;
 use super::token::{Token, TokenKind};
@@ -17,6 +17,14 @@ impl <'a> Parser<'a> {
             TokenKind::VarName => {
                 let var_name = self.parse_var_name(name_tok);
                 (TagName::Variable(var_name), None)
+            },
+            TokenKind::ExclamationMark => {
+                let doctype = self.expect_poll()?;
+                if !doctype.as_str().eq_ignore_ascii_case("DOCTYPE") {
+                    self.diagnostics.syntax_error(SyntaxError::TokenExpectedDoctype, &doctype.range);
+                    return None;
+                }
+                (TagName::Literal(str_ids::_DOCTYPE), None)
             },
             _ => ice_at("invalid open tag token", &langle.range),
         };

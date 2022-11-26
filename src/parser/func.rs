@@ -61,8 +61,8 @@ impl <'a> Parser<'a> {
             
             for (param, spread, is_underscore) in raw_params {
                 let is_required = spread.is_none() && !param.question_mark && param.default_value.is_none();
-                let is_positional = match &spread {
-                    Some(spread) => spread.range.len() == 1,
+                let is_positional = match spread {
+                    Some(ref spread) => spread.range.len() == 1,
                     None => is_underscore,
                 };
                 let is_spread = spread.is_some();
@@ -218,7 +218,7 @@ impl <'a> Parser<'a> {
     pub fn parse_arg(&mut self) -> Option<Arg> {
         self.skip_whitespace();
         let spread = self.poll_if_kind(TokenKind::Asterisk);
-        let spread_kind = match &spread {
+        let spread_kind = match spread.as_ref() {
             None => SpreadKind::NoSpread,
             Some(t) if t.range.len() == 1 => SpreadKind::Positional,
             Some(t) if t.range.len() == 2 => SpreadKind::Named,

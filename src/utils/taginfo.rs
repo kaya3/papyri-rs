@@ -21,6 +21,7 @@ pub fn is_self_closing(name_id: NameID) -> bool {
     // https://developer.mozilla.org/en-US/docs/Glossary/Void_element
     matches!(
         name_id,
+        str_ids::_DOCTYPE |
         str_ids::AREA |
         str_ids::BASE |
         str_ids::BR |
@@ -41,16 +42,20 @@ pub fn is_self_closing(name_id: NameID) -> bool {
     )
 }
 
-/// Indicates whether `name_id` is the id of a HTML block-level tag name.
+/// Indicates whether `name_id` is the id of a HTML block-level tag name, or
+/// otherwise should not be wrapped in a block-level element.
 pub fn is_block(name_id: NameID) -> bool {
     // https://developer.mozilla.org/en-US/docs/Web/HTML/Block-level_elements
-    // "canvas", "menu" and "video" included as extras
+    // Extras:
+    // - !DOCTYPE, body, canvas, head, html, menu, video
     matches!(
         name_id,
+        str_ids::_DOCTYPE |
         str_ids::ADDRESS |
         str_ids::ARTICLE |
         str_ids::ASIDE |
         str_ids::BLOCKQUOTE |
+        str_ids::BODY |
         str_ids::CANVAS |
         str_ids::DD |
         str_ids::DETAILS |
@@ -68,9 +73,11 @@ pub fn is_block(name_id: NameID) -> bool {
         str_ids::H4 |
         str_ids::H5 |
         str_ids::H6 |
+        str_ids::HEAD |
         str_ids::HEADER |
         str_ids::HGROUP |
         str_ids::HR |
+        str_ids::HTML |
         str_ids::IMG |
         str_ids::LI |
         str_ids::MAIN |
@@ -121,6 +128,11 @@ pub fn content_kind(name_id: NameID) -> ContentKind {
             str_ids::H4,
             str_ids::H5,
             str_ids::H6,
+        ]),
+        
+        str_ids::HTML => ContentKind::RequireOneOf(&[
+            str_ids::BODY,
+            str_ids::HEAD,
         ]),
         
         str_ids::MENU |

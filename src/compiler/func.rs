@@ -355,14 +355,14 @@ impl <'a> Compiler<'a> {
     }
     
     pub fn evaluate_func_call_with_bindings(&mut self, func: Func, bindings: ValueMap, type_hint: &Type, call_range: &SourceRange) -> Option<Value> {
-        match &func {
-            Func::NonNative(f) => {
+        match func {
+            Func::NonNative(ref f) => {
                 let call = (func.clone(), call_range.clone());
                 let frame = f.closure.new_child_frame(bindings, Some(call));
                 self.evaluate_in_frame(frame, f.body.as_ref(), type_hint)
             },
             Func::Native(f, _) => {
-                self.evaluate_native_func(*f, bindings, call_range)
+                self.evaluate_native_func(f, bindings, call_range)
             },
         }
     }

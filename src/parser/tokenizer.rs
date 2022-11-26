@@ -18,7 +18,7 @@ static LEXER: Lazy<regex_lexer::Lexer<TokenKind>> = Lazy::new(
         .token(r"`+", TokenKind::Verbatim)
         // need to ensure that `<!-- \-->` recognises the end of the comment
         .token(r"\\?-->", TokenKind::RAngleComment)
-        .token(r#"[^#\sa-zA-Z0-9_\\\-\(\)\[\]\{\}<>/\.,=:~\|\?@\*\$&`'"]+"#, TokenKind::RawText)
+        .token(r#"[^#\sa-zA-Z0-9_\\\-\(\)\[\]\{\}<>/\.,=:~\|!\?@\*\$&`'"]+"#, TokenKind::RawText)
         .build()
         .expect("Failed to build regex_lexer")
 );
@@ -102,6 +102,7 @@ pub fn tokenize(src: Rc<SourceFile>, strip_comments: bool, diagnostics: &mut Dia
                     "=" => TokenKind::Equals,
                     ":" => TokenKind::Colon,
                     "|" => TokenKind::Bar,
+                    "!" => TokenKind::ExclamationMark,
                     "?" => TokenKind::QuestionMark,
                     "*" | "**" => TokenKind::Asterisk,
                     "->" => TokenKind::Arrow,

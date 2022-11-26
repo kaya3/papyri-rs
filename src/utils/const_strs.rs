@@ -22,6 +22,7 @@ macro_rules! const_strs {
 
 const_strs!(
     ANONYMOUS = "<anonymous>",
+    _DOCTYPE = "!DOCTYPE",
     _CALLBACK = "_callback",
     A = "a",
     ADDRESS = "address",

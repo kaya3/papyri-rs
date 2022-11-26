@@ -28,6 +28,11 @@ assert_ok! {
         "<p><br></p>",
     );
     
+    doctype(
+        "<!DOCTYPE html>",
+        "<!DOCTYPE html>\n",
+    );
+    
     auto_close(
         "<span />",
         "<p><span></span></p>",

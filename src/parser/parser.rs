@@ -99,7 +99,7 @@ impl <'a> Parser<'a> {
             
             TokenKind::LBrace => Some(self.parse_group(tok)),
             TokenKind::LSqb => self.parse_list(tok),
-            TokenKind::LAngle if self.has_next(|t| matches!(t.kind, TokenKind::Name | TokenKind::VarName)) => self.parse_tag(tok),
+            TokenKind::LAngle if self.has_next(|t| matches!(t.kind, TokenKind::Name | TokenKind::VarName | TokenKind::ExclamationMark)) => self.parse_tag(tok),
             
             TokenKind::CloseTag |
             TokenKind::RBrace |
