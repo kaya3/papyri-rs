@@ -154,8 +154,8 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
     fn compile_named_arg(&mut self, arg: &ast::Arg) {
         if arg.is_spread() {
             if let Some(Value::Dict(vs)) = self.compiler.evaluate_node(&arg.value, &Type::dict(Type::AnyValue)) {
-                for (k, v) in vs.iter() {
-                    self.add_named_arg(*k, v.clone(), arg.value.range());
+                for (&k, v) in vs.iter() {
+                    self.add_named_arg(k, v.clone(), arg.value.range());
                 }
             } else {
                 self.any_errors = true;

@@ -36,8 +36,8 @@ impl HTML {
             Value::Str(t) => HTML::Text(t),
             Value::Dict(vs) => {
                 let rows: Vec<HTML> = vs.iter()
-                    .map(|(k, v)| HTML::tag(str_ids::TR, HTML::seq(&[
-                        HTML::tag(str_ids::TH, HTML::text(string_pool.get(*k))),
+                    .map(|(&k, v)| HTML::tag(str_ids::TR, HTML::seq(&[
+                        HTML::tag(str_ids::TH, HTML::text(string_pool.get(k))),
                         HTML::tag(str_ids::TD, HTML::from_value(v.clone(), string_pool)),
                     ])))
                     .collect();

@@ -83,10 +83,10 @@ impl <'a> Compiler<'a> {
                     let range = spread.range();
                     match self.evaluate_node(spread, &Type::dict(Type::optional(Type::Str))) {
                         Some(Value::Dict(dict)) => {
-                            for (k, v) in dict.iter() {
+                            for (&k, v) in dict.iter() {
                                 match v {
-                                    Value::Str(s) => { self.add_attr(&mut attrs, *k, Some(s.clone()), range); },
-                                    Value::Unit => { self.add_attr(&mut attrs, *k, None, range); },
+                                    Value::Str(s) => { self.add_attr(&mut attrs, k, Some(s.clone()), range); },
+                                    Value::Unit => { self.add_attr(&mut attrs, k, None, range); },
                                     _ => ice_at("failed to coerce", range),
                                 }
                             }

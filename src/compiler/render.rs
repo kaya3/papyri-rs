@@ -48,8 +48,8 @@ impl <'a, T: io::Write> Renderer<'a, T> {
         let name = self.string_pool.get(tag.name_id);
         if self.as_html {
             write!(self.writer, "<{name}")?;
-            for (k, v) in tag.attributes.iter() {
-                write!(self.writer, " {}", self.string_pool.get(*k))?;
+            for (&k, v) in tag.attributes.iter() {
+                write!(self.writer, " {}", self.string_pool.get(k))?;
                 if let Some(v) = v {
                     write!(self.writer, "=\"{}\"", text::encode_entities(v, true))?;
                 }

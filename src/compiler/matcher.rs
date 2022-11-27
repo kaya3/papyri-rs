@@ -90,11 +90,8 @@ impl <'a> Compiler<'a> {
                 if let Some(spread_pattern) = dict_pattern.spread.as_ref() {
                     if !matches!(spread_pattern, ast::MatchPattern::Ignore(..)) {
                         let remaining: ValueMap = dict_value.iter()
-                            .filter(|(k, _)| !dict_pattern.attrs.contains_key(*k))
-                            .map(|(k, v)| (
-                                *k,
-                                v.clone(),
-                            ))
+                            .filter(|(&k, _)| !dict_pattern.attrs.contains_key(&k))
+                            .map(|(&k, v)| (k, v.clone()))
                             .collect();
                         if !self.bind_pattern(spread_pattern, Value::dict(remaining), bindings) { return false; }
                     }
@@ -109,8 +106,8 @@ impl <'a> Compiler<'a> {
                 
                 let vs: ValueMap = tag_value.attributes
                     .iter()
-                    .map(|(k, v)| (
-                        *k,
+                    .map(|(&k, v)| (
+                        k,
                         v.clone().into(),
                     ))
                     .collect();

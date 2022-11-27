@@ -133,8 +133,8 @@ impl <'a> Compiler<'a> {
     }
     
     pub fn set_vars(&mut self, dict: &ValueMap, implicit: bool, range: &SourceRange) {
-        for (k, v) in dict {
-            self.set_var(*k, v.clone(), implicit, range);
+        for (&k, v) in dict {
+            self.set_var(k, v.clone(), implicit, range);
         }
     }
     

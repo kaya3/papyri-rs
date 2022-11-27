@@ -24,7 +24,7 @@ impl StringPool {
     /// `const_strs.rs` for a full list.
     pub fn new() -> StringPool {
         let strings = CONST_STRS.iter()
-            .map(|s| Box::from(*s));
+            .map(|&s| Box::from(s));
         
         StringPool(IndexSet::from_iter(strings))
     }

@@ -14,7 +14,7 @@ use super::{CompileResult, compile};
 pub struct ModuleLoader {
     pub string_pool: StringPool,
     stdlib: Option<InactiveFrame>,
-    cache: IndexMap<path::PathBuf, ModuleState>,
+    cache: IndexMap<Box<path::Path>, ModuleState>,
 }
 
 type CachedCompileResult = (HTML, Rc<ValueMap>);
@@ -39,35 +39,34 @@ impl ModuleLoader {
     }
     
     pub fn get_initial_frame(&self) -> ActiveFrame {
-        match self.stdlib.as_ref() {
-            Some(stdlib) => stdlib.new_child_frame(ValueMap::new(), None),
-            None => get_natives_frame(),
-        }
+        self.stdlib.as_ref().map_or_else(
+            get_natives_frame,
+            |stdlib| stdlib.new_child_frame(ValueMap::new(), None),
+        )
     }
     
     pub fn load_uncached(&mut self, path: &path::Path, diagnostics: &mut Diagnostics) -> Result<CompileResult, ModuleError> {
-        let src = SourceFile::from_path(path)
-            .map_err(ModuleError::IOError)?;
-        Ok(compile(src, self, diagnostics))
+        SourceFile::from_path(path)
+            .map(|src| compile(src, self, diagnostics))
+            .map_err(ModuleError::IOError)
     }
     
     pub fn load_cached(&mut self, path: &path::Path, diagnostics: &mut Diagnostics) -> Result<CachedCompileResult, ModuleError> {
         let k = fs::canonicalize(&path)
             .map_err(ModuleError::IOError)?;
+        
         match self.get(&k) {
             ModuleState::NotLoaded => {
-                self.set(k.clone(), ModuleState::Busy);
-                match self.load_uncached(path, diagnostics) {
-                    Ok(result) => {
-                        let cached_result = (result.out, Rc::new(result.exports));
-                        self.set(k, ModuleState::Loaded(cached_result.clone()));
-                        Ok(cached_result)
-                    },
-                    Err(e) => {
-                        self.set(k, ModuleState::Error);
-                        Err(e)
-                    }
-                }
+                let index = self.set(k.into_boxed_path(), ModuleState::Busy);
+                let result = self.load_uncached(path, diagnostics)
+                    .map(|result| (result.out, Rc::new(result.exports)));
+                
+                let state = result.as_ref()
+                    .map(CachedCompileResult::clone)
+                    .map_or(ModuleState::Error, ModuleState::Loaded);
+                
+                self.set_by_index(index, state);
+                result
             },
             ModuleState::Loaded(cached_result) => Ok(cached_result),
             ModuleState::Busy => Err(ModuleError::CircularImport),
@@ -75,14 +74,18 @@ impl ModuleLoader {
         }
     }
     
-    fn get(&mut self, path: &path::PathBuf) -> ModuleState {
-        match self.cache.get(path) {
-            Some(s) => s.clone(),
-            None => ModuleState::NotLoaded,
-        }
+    fn get(&mut self, path: &path::Path) -> ModuleState {
+        self.cache.get(path)
+            .map_or(ModuleState::NotLoaded, ModuleState::clone)
     }
     
-    fn set(&mut self, path: path::PathBuf, state: ModuleState) {
-        self.cache.insert(path, state);
+    fn set(&mut self, path: Box<path::Path>, state: ModuleState) -> usize {
+        let (index, _) = self.cache.insert_full(path, state);
+        index
+    }
+    
+    fn set_by_index(&mut self, index: usize, state: ModuleState) {
+        let (_, value) = self.cache.get_index_mut(index).unwrap();
+        *value = state;
     }
 }

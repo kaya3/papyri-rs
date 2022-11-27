@@ -97,30 +97,31 @@ impl NativeFunc {
 }
 
 impl <'a> Compiler<'a> {
-    pub fn evaluate_native_func(&mut self, f: NativeFunc, bindings: ValueMap, call_range: &SourceRange) -> Option<Value> {
+    pub fn evaluate_native_func(&mut self, f: NativeFunc, mut bindings: ValueMap, call_range: &SourceRange) -> Option<Value> {
+        let bindings = &mut bindings;
         match f {
             NativeFunc::Export => {
-                let Some(Value::Dict(args)) = bindings.get(&str_ids::ARGS) else {
+                let Some(Value::Dict(args)) = take_val(bindings, str_ids::ARGS) else {
                     ice_at("failed to unpack", call_range);
                 };
                 
-                for (k, v) in args.iter() {
-                    if self.exports.insert(k.clone(), v.clone()).is_some() {
-                        let name = self.get_name(*k).to_string();
+                for (&k, v) in args.iter() {
+                    if self.exports.insert(k, v.clone()).is_some() {
+                        let name = self.get_name(k).to_string();
                         self.diagnostics.warning(Warning::NameAlreadyExported(name), call_range);
                     }
                 }
             },
             
             NativeFunc::FixIndentation => {
-                let Some(Value::Str(content)) = bindings.get(&str_ids::CONTENT) else {
+                let Some(Value::Str(content)) = take_val(bindings, str_ids::CONTENT) else {
                     ice_at("failed to unpack", call_range);
                 };
-                return Some(text::fix_indentation(content).into());
+                return Some(text::fix_indentation(content.as_ref()).into());
             },
             
             NativeFunc::Import | NativeFunc::Include => {
-                let Some(Value::Str(path_str)) = bindings.get(&str_ids::CONTENT) else {
+                let Some(Value::Str(path_str)) = take_val(bindings, str_ids::CONTENT) else {
                     ice_at("failed to unpack", call_range);
                 };
                 
@@ -146,22 +147,22 @@ impl <'a> Compiler<'a> {
             },
             
             NativeFunc::Implicit | NativeFunc::Let => {
-                let Some(Value::Dict(args)) = bindings.get(&str_ids::ARGS) else {
+                let Some(Value::Dict(args)) = take_val(bindings, str_ids::ARGS) else {
                     ice_at("failed to unpack", call_range);
                 };
-                self.set_vars(args, f == NativeFunc::Implicit, call_range);
+                self.set_vars(args.as_ref(), f == NativeFunc::Implicit, call_range);
             },
             
             NativeFunc::Map => {
                 let (Some(Value::Func(callback)), Some(Value::List(content))) = (
-                    bindings.get(&str_ids::_CALLBACK),
-                    bindings.get(&str_ids::CONTENT),
+                    take_val(bindings, str_ids::_CALLBACK),
+                    take_val(bindings, str_ids::CONTENT),
                 ) else {
                     ice_at("failed to unpack", call_range);
                 };
                 
                 let mut out = Vec::new();
-                for v in content.as_ref().iter() {
+                for v in content.as_ref() {
                     let bindings = callback.signature().bind_synthetic_call(self, false, v.clone(), call_range)?;
                     let r = self.evaluate_func_call_with_bindings(
                         callback.clone(),
@@ -175,37 +176,37 @@ impl <'a> Compiler<'a> {
             },
             
             NativeFunc::Raise => {
-                let Some(Value::Str(content)) = bindings.get(&str_ids::CONTENT) else {
+                let Some(Value::Str(content)) = take_val(bindings, str_ids::CONTENT) else {
                     ice_at("failed to unpack", call_range);
                 };
                 
-                self.runtime_error(RuntimeError::Raised(content.clone()), call_range);
+                self.runtime_error(RuntimeError::Raised(content), call_range);
                 return None;
             },
             
             NativeFunc::SyntaxHighlight => {
-                let (Some(language), Some(Value::Bool(block)), Some(first_line_no), Some(Value::Str(src))) = (
-                    bindings.get(&str_ids::LANGUAGE),
-                    bindings.get(&str_ids::CODE_BLOCK),
-                    bindings.get(&str_ids::FIRST_LINE_NO),
-                    bindings.get(&str_ids::CONTENT),
+                let (Some(language), Some(Value::Bool(is_block)), Some(first_line_no), Some(Value::Str(src))) = (
+                    take_val(bindings, str_ids::LANGUAGE),
+                    take_val(bindings, str_ids::CODE_BLOCK),
+                    take_val(bindings, str_ids::FIRST_LINE_NO),
+                    take_val(bindings, str_ids::CONTENT),
                 ) else {
                     ice_at("failed to unpack", call_range);
                 };
                 
-                let src = if *block { src } else { src.trim() };
+                let src = if is_block { src.as_ref() } else { src.trim() };
                 
                 let Value::Str(language) = language else {
                     return Some(HTML::text(src).into());
                 };
                 
                 let first_line_no = if let Value::Int(i) = first_line_no {
-                    if !block { self.runtime_warning(RuntimeWarning::InlineHighlightEnumerate, call_range); }
-                    *i
+                    if !is_block { self.runtime_warning(RuntimeWarning::InlineHighlightEnumerate, call_range); }
+                    i
                 } else { 1 };
                 
                 let r = syntax_highlight(src.as_ref(), language.as_ref());
-                return Some(if *block {
+                return Some(if is_block {
                     enumerate_lines(r, first_line_no)
                 } else {
                     if r.len() > 1 { self.runtime_warning(RuntimeWarning::InlineHighlightMultiline, call_range); }
@@ -216,4 +217,8 @@ impl <'a> Compiler<'a> {
         
         Some(Value::Unit)
     }
+}
+
+fn take_val(bindings: &mut ValueMap, key: NameID) -> Option<Value> {
+    bindings.insert(key, Value::Unit)
 }
