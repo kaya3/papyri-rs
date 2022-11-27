@@ -43,6 +43,11 @@ assert_ok! {
         "<p>5 5</p>",
     );
     
+    verbatim_with_backslash(
+        r"@str `\`",
+        r"<p>\</p>",
+    );
+    
     line_comment(
         "# Nothing\nSomething",
         "<p>Something</p>",

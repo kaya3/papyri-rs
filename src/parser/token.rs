@@ -30,7 +30,6 @@ pub enum TokenKind {
     RBrace,
     LAngle,
     RAngle,
-    RAngleComment,
     
     Dot,
     Ellipsis,
@@ -76,7 +75,6 @@ impl std::fmt::Display for TokenKind {
             TokenKind::RBrace => "'}'",
             TokenKind::LAngle => "'<'",
             TokenKind::RAngle => "'>' or '/>'",
-            TokenKind::RAngleComment => "'-->'",
             TokenKind::Dot => "'.'",
             TokenKind::Ellipsis => "ellipsis",
             TokenKind::Comma => "comma",
@@ -107,7 +105,6 @@ impl std::fmt::Display for Token {
         // helpful for describing an actual token
         match self.kind {
             TokenKind::RAngle |
-            TokenKind::RAngleComment |
             TokenKind::Asterisk => write!(f, "'{}'", self.as_str()),
             _ => std::fmt::Display::fmt(&self.kind, f),
         }

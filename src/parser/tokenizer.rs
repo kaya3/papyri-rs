@@ -8,16 +8,15 @@ use super::token::{Token, TokenKind, QuoteDir, QuoteKind};
 // Later patterns take priority
 static LEXER: Lazy<regex_lexer::Lexer<TokenKind>> = Lazy::new(
     || regex_lexer::LexerBuilder::new()
-        .token(r"<!--|/>|->|\.\.\.|\*\*|.", TokenKind::Undetermined)
+        .token(r"/>|->|\.\.\.|\*\*|.", TokenKind::Undetermined)
         .token(r"\s+", TokenKind::Whitespace) // or Newline
+        .token(r"#.*|<!--(?s:.)*?-->|<!--(?s:.)*", TokenKind::Comment)
         .token(r"[a-zA-Z_][a-zA-Z0-9_]*", TokenKind::Name)
         .token(r"-?[0-9]+", TokenKind::Number)
         .token(r"</(?:[a-zA-Z_][a-zA-Z0-9_]*)?>", TokenKind::CloseTag)
         .token(r"\\(?:x[0-9a-fA-F]{2}|u[0-9a-fA-F]{4}|U[0-9a-fA-F]{8}|[^xuU])", TokenKind::Escape)
         .token(r"&(?:[a-zA-Z][a-zA-Z0-9]*|#[0-9]+|#x[0-9a-fA-F]+);", TokenKind::Entity)
         .token(r"`+", TokenKind::Verbatim)
-        // need to ensure that `<!-- \-->` recognises the end of the comment
-        .token(r"\\?-->", TokenKind::RAngleComment)
         .token(r#"[^#\sa-zA-Z0-9_\\\-\(\)\[\]\{\}<>/\.,=:~\|!\?@\*\$&`'"]+"#, TokenKind::RawText)
         .build()
         .expect("Failed to build regex_lexer")
@@ -50,37 +49,6 @@ pub fn tokenize(src: Rc<SourceFile>, strip_comments: bool, diagnostics: &mut Dia
         match kind {
             TokenKind::Undetermined => {
                 kind = match s {
-                    "<!--" => {
-                        if let Some(close_tok) = token_stream.find(|t| t.kind == TokenKind::RAngleComment) {
-                            s = &src.src[cur..close_tok.span.end];
-                        } else {
-                            // no syntax error here; an unmatched `<!--` means
-                            // the rest of the file is commented
-                            s = &src.src[cur..];
-                        }
-                        TokenKind::Comment
-                    },
-                    
-                    "#" => {
-                        while let Some(t) = token_stream.peek() {
-                            if t.kind == TokenKind::Whitespace && t.text.contains('\n') { break; }
-                            token_stream.next();
-                        }
-                        
-                        if let Some(close_tok) = token_stream.peek() {
-                            if is_paragraph_break(close_tok.text) {
-                                s = &src.src[cur..close_tok.span.start];
-                            } else {
-                                s = &src.src[cur..close_tok.span.end];
-                                token_stream.next();
-                            }
-                        } else {
-                            // no syntax error here; the rest of the file is commented
-                            s = &src.src[cur..];
-                        }
-                        TokenKind::Comment
-                    },
-                    
                     "$" | "@" if matches!(token_stream.peek(), Some(tok) if tok.kind == TokenKind::Name) => {
                         let k = if s == "$" { TokenKind::VarName } else { TokenKind::FuncName };
                         let end = token_stream.next().unwrap().span.end;
@@ -113,30 +81,59 @@ pub fn tokenize(src: Rc<SourceFile>, strip_comments: bool, diagnostics: &mut Dia
                 };
             },
             
-            TokenKind::Name if matches!(s, "True" | "False") => {
-                kind = TokenKind::Boolean;
+            TokenKind::Comment if s.starts_with("#") => {
+                if let Some(next_whitespace) = token_stream.peek() {
+                    if next_whitespace.kind == TokenKind::Whitespace && !is_paragraph_break(next_whitespace.text) {
+                        s = &src.src[cur..next_whitespace.span.end];
+                        token_stream.next();
+                    }
+                }
             },
             
             TokenKind::Whitespace => {
                 if is_paragraph_break(s) { kind = TokenKind::Newline; }
             },
             
+            TokenKind::Name => {
+                if matches!(s, "True" | "False") { kind = TokenKind::Boolean; }
+            },
+            
             TokenKind::Verbatim => {
-                let backticks = s.len();
-                if let Some(close_tok) = token_stream.find(|t| t.kind == TokenKind::Verbatim && t.text.len() >= backticks) {
+                // if `regex_lexer` supported backreferences, this would be a lot simpler
+                let open_backticks = t.text.len();
+                let mut extra_backtick = 0;
+                let close_tok = loop {
+                    match token_stream.next() {
+                        Some(tok) if tok.kind == TokenKind::Verbatim => {
+                            if tok.text.len() >= open_backticks {
+                                break Some(tok);
+                            }
+                        },
+                        Some(tok) if tok.kind == TokenKind::Escape && tok.text.ends_with("`") => {
+                            if open_backticks == 1 {
+                                break Some(tok);
+                            } else if matches!(token_stream.peek(), Some(t) if t.kind == TokenKind::Verbatim && t.text.len() + 1 >= open_backticks) {
+                                extra_backtick = 1;
+                                break token_stream.next();
+                            }
+                        },
+                        None => break None,
+                        
+                        _ => {},
+                    }
+                };
+                
+                if let Some(close_tok) = close_tok {
                     s = &src.src[cur..close_tok.span.end];
-                    if close_tok.text.len() > backticks {
+                    if close_tok.kind == TokenKind::Verbatim && close_tok.text.len() + extra_backtick > open_backticks {
                         error_kind = Some(SyntaxError::TokenVerbatimTooManyBackticks);
-                    } else if backticks < 3 && s.contains('\n') {
+                    } else if open_backticks < 3 && s.contains('\n') {
                         error_kind = Some(SyntaxError::TokenVerbatimMultilineNotEnoughBackticks);
                     }
                 } else {
                     s = &src.src[cur..];
                     error_kind = Some(SyntaxError::TokenVerbatimEOF);
                 }
-            },
-            TokenKind::RAngleComment => {
-                kind = TokenKind::RawText;
             },
             
             _ => {},

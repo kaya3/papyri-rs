@@ -109,9 +109,8 @@ impl <'a> Parser<'a> {
             },
             
             TokenKind::Undetermined |
-            TokenKind::Comment |
-            TokenKind::RAngleComment => {
-                ice_at("token kind should not occur here", &tok.range)
+            TokenKind::Comment => {
+                ice_at("token kind should not occur here", &tok.range);
             },
             
             TokenKind::Whitespace => Some(AST::Whitespace(tok.range)),
