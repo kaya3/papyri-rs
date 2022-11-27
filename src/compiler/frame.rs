@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use indexmap::IndexSet;
 
-use crate::errors::{NameError, RuntimeError, Warning, StackTrace};
+use crate::errors::{NameError, RuntimeError, Warning, StackTrace, RuntimeWarning};
 use crate::parser::AST;
 use crate::utils::{SourceRange, NameID};
 use super::compiler::Compiler;
@@ -119,7 +119,7 @@ impl <'a> Compiler<'a> {
             }
             if self.frame().get(name_id, false).is_some() {
                 let name = self.get_name(name_id).to_string();
-                self.diagnostics.warning(Warning::NameNotImplicit(name), range);
+                self.runtime_warning(RuntimeWarning::NameNotImplicit(name), range);
             }
         }
         r.or(default_value)

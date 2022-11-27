@@ -4,15 +4,16 @@ use super::module_error::ModuleError;
 use super::runtime_error::{RuntimeError, NameError};
 use super::syntax_error::SyntaxError;
 use super::type_error::TypeError;
-use super::warning::Warning;
+use super::warning::{Warning, RuntimeWarning};
 
 pub enum PapyriError {
-    ModuleError(std::path::PathBuf, ModuleError),
+    ModuleError(Box<std::path::Path>, ModuleError),
     NameError(NameError),
     RuntimeError(RuntimeError),
     SyntaxError(SyntaxError),
     TypeError(TypeError),
     Warning(Warning),
+    RuntimeWarning(RuntimeWarning),
 }
 
 impl std::fmt::Display for PapyriError {
@@ -24,6 +25,7 @@ impl std::fmt::Display for PapyriError {
             PapyriError::SyntaxError(e) => write!(f, "Syntax error: {e}"),
             PapyriError::TypeError(e) => write!(f, "Type error: {e}"),
             PapyriError::Warning(e) => write!(f, "Warning: {e}"),
+            PapyriError::RuntimeWarning(e) => write!(f, "Warning: {e}"),
         }
     }
 }
@@ -42,7 +44,7 @@ impl Diagnostics {
     }
     
     /// Reports an error which occurs while loading a Papyri module.
-    pub fn module_error(&mut self, path: std::path::PathBuf, e: ModuleError, range: &SourceRange) {
+    pub fn module_error(&mut self, path: Box<std::path::Path>, e: ModuleError, range: &SourceRange) {
         self.add(Severity::Error, PapyriError::ModuleError(path, e), range, None);
     }
     
@@ -63,6 +65,11 @@ impl Diagnostics {
     /// Reports a warning.
     pub fn warning(&mut self, e: Warning, range: &SourceRange) {
         self.add(Severity::Warning, PapyriError::Warning(e), range, None);
+    }
+    
+    /// Reports a warning with a stack trace.
+    pub fn runtime_warning(&mut self, e: RuntimeWarning, trace: StackTrace, range: &SourceRange) {
+        self.add(Severity::Warning, PapyriError::RuntimeWarning(e), range, Some(trace));
     }
 }
 

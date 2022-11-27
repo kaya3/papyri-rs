@@ -1,7 +1,7 @@
 use std::rc::Rc;
 use indexmap::IndexMap;
 
-use crate::errors::{ice_at, RuntimeError, Warning};
+use crate::errors::{ice_at, RuntimeError, Warning, RuntimeWarning};
 use crate::utils::{str_ids, text, NameID, SourceRange};
 use super::frame::ActiveFrame;
 use super::func::{FuncSignature, FuncParam, Func};
@@ -139,7 +139,7 @@ impl <'a> Compiler<'a> {
                         });
                     },
                     Err(e) => {
-                        self.diagnostics.module_error(path, e, call_range);
+                        self.diagnostics.module_error(path.into_boxed_path(), e, call_range);
                         return None;
                     },
                 }
@@ -200,7 +200,7 @@ impl <'a> Compiler<'a> {
                 };
                 
                 let first_line_no = if let Value::Int(i) = first_line_no {
-                    if !block { self.diagnostics.warning(Warning::InlineHighlightEnumerate, call_range); }
+                    if !block { self.runtime_warning(RuntimeWarning::InlineHighlightEnumerate, call_range); }
                     *i
                 } else { 1 };
                 
@@ -208,7 +208,7 @@ impl <'a> Compiler<'a> {
                 return Some(if *block {
                     enumerate_lines(r, first_line_no)
                 } else {
-                    if r.len() > 1 { self.diagnostics.warning(Warning::InlineHighlightMultiline, call_range); }
+                    if r.len() > 1 { self.runtime_warning(RuntimeWarning::InlineHighlightMultiline, call_range); }
                     HTML::seq(&r)
                 }.into());
             }

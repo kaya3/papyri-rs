@@ -1,12 +1,16 @@
 pub enum Warning {
     AnonymousFunctionInText,
     NameAlreadyDeclared(String),
-    NameNotImplicit(String),
     NoMatchingBranch,
     PatternNameAlreadyBound(String),
     NameAlreadyExported(String),
+}
+
+pub enum RuntimeWarning {
+    NameNotImplicit(String),
     InlineHighlightEnumerate,
     InlineHighlightMultiline,
+    BrokenLink(std::rc::Rc<str>),
 }
 
 impl std::fmt::Display for Warning {
@@ -14,12 +18,20 @@ impl std::fmt::Display for Warning {
         match self {
             Warning::AnonymousFunctionInText => f.write_str("anonymous function not expected here"),
             Warning::NameAlreadyDeclared(name) => write!(f, "name '{name}' already declared"),
-            Warning::NameNotImplicit(name) => write!(f, "name '{name}' exists but is not declared as implicit"),
             Warning::NoMatchingBranch => f.write_str("no matching branch in @match"),
             Warning::PatternNameAlreadyBound(name) => write!(f, "name '{name}' already bound in this pattern"),
             Warning::NameAlreadyExported(name) => write!(f, "name '{name}' already exported"),
-            Warning::InlineHighlightEnumerate => f.write_str("cannot enumerate lines in inline code"),
-            Warning::InlineHighlightMultiline => f.write_str("inline code cannot be multiple lines"),
+        }
+    }
+}
+
+impl std::fmt::Display for RuntimeWarning {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RuntimeWarning::NameNotImplicit(name) => write!(f, "name '{name}' exists but is not declared as implicit"),
+            RuntimeWarning::InlineHighlightEnumerate => f.write_str("cannot enumerate lines in inline code"),
+            RuntimeWarning::InlineHighlightMultiline => f.write_str("inline code cannot be multiple lines"),
+            RuntimeWarning::BrokenLink(path) => write!(f, "linked file does not exist at \"{path}\""),
         }
     }
 }

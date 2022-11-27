@@ -5,63 +5,70 @@ use crate::parser::text;
 use super::html::HTML;
 use super::tag::Tag;
 
-impl HTML {
-    pub fn render_to<T: io::Write>(&self, w: &mut T, string_pool: &StringPool, as_html: bool) -> Result<(), io::Error> {
-        match self {
+pub struct Renderer<'a, T: io::Write> {
+    string_pool: &'a StringPool,
+    as_html: bool,
+    writer: &'a mut T,
+}
+
+impl <'a, T: io::Write> Renderer<'a, T> {
+    pub fn new(string_pool: &'a StringPool, as_html: bool, writer: &'a mut T) -> Renderer<'a, T> {
+        Renderer {string_pool, as_html, writer}
+    }
+    
+    pub fn render(&mut self, html: &HTML) -> Result<(), io::Error> {
+        match html {
             HTML::Tag(tag) => {
-                tag.render_to(w, string_pool, as_html)?;
+                self.render_tag(tag)?;
             },
             HTML::Sequence(seq) => {
                 for child in seq.iter() {
-                    child.render_to(w, string_pool, as_html)?;
+                    self.render(child)?;
                 }
             },
             HTML::Text(t) => {
-                if as_html {
-                    write!(w, "{}", text::encode_entities(&t, false))?;
+                if self.as_html {
+                    write!(self.writer, "{}", text::encode_entities(&t, false))?;
                 } else {
-                    write!(w, "{t}")?;
+                    write!(self.writer, "{t}")?;
                 }
             },
             HTML::Whitespace => {
-                write!(w, " ")?;
+                write!(self.writer, " ")?;
             },
             HTML::RawNewline => {
-                write!(w, "\n")?;
+                writeln!(self.writer)?;
             },
             HTML::Empty => {},
         }
         Ok(())
     }
-}
-
-impl Tag {
-    fn render_to<T: io::Write>(&self, w: &mut T, string_pool: &StringPool, as_html: bool) -> Result<(), io::Error> {
-        if as_html {
-            let name = string_pool.get(self.name_id);
-            write!(w, "<{name}")?;
-            for (k, v) in &self.attributes {
-                write!(w, " {}", string_pool.get(*k))?;
+    
+    fn render_tag(&mut self, tag: &Tag) -> Result<(), io::Error> {
+        let name = self.string_pool.get(tag.name_id);
+        if self.as_html {
+            write!(self.writer, "<{name}")?;
+            for (k, v) in tag.attributes.iter() {
+                write!(self.writer, " {}", self.string_pool.get(*k))?;
                 if let Some(v) = v {
-                    write!(w, "=\"{}\"", text::encode_entities(v, true))?;
+                    write!(self.writer, "=\"{}\"", text::encode_entities(v, true))?;
                 }
             }
-            write!(w, ">")?;
+            write!(self.writer, ">")?;
         }
         
-        self.content.render_to(w, string_pool, as_html)?;
-        if !as_html {
-            match self.name_id {
-                str_ids::P => write!(w, "\n\n")?,
-                str_ids::HR => write!(w, "\n\u{2015}\n\n")?,
-                name_id if taginfo::is_block(name_id) => writeln!(w)?,
+        self.render(&tag.content)?;
+        if !self.as_html {
+            match tag.name_id {
+                str_ids::P => write!(self.writer, "\n\n")?,
+                str_ids::HR => write!(self.writer, "\n\u{2015}\n\n")?,
+                name_id if taginfo::is_block(name_id) => writeln!(self.writer)?,
                 _ => {},
             }
-        } else if !taginfo::is_self_closing(self.name_id) {
-            let name = string_pool.get(self.name_id);
-            write!(w, "</{name}>")?;
-        } else if self.name_id == str_ids::_DOCTYPE {
-            writeln!(w)?;
+        } else if !taginfo::is_self_closing(tag.name_id) {
+            write!(self.writer, "</{name}>")?;
+        } else if tag.name_id == str_ids::_DOCTYPE {
+            writeln!(self.writer)?;
         }
         Ok(())
     }

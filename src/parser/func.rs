@@ -146,7 +146,7 @@ impl <'a> Parser<'a> {
         let mut any_named = false;
         let mut names_used = IndexSet::new();
         
-        for arg in &args {
+        for arg in args.iter() {
             if !arg.name_id.is_anonymous() {
                 if !names_used.insert(arg.name_id) {
                     let name = self.string_pool.get(arg.name_id).to_string();

@@ -7,11 +7,11 @@ pub use module_error::ModuleError;
 pub use runtime_error::{NameError, RuntimeError};
 pub use syntax_error::SyntaxError;
 pub use type_error::TypeError;
-pub use warning::Warning;
+pub use warning::{Warning, RuntimeWarning};
 
 mod sink;
 mod sink_base;
-pub use sink_base::StackTrace;
+pub use sink_base::{StackTrace, ReportingLevel};
 pub use sink::{Diagnostics, PapyriError};
 
 /// Reports an internal compiler error, indicating a bug or mistake in the

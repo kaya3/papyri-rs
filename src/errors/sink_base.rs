@@ -2,8 +2,22 @@ use std::fmt;
 
 use crate::utils::{SourceRange, text};
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord)]
 pub enum Severity {Warning, Error}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord)]
+pub enum ReportingLevel {All, Warning, Error, IgnoreAll}
+
+impl ReportingLevel {
+    fn should_report(self, severity: Severity) -> bool {
+        match self {
+            ReportingLevel::All => true,
+            ReportingLevel::Warning => severity >= Severity::Warning,
+            ReportingLevel::Error => severity >= Severity::Error,
+            ReportingLevel::IgnoreAll => false,
+        }
+    }
+}
 
 impl fmt::Display for Severity {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -19,7 +33,6 @@ pub type StackTrace = Box<[(String, SourceRange)]>;
 /// Holds information about an error or warning which has occurred during
 /// compilation of a Papyri source file.
 struct Diagnostic<T: fmt::Display> {
-    severity: Severity,
     msg: T,
     range: SourceRange,
     trace: Option<StackTrace>,
@@ -57,6 +70,7 @@ pub struct DiagnosticSink<T: fmt::Display> {
     v: Vec<Diagnostic<T>>,
     pub num_errors: usize,
     pub num_warnings: usize,
+    reporting_level: ReportingLevel,
 }
 
 impl <T: fmt::Display> fmt::Debug for DiagnosticSink<T> {
@@ -70,11 +84,12 @@ impl <T: fmt::Display> fmt::Debug for DiagnosticSink<T> {
 
 impl <T: fmt::Display> DiagnosticSink<T> {
     /// Creates a new empty collection of diagnostics.
-    pub fn new() -> DiagnosticSink<T> {
+    pub fn new(reporting_level: ReportingLevel) -> DiagnosticSink<T> {
         DiagnosticSink {
             v: Vec::new(),
             num_errors: 0,
             num_warnings: 0,
+            reporting_level,
         }
     }
     
@@ -119,11 +134,9 @@ impl <T: fmt::Display> DiagnosticSink<T> {
     
     /// Prints the diagnostics in this collection to stderr. If `ignore_warnings`
     /// is true, only errors are printed.
-    pub fn print(&self, ignore_warnings: bool) {
-        for diag in &self.v {
-            if !ignore_warnings || diag.severity != Severity::Warning {
-                eprintln!("{diag}");
-            }
+    pub fn print(&self) {
+        for diag in self.v.iter() {
+            eprintln!("{diag}");
         }
     }
     
@@ -133,6 +146,8 @@ impl <T: fmt::Display> DiagnosticSink<T> {
         } else {
             self.num_errors += 1;
         }
-        self.v.push(Diagnostic {severity, msg, range: range.clone(), trace});
+        if self.reporting_level.should_report(severity) {
+            self.v.push(Diagnostic {msg, range: range.clone(), trace});
+        }
     }
 }

@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use crate::errors::{Diagnostics, ice, ice_at, Warning, RuntimeError};
+use crate::errors::{Diagnostics, ice, ice_at, Warning, RuntimeError, ReportingLevel, RuntimeWarning};
 use crate::parser::{parse, AST, text};
 use crate::utils::{SourceFile, SourceRange, NameID, str_ids, taginfo};
 use super::frame::{ActiveFrame, InactiveFrame};
@@ -27,13 +27,13 @@ pub fn compile(src: Rc<SourceFile>, loader: &mut ModuleLoader, diagnostics: &mut
 pub fn compile_stdlib(loader: &mut ModuleLoader) -> InactiveFrame {
     let stdlib_src = SourceFile::synthetic("<stdlib>", include_str!("../std.papyri"));
     
-    let mut diagnostics = Diagnostics::new();
+    let mut diagnostics = Diagnostics::new(ReportingLevel::All);
     let root = parse(stdlib_src, &mut diagnostics, &mut loader.string_pool);
     let mut compiler = Compiler::new(&mut diagnostics, loader);
     let result = compiler.compile_sequence(&root, taginfo::ContentKind::REQUIRE_P);
     
     if !compiler.diagnostics.is_empty() {
-        diagnostics.print(false);
+        diagnostics.print();
         ice("Standard library had errors or warnings");
     } else if !matches!(result, HTML::Empty) {
         ice("Standard library had non-empty output");
@@ -61,6 +61,10 @@ impl <'a> Compiler<'a> {
     
     pub fn runtime_error(&mut self, e: RuntimeError, range: &SourceRange) {
         self.diagnostics.runtime_error(e, self.stack_trace(), range);
+    }
+    
+    pub fn runtime_warning(&mut self, e: RuntimeWarning, range: &SourceRange) {
+        self.diagnostics.runtime_warning(e, self.stack_trace(), range);
     }
     
     pub fn get_name(&self, name_id: NameID) -> &str {

@@ -1,4 +1,4 @@
-use crate::errors::{Diagnostics, ice_at};
+use crate::errors::{Diagnostics, ice_at, ReportingLevel};
 use crate::parser;
 use crate::utils::SourceFile;
 use super::highlight::{TokenKind, LineHighlighter};
@@ -8,7 +8,7 @@ pub fn syntax_highlight_papyri(src: &str) -> Vec<HTML> {
     let tokens = parser::tokenize(
         SourceFile::synthetic("<string>", src.trim_end()),
         false,
-        &mut Diagnostics::new(),
+        &mut Diagnostics::new(ReportingLevel::IgnoreAll),
     );
     
     let mut next_is_def = false;

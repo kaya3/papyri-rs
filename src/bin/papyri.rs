@@ -58,7 +58,12 @@ fn run_main() -> Result<(), String> {
     let mut num_skipped = 0;
     
     let mut loader = compiler::ModuleLoader::new();
-    let mut diagnostics = errors::Diagnostics::new();
+    let mut diagnostics = errors::Diagnostics::new(if options.ignore_warnings {
+        errors::ReportingLevel::Error
+    } else {
+        errors::ReportingLevel::Warning
+    });
+    
     for src_path in source_paths {
         let src_path_str = src_path.to_string_lossy();
         
@@ -96,7 +101,7 @@ fn run_main() -> Result<(), String> {
             result.out.wrap_page(title, &options.web_root)
         };
         
-        diagnostics.print(options.ignore_warnings);
+        diagnostics.print();
         if !diagnostics.is_empty() {
             eprintln!("{src_path_str} ({})", diagnostics.summary());
         } else if !options.silent {
@@ -104,11 +109,12 @@ fn run_main() -> Result<(), String> {
         }
         
         if diagnostics.num_errors == 0 {
-            let out_file = fs::File::create(&out_path)
+            let mut out_writer = fs::File::create(&out_path)
+                .map(io::BufWriter::new)
                 .map_err(|e| format!("Failed to create \"{}\":\n{e}", out_path.to_string_lossy()))?;
             
-            let mut out_writer = io::BufWriter::new(out_file);
-            out.render_to(&mut out_writer, &mut loader.string_pool, !options.text)
+            compiler::Renderer::new(&loader.string_pool, !options.text, &mut out_writer)
+                .render(&out)
                 .map_err(|e| format!("Failed to write \"{}\":\n{e}", out_path.to_string_lossy()))?;
             
             num_ok += 1;

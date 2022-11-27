@@ -16,5 +16,6 @@ mod value;
 pub use compiler::{compile, CompileResult};
 pub use html::HTML;
 pub use loader::ModuleLoader;
+pub use render::Renderer;
 pub use types::Type;
 pub use value::Value;
