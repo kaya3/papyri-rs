@@ -12,7 +12,7 @@ pub fn is_whitespace(s: &str) -> bool {
 
 /// Returns either the empty string, or the string "s", to pluralise a word
 /// given a quantity.
-pub fn pluralise(quantity: usize) -> &'static str {
+pub fn pluralise(quantity: u32) -> &'static str {
     if quantity == 1 { "" } else { "s" }
 }
 

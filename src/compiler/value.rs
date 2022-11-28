@@ -162,21 +162,18 @@ impl <'a> Compiler<'a> {
         let mut out = "".to_string();
         for part in parts.iter() {
             match part {
-                ast::TemplatePart::Literal(t, ..) => {
+                ast::TemplatePart::Literal(t) => {
                     out += t.as_str();
                 }
+                ast::TemplatePart::LiteralStr(s) => {
+                    out += s;
+                },
                 ast::TemplatePart::VarName(var) => {
                     match self.evaluate_var(var, &Type::optional(Type::Str)) {
                         Some(Value::Str(t)) => out += &t,
                         Some(Value::Unit) | None => {},
                         _ => ice_at("coercion failed", &var.range),
                     }
-                },
-                ast::TemplatePart::Entity(range) => {
-                    out += &text::decode_entity(range, self.diagnostics);
-                },
-                ast::TemplatePart::Escape(range) => {
-                    out += self.unescape_char(range).encode_utf8(&mut [0; 4]);
                 },
                 ast::TemplatePart::Whitespace => {
                     out += " ";

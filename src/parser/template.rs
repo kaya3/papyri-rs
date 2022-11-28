@@ -2,6 +2,7 @@ use crate::errors::ice_at;
 use crate::utils::SourceRange;
 use super::ast::*;
 use super::queue::Parser;
+use super::text;
 use super::token::{Token, TokenKind};
 
 impl <'a> Parser<'a> {
@@ -38,8 +39,16 @@ impl <'a> Parser<'a> {
                 },
                 
                 TokenKind::VarName => parts.push(TemplatePart::VarName(self.parse_var_name(tok))),
-                TokenKind::Escape => parts.push(TemplatePart::Escape(tok.range)),
-                TokenKind::Entity => parts.push(TemplatePart::Entity(tok.range)),
+                TokenKind::Escape => {
+                    let s = text::unescape_char(&tok.range, self.diagnostics)
+                        .into_boxed_str();
+                    parts.push(TemplatePart::LiteralStr(s));
+                },
+                TokenKind::Entity => {
+                    let s = text::decode_entity(&tok.range, self.diagnostics)
+                        .into_boxed_str();
+                    parts.push(TemplatePart::LiteralStr(s));
+                },
                 TokenKind::Whitespace => parts.push(TemplatePart::Whitespace),
                 
                 _ => match parts.last_mut() {

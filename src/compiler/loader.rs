@@ -3,7 +3,7 @@ use std::rc::Rc;
 use indexmap::IndexMap;
 
 use crate::errors::{Diagnostics, ModuleError};
-use crate::utils::{SourceFile, StringPool};
+use crate::utils::{SourceFile, StringPool, OutFiles};
 use super::compiler::compile_stdlib;
 use super::frame::{InactiveFrame, ActiveFrame};
 use super::html::HTML;
@@ -45,9 +45,9 @@ impl ModuleLoader {
         )
     }
     
-    pub fn load_uncached(&mut self, path: &path::Path, diagnostics: &mut Diagnostics) -> Result<CompileResult, ModuleError> {
+    pub fn load_uncached(&mut self, path: &path::Path, diagnostics: &mut Diagnostics, output_files: Option<&mut OutFiles<HTML>>) -> Result<CompileResult, ModuleError> {
         SourceFile::from_path(path)
-            .map(|src| compile(src, self, diagnostics))
+            .map(|src| compile(src, self, diagnostics, output_files))
             .map_err(ModuleError::IOError)
     }
     
@@ -58,8 +58,8 @@ impl ModuleLoader {
         match self.get(&k) {
             ModuleState::NotLoaded => {
                 let index = self.set(k.into_boxed_path(), ModuleState::Busy);
-                let result = self.load_uncached(path, diagnostics)
-                    .map(|result| (result.out, Rc::new(result.exports)));
+                let result = self.load_uncached(path, diagnostics, None)
+                    .map(|r| (r.out, Rc::new(r.exports)));
                 
                 let state = result.as_ref()
                     .map(CachedCompileResult::clone)

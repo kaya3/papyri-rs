@@ -107,9 +107,8 @@ pub struct FuncCall {
 #[derive(Debug)]
 pub enum TemplatePart {
     Literal(SourceRange),
+    LiteralStr(Box<str>),
     VarName(VarName),
-    Escape(SourceRange),
-    Entity(SourceRange),
     Whitespace,
 }
 
@@ -217,8 +216,6 @@ pub enum AST {
     VarName(VarName),
     
     Text(Rc<str>, SourceRange),
-    Entity(SourceRange),
-    Escape(SourceRange),
     Whitespace(SourceRange),
     ParagraphBreak(SourceRange),
 }
@@ -247,8 +244,6 @@ impl AST {
             AST::List(.., range) |
             AST::Template(.., range) |
             AST::Text(.., range) |
-            AST::Entity(range) |
-            AST::Escape(range) |
             AST::Whitespace(range) |
             AST::ParagraphBreak(range) => range,
         }

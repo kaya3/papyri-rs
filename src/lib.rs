@@ -14,6 +14,7 @@ pub fn compile_str(src: &str) -> Result<String, errors::Diagnostics> {
         utils::SourceFile::synthetic("<string>", src),
         &mut loader,
         &mut diagnostics,
+        None,
     );
     
     if diagnostics.is_empty() {

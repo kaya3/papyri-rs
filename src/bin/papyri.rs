@@ -29,10 +29,10 @@ fn run_main() -> Result<(), String> {
         if pattern.chars().any(|c| matches!(c, '*' | '?' | '[')) {
             // glob pattern
             let paths = glob::glob(&pattern)
-                .map_err(|e| format!("Pattern error in \"{pattern}\":\n{e}"))?;
+                .map_err(|e| format!("Pattern error in \"{pattern}\": {e}"))?;
             
             for entry in paths {
-                let path = entry.map_err(|e| format!("File error in \"{pattern}\":\n{e}"))?;
+                let path = entry.map_err(|e| format!("File error in \"{pattern}\": {e}"))?;
                 if utils::is_papyri_file(&path) {
                     source_paths.insert(path);
                 }
@@ -41,7 +41,7 @@ fn run_main() -> Result<(), String> {
             // filename
             let path = path::PathBuf::from(&pattern)
                 .canonicalize()
-                .map_err(|e| format!("File error in \"{pattern}\":\n{e}"))?;
+                .map_err(|e| format!("File error in \"{pattern}\": {e}"))?;
             if utils::is_papyri_file(&path) {
                 source_paths.insert(path);
             } else {
@@ -56,8 +56,11 @@ fn run_main() -> Result<(), String> {
     let mut num_ok = 0;
     let mut num_failed = 0;
     let mut num_skipped = 0;
+    let mut num_files_written = 0;
     
+    let allow_write_file = options.out_dir.is_some();
     let mut loader = compiler::ModuleLoader::new();
+    let mut output_files = utils::OutFiles::new(options.out_dir.map(Box::from));
     let mut diagnostics = errors::Diagnostics::new(if options.ignore_warnings {
         errors::ReportingLevel::Error
     } else {
@@ -80,7 +83,7 @@ fn run_main() -> Result<(), String> {
             errors::ice(&format!("Failed to set extension of \"{}\"", out_path.to_string_lossy()));
         }
         
-        if !options.force && is_unchanged(&src_path, &out_path) {
+        if options.skip_unchanged && is_unchanged(&src_path, &out_path) {
             if !options.silent {
                 println!("{src_path_str} (unchanged, skipping)");
             }
@@ -89,41 +92,64 @@ fn run_main() -> Result<(), String> {
         }
         
         diagnostics.clear();
-        let result = loader.load_uncached(&src_path, &mut diagnostics)
-            .map_err(|e| format!("Error loading \"{src_path_str}\":\n{e}"))?;
+        output_files.clear();
         
-        let out = if options.text {
-            result.out
-        } else {
-            let title = result.exports.get(&utils::str_ids::TITLE)
-                .cloned()
-                .map(|v| compiler::HTML::from_value(v, &mut loader.string_pool));
-            result.out.wrap_page(title, &options.web_root)
-        };
+        let out_files_ref = if allow_write_file { Some(&mut output_files) } else { None };
+        let result = loader.load_uncached(&src_path, &mut diagnostics, out_files_ref)
+            .map_err(|e| format!("Error loading \"{src_path_str}\": {e}"))?;
+        
+        if !result.out.is_empty() {
+            let out_html = if options.text {
+                result.out
+            } else {
+                let title = result.exports.get(&utils::str_ids::TITLE)
+                    .cloned()
+                    .map(|v| compiler::HTML::from_value(v, &mut loader.string_pool));
+                result.out.wrap_page(title, &options.web_root)
+            };
+            output_files.push(out_path, out_html);
+        }
         
         diagnostics.print();
         if !diagnostics.is_empty() {
             eprintln!("{src_path_str} ({})", diagnostics.summary());
         } else if !options.silent {
-            println!("{src_path_str} (OK)");
+            println!("{src_path_str} ({})", if output_files.is_empty() { "no output, skipping" } else { "OK" });
         }
         
-        if diagnostics.num_errors == 0 {
+        if diagnostics.num_errors > 0 {
+            num_failed += 1;
+            continue;
+        } else if output_files.is_empty() {
+            num_skipped += 1;
+            continue;
+        } else {
+            num_ok += 1;
+        }
+        
+        for (out_path, out_html) in output_files.iter() {
+            let out_path_str = out_path.to_string_lossy();
+            
+            out_path.parent()
+                .map_or(Ok(()), fs::create_dir_all)
+                .map_err(|e| format!("Failed to create directory \"{out_path_str}\": {e}"))?;
+            
             let mut out_writer = fs::File::create(&out_path)
                 .map(io::BufWriter::new)
-                .map_err(|e| format!("Failed to create \"{}\":\n{e}", out_path.to_string_lossy()))?;
+                .map_err(|e| format!("Failed to create file \"{out_path_str}\": {e}"))?;
             
             compiler::Renderer::new(&loader.string_pool, !options.text, &mut out_writer)
-                .render(&out)
-                .map_err(|e| format!("Failed to write \"{}\":\n{e}", out_path.to_string_lossy()))?;
+                .render(&out_html)
+                .map_err(|e| format!("Failed to write file \"{out_path_str}\": {e}"))?;
             
-            num_ok += 1;
-        } else {
-            num_failed += 1;
+            if !options.silent {
+                println!("    => {out_path_str}");
+            }
+            num_files_written += 1;
         }
     }
     
-    let msg = format!("{num_ok} OK, {num_failed} failed, {num_skipped} skipped");
+    let msg = format!("{num_files_written} file{} written: {num_ok} OK, {num_failed} failed, {num_skipped} skipped", utils::text::pluralise(num_files_written));
     if num_failed > 0 {
         Err(msg)
     } else {

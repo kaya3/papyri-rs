@@ -5,7 +5,6 @@ use crate::utils::{taginfo, SourceRange};
 use super::ast::*;
 use super::queue::Parser;
 use super::token::{Token, TokenKind};
-use super::text;
 
 impl <'a> Parser<'a> {
     pub fn parse_match(&mut self, at: Token) -> Option<Match> {
@@ -227,13 +226,8 @@ impl <'a> Parser<'a> {
                 TemplatePart::Literal(range) => {
                     regex_str += &regex::escape(range.as_str());
                 },
-                TemplatePart::Escape(range) => {
-                    let c = text::unescape_char(&range, self.diagnostics).to_string();
-                    regex_str += &regex::escape(&c);
-                },
-                TemplatePart::Entity(range) => {
-                    let c = text::decode_entity(&range, self.diagnostics);
-                    regex_str += &regex::escape(&c);
+                TemplatePart::LiteralStr(s) => {
+                    regex_str += &regex::escape(&s);
                 },
                 TemplatePart::VarName(var) => {
                     regex_str += "(.+)";

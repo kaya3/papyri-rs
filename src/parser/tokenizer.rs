@@ -8,13 +8,12 @@ use super::token::{Token, TokenKind, QuoteDir, QuoteKind};
 // Later patterns take priority
 static LEXER: Lazy<regex_lexer::Lexer<TokenKind>> = Lazy::new(
     || regex_lexer::LexerBuilder::new()
-        .token(r"/>|->|\.\.\.|\*\*|.", TokenKind::Undetermined)
+        .token(r"<!--|-->|/>|->|\.\.\.|\*\*|.", TokenKind::Undetermined)
         .token(r"\s+", TokenKind::Whitespace) // or Newline
-        .token(r"#.*|<!--(?s:.)*?-->|<!--(?s:.)*", TokenKind::Comment)
         .token(r"[a-zA-Z_][a-zA-Z0-9_]*", TokenKind::Name)
         .token(r"-?[0-9]+", TokenKind::Number)
         .token(r"</(?:[a-zA-Z_][a-zA-Z0-9_]*)?>", TokenKind::CloseTag)
-        .token(r"\\(?:x[0-9a-fA-F]{2}|u[0-9a-fA-F]{4}|U[0-9a-fA-F]{8}|[^xuU])", TokenKind::Escape)
+        .token(r"\\(?:x[0-9a-fA-F]{2}|u[0-9a-fA-F]{4}|U[0-9a-fA-F]{8}|[^xuU\n])", TokenKind::Escape)
         .token(r"&(?:[a-zA-Z][a-zA-Z0-9]*|#[0-9]+|#x[0-9a-fA-F]+);", TokenKind::Entity)
         .token(r"`+", TokenKind::Verbatim)
         .token(r#"[^#\sa-zA-Z0-9_\\\-\(\)\[\]\{\}<>/\.,=:~\|!\?@\*\$&`'"]+"#, TokenKind::RawText)
@@ -56,6 +55,42 @@ pub fn tokenize(src: Rc<SourceFile>, strip_comments: bool, diagnostics: &mut Dia
                         k
                     },
                     
+                    "#" => {
+                        // this would be much simpler if verbatims could be matched with backreferences
+                        while matches!(token_stream.peek(), Some(tok) if tok.kind != TokenKind::Whitespace || !tok.text.contains('\n')) {
+                            token_stream.next();
+                        }
+                        if matches!(token_stream.peek(), Some(tok) if !is_paragraph_break(tok.text)) {
+                            token_stream.next();
+                        }
+                        s = match token_stream.peek() {
+                            Some(tok) => &src.src[cur..tok.span.start],
+                            None => &src.src[cur..],
+                        };
+                        TokenKind::Comment
+                    },
+                    
+                    "<!--" => {
+                        // this would be much simpler if verbatims could be matched with backreferences
+                        let mut extra_dashes = 0;
+                        let close_tok = loop {
+                            match token_stream.next() {
+                                Some(tok) if (
+                                    tok.text == "-->"
+                                    || extra_dashes >= 1 && tok.text == "->"
+                                    || extra_dashes == 2 && tok.text == ">"
+                                ) => break Some(tok),
+                                None => break None,
+                                Some(tok) => extra_dashes = if tok.text.ends_with("--") { 2 } else if tok.text.ends_with('-') { 1 } else { 0 },
+                            }
+                        };
+                        s = match close_tok {
+                            Some(close_tok) => &src.src[cur..close_tok.span.end],
+                            None => &src.src[cur..],
+                        };
+                        TokenKind::Comment
+                    },
+                    
                     "(" => TokenKind::LPar,
                     ")" => TokenKind::RPar,
                     "[" => TokenKind::LSqb,
@@ -81,15 +116,6 @@ pub fn tokenize(src: Rc<SourceFile>, strip_comments: bool, diagnostics: &mut Dia
                 };
             },
             
-            TokenKind::Comment if s.starts_with("#") => {
-                if let Some(next_whitespace) = token_stream.peek() {
-                    if next_whitespace.kind == TokenKind::Whitespace && !is_paragraph_break(next_whitespace.text) {
-                        s = &src.src[cur..next_whitespace.span.end];
-                        token_stream.next();
-                    }
-                }
-            },
-            
             TokenKind::Whitespace => {
                 if is_paragraph_break(s) { kind = TokenKind::Newline; }
             },
@@ -109,7 +135,7 @@ pub fn tokenize(src: Rc<SourceFile>, strip_comments: bool, diagnostics: &mut Dia
                                 break Some(tok);
                             }
                         },
-                        Some(tok) if tok.kind == TokenKind::Escape && tok.text.ends_with("`") => {
+                        Some(tok) if tok.kind == TokenKind::Escape && tok.text.ends_with('`') => {
                             if open_backticks == 1 {
                                 break Some(tok);
                             } else if matches!(token_stream.peek(), Some(t) if t.kind == TokenKind::Verbatim && t.text.len() + 1 >= open_backticks) {

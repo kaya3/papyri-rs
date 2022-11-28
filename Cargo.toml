@@ -1,12 +1,12 @@
 [package]
 name = "papyri-lang"
-version = "0.4.2"
+version = "0.5.0"
 edition = "2021"
 license = "MIT"
 description = "Compiler for the Papyri markup language"
 keywords = ["papyri", "markup", "html", "markup-language", "programming-language"]
 categories = ["compilers", "command-line-utilities"]
-homepage = "https://github.com/kaya3/papyri-rs"
+homepage = "https://kaya3.github.io/papyri"
 repository = "https://github.com/kaya3/papyri-rs"
 readme = "README.md"
 

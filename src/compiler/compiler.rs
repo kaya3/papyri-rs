@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use crate::errors::{Diagnostics, ice, ice_at, Warning, RuntimeError, ReportingLevel, RuntimeWarning};
 use crate::parser::{parse, AST, text};
-use crate::utils::{SourceFile, SourceRange, NameID, str_ids, taginfo};
+use crate::utils::{SourceFile, SourceRange, NameID, OutFiles, taginfo};
 use super::frame::{ActiveFrame, InactiveFrame};
 use super::html::HTML;
 use super::loader::ModuleLoader;
@@ -14,9 +14,9 @@ pub struct CompileResult {
     pub exports: ValueMap,
 }
 
-pub fn compile(src: Rc<SourceFile>, loader: &mut ModuleLoader, diagnostics: &mut Diagnostics) -> CompileResult {
+pub fn compile(src: Rc<SourceFile>, loader: &mut ModuleLoader, diagnostics: &mut Diagnostics, out_files: Option<&mut OutFiles<HTML>>) -> CompileResult {
     let root = parse(src, diagnostics, &mut loader.string_pool);
-    let mut compiler = Compiler::new(diagnostics, loader);
+    let mut compiler = Compiler::new(diagnostics, loader, out_files);
     let out = compiler.compile_sequence(&root, taginfo::ContentKind::REQUIRE_P);
     CompileResult {
         out,
@@ -29,13 +29,15 @@ pub fn compile_stdlib(loader: &mut ModuleLoader) -> InactiveFrame {
     
     let mut diagnostics = Diagnostics::new(ReportingLevel::All);
     let root = parse(stdlib_src, &mut diagnostics, &mut loader.string_pool);
-    let mut compiler = Compiler::new(&mut diagnostics, loader);
+    let mut compiler = Compiler::new(&mut diagnostics, loader, None);
     let result = compiler.compile_sequence(&root, taginfo::ContentKind::REQUIRE_P);
     
     if !compiler.diagnostics.is_empty() {
         diagnostics.print();
         ice("Standard library had errors or warnings");
-    } else if !matches!(result, HTML::Empty) {
+    } else if !compiler.exports.is_empty() {
+        ice("Standard library had exports");
+    } else if !result.is_empty() {
         ice("Standard library had non-empty output");
     }
     InactiveFrame::from(compiler.call_stack.pop().unwrap())
@@ -44,16 +46,18 @@ pub fn compile_stdlib(loader: &mut ModuleLoader) -> InactiveFrame {
 pub struct Compiler<'a> {
     pub diagnostics: &'a mut Diagnostics,
     pub loader: &'a mut ModuleLoader,
+    pub out_files: Option<&'a mut OutFiles<HTML>>,
     pub call_stack: Vec<ActiveFrame>,
     pub exports: ValueMap,
 }
 
 impl <'a> Compiler<'a> {
-    fn new(diagnostics: &'a mut Diagnostics, loader: &'a mut ModuleLoader) -> Compiler<'a> {
+    fn new(diagnostics: &'a mut Diagnostics, loader: &'a mut ModuleLoader, out_files: Option<&'a mut OutFiles<HTML>>) -> Compiler<'a> {
         let frame = loader.get_initial_frame();
         Compiler {
             diagnostics,
             loader,
+            out_files,
             call_stack: vec![frame],
             exports: ValueMap::new(),
         }
@@ -98,22 +102,9 @@ impl <'a> Compiler<'a> {
             AST::LiteralValue(tok) => tok.text().map(text::substitutions).map_or(HTML::Empty, HTML::from),
             AST::Text(text, ..) => HTML::Text(text.clone()),
             AST::Whitespace(..) => HTML::Whitespace,
-            AST::Escape(range) => self.compile_escape(range),
-            AST::Entity(range) => HTML::Text(Rc::from(text::decode_entity(range, self.diagnostics))),
             
             AST::ParagraphBreak(range) => ice_at("paragraph break should be handled in SequenceCompiler", range),
             AST::Template(.., range) => ice_at("template should not occur in non-value context", range),
         }
-    }
-    
-    fn compile_escape(&mut self, range: &SourceRange) -> HTML {
-        match range.as_str() {
-            "\\n" => HTML::tag(str_ids::BR, HTML::Empty),
-            _ => HTML::text(self.unescape_char(range).encode_utf8(&mut [0; 4])),
-        }
-    }
-    
-    pub fn unescape_char(&mut self, range: &SourceRange) -> char {
-        text::unescape_char(range, self.diagnostics)
     }
 }

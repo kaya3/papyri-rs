@@ -87,7 +87,7 @@ impl SequenceBuilder {
     fn close_child(&mut self) {
         if let Some(child) = std::mem::take(&mut self.next_child) {
             let html = child.to_html();
-            if !matches!(html, HTML::Empty) {
+            if !html.is_empty() {
                 self.children.push(HTML::tag(self.content_kind.wrap_with(), html));
             }
         }
@@ -95,7 +95,7 @@ impl SequenceBuilder {
     
     fn push(&mut self, child: HTML) {
         // do nothing
-        if matches!(child, HTML::Empty) { return; }
+        if child.is_empty() { return; }
         
         let is_allowed = match self.content_kind {
             ContentKind::RequireOneOf(tag_names) => child.is_all(tag_names),

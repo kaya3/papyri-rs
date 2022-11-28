@@ -68,8 +68,8 @@ impl <T: fmt::Display> fmt::Display for Diagnostic<T> {
 /// Collects diagnostics during the compilation of a Papyri source file.
 pub struct DiagnosticSink<T: fmt::Display> {
     v: Vec<Diagnostic<T>>,
-    pub num_errors: usize,
-    pub num_warnings: usize,
+    pub num_errors: u32,
+    pub num_warnings: u32,
     reporting_level: ReportingLevel,
 }
 
@@ -141,10 +141,9 @@ impl <T: fmt::Display> DiagnosticSink<T> {
     }
     
     pub fn add(&mut self, severity: Severity, msg: T, range: &SourceRange, trace: Option<StackTrace>) {
-        if severity == Severity::Warning {
-            self.num_warnings += 1;
-        } else {
-            self.num_errors += 1;
+        match severity {
+            Severity::Warning => self.num_warnings += 1,
+            Severity::Error => self.num_errors += 1,
         }
         if self.reporting_level.should_report(severity) {
             self.v.push(Diagnostic {msg, range: range.clone(), trace});

@@ -1,9 +1,10 @@
 use std::rc::Rc;
 
-use super::ast::*;
 use crate::errors::{Diagnostics, ice_at, SyntaxError};
 use crate::utils::{SourceFile, StringPool, SourceRange};
+use super::ast::*;
 use super::queue::Parser;
+use super::text;
 use super::token::{TokenKind, Token};
 
 pub fn parse(src: Rc<SourceFile>, diagnostics: &mut Diagnostics, string_pool: &mut StringPool) -> Vec<AST> {
@@ -115,8 +116,14 @@ impl <'a> Parser<'a> {
             
             TokenKind::Whitespace => Some(AST::Whitespace(tok.range)),
             TokenKind::Newline => Some(AST::ParagraphBreak(tok.range)),
-            TokenKind::Escape => Some(AST::Escape(tok.range)),
-            TokenKind::Entity => Some(AST::Entity(tok.range)),
+            TokenKind::Escape => {
+                let s = text::unescape_char(&tok.range, self.diagnostics);
+                Some(AST::Text(Rc::from(s), tok.range))
+            },
+            TokenKind::Entity => {
+                let s = text::decode_entity(&tok.range, self.diagnostics);
+                Some(AST::Text(Rc::from(s), tok.range))
+            },
             _ => Some(self.parse_text(tok)),
         }
     }

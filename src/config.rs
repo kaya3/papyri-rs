@@ -8,30 +8,34 @@ const DEFAULT_WEB_ROOT: &str = "https://kaya3.github.io/papyri/";
 /// Compiles Papyri to HTML.
 pub struct ProgramArgs {
     #[arg(long = "version")]
-    /// Print version number and then exit
+    ///Print version number and then exit
     pub print_version: bool,
     
-    #[arg(short, long)]
-    /// Force recompile of unchanged source files
-    pub force: bool,
+    #[arg(short = "u", long = "skip-unchanged")]
+    ///Skip unchanged source files
+    pub skip_unchanged: bool,
     
     #[arg(short, long)]
-    /// Suppress output when there are no errors or warnings
+    ///Suppress output when there are no errors or warnings
     pub silent: bool,
     
     #[arg(long = "ignore-warnings")]
-    /// Suppress diagnostic information for warnings
+    ///Suppress diagnostic information for warnings
     pub ignore_warnings: bool,
     
     #[arg(short, long)]
-    /// Compile to text instead of HTML
+    ///Compile to text instead of HTML
     pub text: bool,
     
+    #[arg(short, long = "out")]
+    ///Output directory (default is the current directory)
+    pub out_dir: Option<std::path::PathBuf>,
+    
     #[arg(short, long = "web-root", default_value = "DEFAULT_WEB_ROOT.to_string()")]
-    /// URL path of directory containing papyri.css and papyri.js
+    ///URL path of directory containing papyri.css and papyri.js
     pub web_root: String,
     
-    /// The Papyri source file(s) to compile
+    ///The Papyri source file(s) to compile
     pub paths: Vec<String>,
 }
 

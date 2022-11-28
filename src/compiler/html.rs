@@ -84,6 +84,10 @@ impl HTML {
         }
     }
     
+    pub fn is_empty(&self) -> bool {
+        matches!(self, HTML::Empty)
+    }
+    
     pub fn is_whitespace(&self) -> bool {
         matches!(self, HTML::Whitespace | HTML::RawNewline | HTML::Empty)
     }

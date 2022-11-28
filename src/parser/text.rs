@@ -28,7 +28,7 @@ pub fn decode_entity(range: &SourceRange, diagnostics: &mut Diagnostics) -> Stri
     decoded
 }
 
-pub fn unescape_char(range: &SourceRange, diagnostics: &mut Diagnostics) -> char {
+pub fn unescape_char(range: &SourceRange, diagnostics: &mut Diagnostics) -> String {
     let s = range.as_str();
     match s.chars().nth(1).unwrap() {
         'x' | 'u' | 'U' => {
@@ -39,15 +39,14 @@ pub fn unescape_char(range: &SourceRange, diagnostics: &mut Diagnostics) -> char
                 Some(c) => c,
                 None => {
                     diagnostics.syntax_error(SyntaxError::TokenInvalidEscape, range);
-                    // replacement character
-                    '\u{FFFD}'
+                    char::REPLACEMENT_CHARACTER
                 },
             }
         },
         'n' => '\n',
         't' => '\t',
         c => c,
-    }
+    }.to_string()
 }
 
 static TEXT_SUBS: Lazy<AhoCorasick> = Lazy::new(

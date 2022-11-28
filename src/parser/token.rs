@@ -20,8 +20,6 @@ pub enum TokenKind {
     Boolean,
     Verbatim,
     
-    CloseTag,
-    
     LPar,
     RPar,
     LSqb,
@@ -30,6 +28,7 @@ pub enum TokenKind {
     RBrace,
     LAngle,
     RAngle,
+    CloseTag,
     
     Dot,
     Ellipsis,
@@ -130,8 +129,7 @@ impl Token {
     
     /// Indicates whether this token is a group type name or modifier.
     pub fn is_group_type(&self) -> bool {
-        matches!(self.kind, TokenKind::Name | TokenKind::QuestionMark)
-            && matches!(self.as_str(), "dict" | "list" | "?")
+        matches!(self.as_str(), "dict" | "list" | "?")
     }
     
     /// Indicates whether this token is a closing tag for the given tag name.

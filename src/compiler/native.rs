@@ -22,6 +22,7 @@ pub enum NativeFunc {
     Map,
     Raise,
     SyntaxHighlight,
+    WriteFile,
 }
 
 pub fn get_natives_frame() -> ActiveFrame {
@@ -43,7 +44,7 @@ pub fn get_natives_frame() -> ActiveFrame {
     
     let map = Rc::new(FuncSignature {
         positional_params: Box::new([
-            FuncParam::new(str_ids::_CALLBACK, Type::Function),
+            FuncParam::new(str_ids::_0, Type::Function),
         ]),
         spread_param: None,
         named_params: IndexMap::new(),
@@ -63,6 +64,16 @@ pub fn get_natives_frame() -> ActiveFrame {
         content_param: FuncParam::new(str_ids::CONTENT, Type::Str),
     });
     
+    let write_file = Rc::new(FuncSignature {
+        positional_params: Box::new([
+            FuncParam::new(str_ids::_0, Type::Str),
+        ]),
+        spread_param: None,
+        named_params: IndexMap::new(),
+        spread_named_param: None,
+        content_param: FuncParam::new(str_ids::CONTENT, Type::AnyHTML),
+    });
+    
     let bindings: ValueMap = [
         (NativeFunc::Export, args_dict.clone()),
         (NativeFunc::FixIndentation, content_str.clone()),
@@ -73,6 +84,7 @@ pub fn get_natives_frame() -> ActiveFrame {
         (NativeFunc::Map, map),
         (NativeFunc::Raise, content_str),
         (NativeFunc::SyntaxHighlight, syntax_highlight),
+        (NativeFunc::WriteFile, write_file),
     ].into_iter().map(|(f, sig)| {
         (f.name_id(), Value::Func(Func::Native(f, sig)))
     }).collect();
@@ -92,6 +104,7 @@ impl NativeFunc {
             NativeFunc::Map => str_ids::MAP,
             NativeFunc::Raise => str_ids::RAISE,
             NativeFunc::SyntaxHighlight => str_ids::SYNTAX_HIGHLIGHT,
+            NativeFunc::WriteFile => str_ids::WRITE_FILE,
         }
     }
 }
@@ -155,7 +168,7 @@ impl <'a> Compiler<'a> {
             
             NativeFunc::Map => {
                 let (Some(Value::Func(callback)), Some(Value::List(content))) = (
-                    take_val(bindings, str_ids::_CALLBACK),
+                    take_val(bindings, str_ids::_0),
                     take_val(bindings, str_ids::CONTENT),
                 ) else {
                     ice_at("failed to unpack", call_range);
@@ -212,7 +225,22 @@ impl <'a> Compiler<'a> {
                     if r.len() > 1 { self.runtime_warning(RuntimeWarning::InlineHighlightMultiline, call_range); }
                     HTML::seq(&r)
                 }.into());
-            }
+            },
+            
+            NativeFunc::WriteFile => {
+                let (Some(Value::Str(path)), Some(Value::HTML(content))) = (
+                    take_val(bindings, str_ids::_0),
+                    take_val(bindings, str_ids::CONTENT),
+                ) else {
+                    ice_at("failed to unpack", call_range);
+                };
+                
+                let Some(ref mut sink) = self.out_files else {
+                    self.runtime_error(RuntimeError::WriteFileNotAllowed, call_range);
+                    return None;
+                };
+                sink.push(path.as_ref(), content);
+            },
         }
         
         Some(Value::Unit)

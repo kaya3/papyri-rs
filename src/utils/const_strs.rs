@@ -23,7 +23,7 @@ macro_rules! const_strs {
 const_strs!(
     ANONYMOUS = "<anonymous>",
     _DOCTYPE = "!DOCTYPE",
-    _CALLBACK = "_callback",
+    _0 = "_0",
     A = "a",
     ADDRESS = "address",
     AREA = "area",
@@ -113,4 +113,5 @@ const_strs!(
     UL = "ul",
     VIDEO = "video",
     WBR = "wbr",
+    WRITE_FILE = "write_file",
 );
