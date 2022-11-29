@@ -5,6 +5,12 @@ pub fn is_identifier(s: &str) -> bool {
         && s_chars.all(|c| matches!(c, 'a'..='z' | 'A'..='Z' | '0'..='9' | '_'))
 }
 
+/// Indicates whether the given string contains any of the characters '*', '?',
+/// '[' or ']', suggesting it may be a glob pattern.
+pub fn looks_like_glob(s: &str) -> bool {
+    s.contains(|c| matches!(c, '*' | '?' | '[' | ']'))
+}
+
 /// Indicates whether the given string is all whitespace.
 pub fn is_whitespace(s: &str) -> bool {
     s.chars().all(char::is_whitespace)

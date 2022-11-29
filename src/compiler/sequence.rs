@@ -19,11 +19,11 @@ impl ContentKind {
 }
 
 impl <'a> Compiler<'a> {
-    pub fn compile_sequence(&mut self, sequence: &[AST], block_kind: ContentKind) -> HTML {
-        let allow_blocks = matches!(block_kind, ContentKind::RequireOneOf(..) | ContentKind::RequireBlock(..) | ContentKind::AllowBlock(..));
-        let forbid_breaks = matches!(block_kind, ContentKind::RequireInlineNoLineBreaks);
+    pub fn compile_sequence(&mut self, sequence: &[AST], content_kind: ContentKind) -> HTML {
+        let require_inline = matches!(content_kind, ContentKind::RequireInline | ContentKind::RequireInlineNoLineBreaks);
+        let forbid_breaks = matches!(content_kind, ContentKind::RequireInlineNoLineBreaks);
         
-        let mut comp = SequenceBuilder::new(block_kind);
+        let mut comp = SequenceBuilder::new(content_kind);
         for child in sequence {
             if let AST::ParagraphBreak(range) = child {
                 if forbid_breaks {
@@ -32,7 +32,7 @@ impl <'a> Compiler<'a> {
                 comp.newline();
             } else {
                 let child_html = self.compile_node(child);
-                if child_html.is_block() && !allow_blocks {
+                if require_inline && child_html.is_block() {
                     self.diagnostics.type_error(TypeError::InlineBlockContent, child.range());
                 }
                 comp.push(child_html);

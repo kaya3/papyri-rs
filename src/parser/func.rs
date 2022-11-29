@@ -30,7 +30,12 @@ impl <'a> Parser<'a> {
     pub fn parse_func_call(&mut self, at: Token) -> Option<FuncCall> {
         let name_id = self.string_pool.insert(at.get_func_name());
         let args = self.parse_args()?.into_boxed_slice();
-        let content = self.parse_value()?;
+        self.skip_whitespace();
+        let content = if let Some(ellipsis) = self.poll_if_kind(TokenKind::Ellipsis) {
+            self.parse_ellipsis_group(ellipsis)
+        } else {
+            self.parse_value()?
+        };
         Some(FuncCall {
             range: at.range.to_end(content.range().end),
             func: VarName {name_id, range: at.range},

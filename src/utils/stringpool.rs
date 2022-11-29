@@ -50,6 +50,6 @@ impl StringPool {
         let Some(s) = self.0.get_index(id) else {
             ice(&format!("no string with ID {id}"));
         };
-        s.as_ref()
+        s
     }
 }

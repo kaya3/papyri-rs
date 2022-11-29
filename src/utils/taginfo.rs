@@ -47,7 +47,7 @@ pub fn is_self_closing(name_id: NameID) -> bool {
 pub fn is_block(name_id: NameID) -> bool {
     // https://developer.mozilla.org/en-US/docs/Web/HTML/Block-level_elements
     // Extras:
-    // - !DOCTYPE, body, canvas, head, html, menu, video
+    // - !DOCTYPE, body, canvas, head, html, menu, script, video
     matches!(
         name_id,
         str_ids::_DOCTYPE |
@@ -86,6 +86,7 @@ pub fn is_block(name_id: NameID) -> bool {
         str_ids::OL |
         str_ids::P |
         str_ids::PRE |
+        str_ids::SCRIPT |
         str_ids::SECTION |
         str_ids::TABLE |
         str_ids::UL |
@@ -108,6 +109,7 @@ pub fn content_kind(name_id: NameID) -> ContentKind {
         
         str_ids::ANONYMOUS |
         str_ids::ADDRESS |
+        str_ids::BODY |
         str_ids::DETAILS |
         str_ids::DIV |
         str_ids::FIELDSET |

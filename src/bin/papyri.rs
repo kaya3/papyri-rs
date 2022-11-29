@@ -1,4 +1,3 @@
-
 use std::{fs, io, path};
 use indexmap::IndexSet;
 
@@ -24,28 +23,42 @@ fn run_main() -> Result<(), String> {
         return Ok(());
     }
     
+    let in_dir = std::env::current_dir()
+        .and_then(fs::canonicalize)
+        .map_err(|e| format!("File error: {e} in current working directory"))?;
+    
     let mut source_paths = IndexSet::new();
-    for pattern in options.paths {
-        if pattern.chars().any(|c| matches!(c, '*' | '?' | '[')) {
+    for path_str in options.paths {
+        if utils::text::looks_like_glob(&path_str) {
             // glob pattern
-            let paths = glob::glob(&pattern)
-                .map_err(|e| format!("Pattern error in \"{pattern}\": {e}"))?;
+            let paths = glob::glob(&path_str)
+                .map_err(|e| format!("Pattern error: {e} at \"{path_str}\""))?;
             
             for entry in paths {
-                let path = entry.map_err(|e| format!("File error in \"{pattern}\": {e}"))?;
+                let path = entry
+                    .map_err(|e| format!("File error: {e} at \"{path_str}\""))?;
                 if utils::is_papyri_file(&path) {
                     source_paths.insert(path);
                 }
             }
         } else {
-            // filename
-            let path = path::PathBuf::from(&pattern)
-                .canonicalize()
-                .map_err(|e| format!("File error in \"{pattern}\": {e}"))?;
-            if utils::is_papyri_file(&path) {
+            let path = path::PathBuf::from(&path_str);
+            if path.is_dir() {
+                // directory
+                let paths = utils::relpath::find_papyri_source_files_in_dir(
+                    &path,
+                    |p, e| eprintln!("File error: {e} in \"{}\"", p.to_string_lossy()),
+                );
+                if let Some(paths) = paths {
+                    for p in paths {
+                        source_paths.insert(path.join(p));
+                    }
+                }
+            } else if utils::is_papyri_file(&path) {
+                // source file
                 source_paths.insert(path);
             } else {
-                eprintln!("Source file \"{pattern}\" is not a Papyri file");
+                eprintln!("File \"{path_str}\" is not a Papyri source file");
             }
         }
     }
@@ -58,9 +71,9 @@ fn run_main() -> Result<(), String> {
     let mut num_skipped = 0;
     let mut num_files_written = 0;
     
-    let allow_write_file = options.out_dir.is_some();
+    let out_dir = options.out_dir;
     let mut loader = compiler::ModuleLoader::new();
-    let mut output_files = utils::OutFiles::new(options.out_dir.map(Box::from));
+    let mut output_files = out_dir.as_ref().map(utils::OutFiles::new);
     let mut diagnostics = errors::Diagnostics::new(if options.ignore_warnings {
         errors::ReportingLevel::Error
     } else {
@@ -78,7 +91,15 @@ fn run_main() -> Result<(), String> {
             continue;
         }
         
-        let mut out_path = src_path.clone();
+        let mut out_path = if let Some(out_dir) = out_dir.as_ref() {
+            if let Some(p) = utils::relpath::make_relative(&in_dir, &src_path) {
+                out_dir.join(p)
+            } else {
+                return Err(format!("No sensible output path for \"{src_path_str}\""));
+            }
+        } else {
+            src_path.clone()
+        };
         if !out_path.set_extension(if options.text { "txt" } else { "html" }) {
             errors::ice(&format!("Failed to set extension of \"{}\"", out_path.to_string_lossy()));
         }
@@ -92,42 +113,35 @@ fn run_main() -> Result<(), String> {
         }
         
         diagnostics.clear();
-        output_files.clear();
+        if let Some(o) = output_files.as_mut() { o.clear(); }
         
-        let out_files_ref = if allow_write_file { Some(&mut output_files) } else { None };
-        let result = loader.load_uncached(&src_path, &mut diagnostics, out_files_ref)
+        let result = loader.load_uncached(&src_path, &mut diagnostics, output_files.as_mut())
             .map_err(|e| format!("Error loading \"{src_path_str}\": {e}"))?;
         
+        let mut to_write = output_files.as_ref()
+            .map_or_else(Vec::new, |o| o.iter().collect());
         if !result.out.is_empty() {
-            let out_html = if options.text {
-                result.out
-            } else {
-                let title = result.exports.get(&utils::str_ids::TITLE)
-                    .cloned()
-                    .map(|v| compiler::HTML::from_value(v, &mut loader.string_pool));
-                result.out.wrap_page(title, &options.web_root)
-            };
-            output_files.push(out_path, out_html);
+            to_write.push((out_path, &result.out));
         }
         
         diagnostics.print();
         if !diagnostics.is_empty() {
             eprintln!("{src_path_str} ({})", diagnostics.summary());
         } else if !options.silent {
-            println!("{src_path_str} ({})", if output_files.is_empty() { "no output, skipping" } else { "OK" });
+            println!("{src_path_str} ({})", if to_write.is_empty() { "no output, skipping" } else { "OK" });
         }
         
         if diagnostics.num_errors > 0 {
             num_failed += 1;
             continue;
-        } else if output_files.is_empty() {
+        } else if to_write.is_empty() {
             num_skipped += 1;
             continue;
         } else {
             num_ok += 1;
         }
         
-        for (out_path, out_html) in output_files.iter() {
+        for (out_path, out_html) in to_write.into_iter() {
             let out_path_str = out_path.to_string_lossy();
             
             out_path.parent()
@@ -149,7 +163,10 @@ fn run_main() -> Result<(), String> {
         }
     }
     
-    let msg = format!("{num_files_written} file{} written: {num_ok} OK, {num_failed} failed, {num_skipped} skipped", utils::text::pluralise(num_files_written));
+    let msg = format!(
+        "{num_files_written} file{} written; {num_ok} OK, {num_failed} failed, {num_skipped} skipped",
+        utils::text::pluralise(num_files_written),
+    );
     if num_failed > 0 {
         Err(msg)
     } else {

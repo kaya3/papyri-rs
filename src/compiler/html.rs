@@ -1,8 +1,8 @@
 use std::rc::Rc;
 
-use crate::parser::Token;
+use crate::parser::{Token, text};
 use crate::utils::{str_ids, StringPool, NameID, taginfo};
-use super::tag::{Tag, AttrMap};
+use super::tag::Tag;
 use super::value::Value;
 
 #[derive(Debug, Clone)]
@@ -32,7 +32,7 @@ impl HTML {
         match value {
             Value::Unit => HTML::Empty,
             Value::Bool(b) => Token::bool_to_string(b).into(),
-            Value::Int(t) => t.to_string().replace("-", "\u{2212}").into(),
+            Value::Int(t) => text::substitutions(&t.to_string()).into(),
             Value::Str(t) => HTML::Text(t),
             Value::Dict(vs) => {
                 let rows: Vec<HTML> = vs.iter()
@@ -107,33 +107,5 @@ impl HTML {
             HTML::Empty => true,
             _ => false,
         }
-    }
-    
-    pub fn wrap_page(self, title: Option<HTML>, web_root: &str) -> HTML {
-        let mut doctype_html = AttrMap::new();
-        doctype_html.insert(str_ids::HTML, None);
-        
-        let link_tag = Tag::new(str_ids::LINK, HTML::Empty)
-            .str_attr(str_ids::REL, "stylesheet")
-            .str_attr(str_ids::TYPE, "text/css")
-            .str_attr(str_ids::HREF, &format!("{web_root}papyri.css"));
-        
-        let script_tag = Tag::new(str_ids::SCRIPT, HTML::Empty)
-            .str_attr(str_ids::TYPE, "text/javascript")
-            .str_attr(str_ids::SRC, &format!("{web_root}papyri.js"));
-        
-        HTML::seq(&[
-            Tag::new_with_attrs(str_ids::_DOCTYPE, doctype_html, HTML::Empty).into(),
-            HTML::tag(str_ids::HTML, HTML::seq(&[
-                HTML::tag(str_ids::HEAD, HTML::seq(&[
-                    title.map_or(HTML::Empty, |t| HTML::tag(str_ids::TITLE, t)),
-                    HTML::from(link_tag),
-                ])),
-                HTML::tag(str_ids::BODY, HTML::seq(&[
-                    HTML::tag(str_ids::ARTICLE, self),
-                    HTML::from(script_tag),
-                ])),
-            ]))
-        ])
     }
 }

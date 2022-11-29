@@ -1,8 +1,8 @@
 use std::rc::Rc;
 use indexmap::IndexMap;
 
-use crate::errors::{ice_at, RuntimeError, Warning, RuntimeWarning};
-use crate::utils::{str_ids, text, NameID, SourceRange};
+use crate::errors::{ice_at, RuntimeError, Warning, RuntimeWarning, ModuleError};
+use crate::utils::{str_ids, text, NameID, SourceRange, relpath};
 use super::frame::ActiveFrame;
 use super::func::{FuncSignature, FuncParam, Func};
 use super::highlight::{syntax_highlight, enumerate_lines};
@@ -19,6 +19,7 @@ pub enum NativeFunc {
     Import,
     Include,
     Let,
+    ListFiles,
     Map,
     Raise,
     SyntaxHighlight,
@@ -81,6 +82,7 @@ pub fn get_natives_frame() -> ActiveFrame {
         (NativeFunc::Import, content_str.clone()),
         (NativeFunc::Include, content_str.clone()),
         (NativeFunc::Let, args_dict),
+        (NativeFunc::ListFiles, content_str.clone()),
         (NativeFunc::Map, map),
         (NativeFunc::Raise, content_str),
         (NativeFunc::SyntaxHighlight, syntax_highlight),
@@ -101,6 +103,7 @@ impl NativeFunc {
             NativeFunc::Import => str_ids::IMPORT,
             NativeFunc::Include => str_ids::INCLUDE,
             NativeFunc::Let => str_ids::LET,
+            NativeFunc::ListFiles => str_ids::LIST_FILES,
             NativeFunc::Map => str_ids::MAP,
             NativeFunc::Raise => str_ids::RAISE,
             NativeFunc::SyntaxHighlight => str_ids::SYNTAX_HIGHLIGHT,
@@ -133,30 +136,45 @@ impl <'a> Compiler<'a> {
                 return Some(text::fix_indentation(content.as_ref()).into());
             },
             
-            NativeFunc::Import | NativeFunc::Include => {
+            NativeFunc::Import | NativeFunc::Include | NativeFunc::ListFiles => {
                 let Some(Value::Str(path_str)) = take_val(bindings, str_ids::CONTENT) else {
                     ice_at("failed to unpack", call_range);
                 };
                 
-                // compute import/include path relative to current source file
+                // compute path relative to current source file
                 let mut path = call_range.src.path.to_path_buf();
                 path.pop();
-                path.push(format!("{}.papyri", path_str));
-                
-                match self.loader.load_cached(&path, self.diagnostics) {
-                    Ok((module_out, module_exports)) => {
-                        return Some(if f == NativeFunc::Import {
-                            Value::Dict(module_exports)
-                        } else {
-                            self.set_vars(module_exports.as_ref(), false, call_range);
-                            Value::from(&module_out)
-                        });
-                    },
-                    Err(e) => {
-                        self.diagnostics.module_error(path.into_boxed_path(), e, call_range);
-                        return None;
-                    },
+                if f == NativeFunc::ListFiles || path_str.ends_with(".papyri") {
+                    path.push(path_str.as_ref());
+                } else {
+                    path.push(format!("{}.papyri", path_str));
                 }
+                
+                if f == NativeFunc::ListFiles {
+                    let paths = relpath::find_papyri_source_files_in_dir(
+                            &path,
+                            |p, e| self.diagnostics.module_error(p, ModuleError::IOError(e), call_range),
+                        )?
+                        .into_iter()
+                        .map(|p| Value::from(p.to_string_lossy()
+                            .strip_suffix(".papyri")
+                            .unwrap_or_else(|| ice_at("Failed to strip .papyri extension", call_range))
+                        ))
+                        .collect();
+                    
+                    return Some(Value::list(paths));
+                }
+                
+                let (module_out, module_exports) = self.loader.load_cached(&path, self.diagnostics)
+                    .map_err(|e| self.diagnostics.module_error(&path, e, call_range))
+                    .ok()?;
+                
+                return Some(if f == NativeFunc::Import {
+                    Value::Dict(module_exports)
+                } else {
+                    self.set_vars(module_exports.as_ref(), false, call_range);
+                    Value::from(&module_out)
+                });
             },
             
             NativeFunc::Implicit | NativeFunc::Let => {
@@ -239,7 +257,10 @@ impl <'a> Compiler<'a> {
                     self.runtime_error(RuntimeError::WriteFileNotAllowed, call_range);
                     return None;
                 };
-                sink.push(path.as_ref(), content);
+                if !sink.push(path.as_ref(), content) {
+                    self.runtime_error(RuntimeError::PathNotInOutDir(path), call_range);
+                    return None;
+                }
             },
         }
         

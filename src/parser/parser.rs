@@ -76,7 +76,6 @@ impl <'a> Parser<'a> {
             TokenKind::Verbatim => Some(AST::Verbatim(tok)),
             TokenKind::VarName => Some(AST::VarName(self.parse_var_name(tok))),
             TokenKind::FuncName => self.parse_func(tok),
-            TokenKind::Ellipsis => Some(self.parse_ellipsis_group(tok)),
             TokenKind::LBrace => Some(self.parse_group(tok)),
             TokenKind::LSqb => self.parse_list(tok),
             TokenKind::LAngle if self.has_next(|t| matches!(t.kind, TokenKind::Name | TokenKind::VarName)) => self.parse_tag(tok),
@@ -147,9 +146,9 @@ impl <'a> Parser<'a> {
         }
     }
     
-    fn parse_ellipsis_group(&mut self, open: Token) -> AST {
+    pub fn parse_ellipsis_group(&mut self, open: Token) -> AST {
         let mut children = Vec::new();
-        while let Some(tok) = self.poll_if(|tok| !matches!(tok.kind, TokenKind::CloseTag | TokenKind::RSqb | TokenKind::RBrace)) {
+        while let Some(tok) = self.poll_if(|tok| !matches!(tok.kind, TokenKind::CloseTag | TokenKind::RBrace)) {
             if let Some(child) = self.parse_node(tok) {
                 children.push(child);
             }

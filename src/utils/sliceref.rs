@@ -24,6 +24,12 @@ impl <T> From<Rc<[T]>> for SliceRef<T> {
     }
 }
 
+impl <T> AsRef<[T]> for SliceRef<T> {
+    fn as_ref(&self) -> &[T] {
+        &self.original[self.a..self.b]
+    }
+}
+
 impl <T> SliceRef<T> {
     /// Creates a new reference-counted pointer to a sub-slice of this slice,
     /// without copying.
@@ -35,11 +41,6 @@ impl <T> SliceRef<T> {
             a: self.a + a,
             b: self.a + b,
         }
-    }
-    
-    /// Returns a reference to the slice represented by this pointer.
-    pub fn as_ref(&self) -> &[T] {
-        &self.original[self.a..self.b]
     }
     
     /// Returns the length of this slice.

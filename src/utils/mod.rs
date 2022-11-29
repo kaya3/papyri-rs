@@ -1,6 +1,7 @@
 mod const_strs;
 mod outfiles;
 mod range;
+pub mod relpath;
 mod sliceref;
 mod sourcefile;
 mod stringpool;

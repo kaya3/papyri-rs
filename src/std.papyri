@@ -1,3 +1,15 @@
+@fn page(
+    $title: str,
+    $web_root: str = `https://kaya3.github.io/papyri`,
+) $content: block -> {
+    @let(w=@match $web_root {"$w/" -> $w, _ -> $web_root}).
+    <!DOCTYPE html>
+    <html>
+    <head><title>$title</><link rel=`stylesheet` type=`text/css` href="$w/papyri.css"></>#
+    <body><article>$content</><script type=`text/javascript` src="$w/papyri.js"/></>
+    </>
+}
+
 @fn bool $b: bool -> $b
 @fn int $i: int -> $i
 @fn str $s: str -> $s
@@ -72,11 +84,6 @@
 @fn h4 $v: inline -> <h4>$v</>
 @fn h5 $v: inline -> <h5>$v</>
 @fn h6 $v: inline -> <h6>$v</>
-
-@fn title $v: inline -> {
-    @export(title=$v).
-    <h1>$v</>
-}
 
 @fn numbered $items: html list -> {
     <ol>@map(@fn $item -> <li>$item</>) $items</>

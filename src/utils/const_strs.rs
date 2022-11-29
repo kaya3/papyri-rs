@@ -81,6 +81,7 @@ const_strs!(
     LET = "let",
     LI = "li",
     LINK = "link",
+    LIST_FILES = "list_files",
     MAIN = "main",
     MAP = "map",
     MENU = "menu",

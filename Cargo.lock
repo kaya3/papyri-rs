@@ -160,6 +160,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "normalize-path"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cf22e319b2e3cb517350572e3b70c6822e0a520abfb5c78f690e829a73e8d9f2"
+
+[[package]]
 name = "once_cell"
 version = "1.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -189,17 +195,19 @@ dependencies = [
 
 [[package]]
 name = "papyri-lang"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "aho-corasick",
  "arg",
  "glob",
  "htmlentity",
  "indexmap",
+ "normalize-path",
  "once_cell",
  "regex",
  "regex-lexer",
  "syntect",
+ "walkdir",
 ]
 
 [[package]]

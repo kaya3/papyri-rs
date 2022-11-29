@@ -13,6 +13,7 @@ pub enum RuntimeError {
     ParamMultipleValues(String),
     
     Raised(std::rc::Rc<str>),
+    PathNotInOutDir(std::rc::Rc<str>),
     WriteFileNotAllowed,
 }
 
@@ -34,7 +35,8 @@ impl std::fmt::Display for RuntimeError {
             RuntimeError::ParamMissingImplicit(name) => write!(f, "missing required implicit parameter '{name}'"),
             RuntimeError::ParamMultipleValues(name) => write!(f, "received multiple values for parameter '{name}'"),
             RuntimeError::Raised(msg) => f.write_str(msg),
-            RuntimeError::WriteFileNotAllowed => f.write_str("call to '@write_file' not allowed here"),
+            RuntimeError::PathNotInOutDir(path) => write!(f, "path \"{path}\" is not within output directory"),
+            RuntimeError::WriteFileNotAllowed => f.write_str("no output directory for '@write_file'; use '--out'"),
         }
     }
 }

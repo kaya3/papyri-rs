@@ -53,7 +53,7 @@ impl <T: fmt::Display> fmt::Display for Diagnostic<T> {
             let mut in_func = None;
             for (func_name, call_range) in trace.iter() {
                 write_trace_line(f, call_range, in_func)?;
-                in_func = Some(func_name.as_str());
+                in_func = Some(func_name);
             }
             write_trace_line(f, &self.range, in_func)?;
             writeln!(f, "{}", self.msg)?;
