@@ -1,3 +1,6 @@
+//! This module handles parsing of command-line arguments for the Papyri
+//! compiler application.
+
 use std::env;
 use arg::Args;
 
@@ -33,6 +36,8 @@ pub struct ProgramArgs {
     pub paths: Vec<String>,
 }
 
+/// Parses the command-line arguments and returns the options selected, or a
+/// string containing the `--help` message if that flag is present.
 pub fn get_config_from_args() -> Result<ProgramArgs, String> {
     let raw_args: Vec<String> = env::args().skip(1).collect();
     let mut args = ProgramArgs::from_args(raw_args.iter().map(String::as_str))

@@ -1,3 +1,5 @@
+//! This module contains helper functions for parsing text.
+
 use std::rc::Rc;
 use aho_corasick::{AhoCorasick, MatchKind, AhoCorasickBuilder};
 use htmlentity::entity;
@@ -9,16 +11,6 @@ use super::ast::*;
 use super::queue::Parser;
 use super::token::{Token, TokenKind};
 
-/// Encodes the characters `<`, `>` and `&` in a string as HTML entities. If
-/// `escape_quotes` is true, the characters `'` and `"` are additionally encoded.
-pub fn encode_entities(s: &str, escape_quotes: bool) -> String {
-    entity::encode(
-        s,
-        if escape_quotes { entity::EntitySet::SpecialChars } else { entity::EntitySet::Html },
-        entity::EncodeType::NamedOrHex,
-    ).into_iter().collect()
-}
-
 /// Decodes a string containing an HTML entity to the character that entity
 /// represents. If the string is not a valid entity, a syntax error is reported.
 pub fn decode_entity(range: &SourceRange, diagnostics: &mut Diagnostics) -> String {
@@ -28,6 +20,9 @@ pub fn decode_entity(range: &SourceRange, diagnostics: &mut Diagnostics) -> Stri
     decoded
 }
 
+/// Decodes an escape sequence, such as `\xA0` or `\n`. If the escape sequence
+/// does not define a valid Unicode character, then a syntax error is reported
+/// through `diagnostics` and a Unicode replacement character is returned.
 pub fn unescape_char(range: &SourceRange, diagnostics: &mut Diagnostics) -> String {
     let s = range.as_str();
     match s.chars().nth(1).unwrap() {
@@ -53,6 +48,7 @@ static TEXT_SUBS: Lazy<AhoCorasick> = Lazy::new(
     || AhoCorasickBuilder::new()
         .match_kind(MatchKind::LeftmostLongest)
         .build(&[
+            // minus signs
             "-0", "-1", "-2", "-3", "-4",
             "-5", "-6", "-7", "-8", "-9",
             
@@ -75,6 +71,7 @@ static TEXT_SUBS: Lazy<AhoCorasick> = Lazy::new(
 /// characters.
 pub fn substitutions(s: &str) -> String {
     TEXT_SUBS.replace_all(s, &[
+        // minus signs
         "\u{2212}0", "\u{2212}1", "\u{2212}2", "\u{2212}3", "\u{2212}4",
         "\u{2212}5", "\u{2212}6", "\u{2212}7", "\u{2212}8", "\u{2212}9",
         
@@ -93,6 +90,11 @@ pub fn substitutions(s: &str) -> String {
 }
 
 impl <'a> Parser<'a> {
+    /// Parses literal text starting at `first_token`, until just before the
+    /// next token without text, or the next `LAngle` token, whichever is
+    /// first. Text substitutions are applied here.
+    /// 
+    /// `first_token` must be a token with text.
     pub fn parse_text(&mut self, first_token: Token) -> AST {
         let Some(text) = first_token.text() else {
             ice_at("invalid text token", &first_token.range)
@@ -101,9 +103,7 @@ impl <'a> Parser<'a> {
         let mut text = text.to_string();
         let mut range = first_token.range;
         while let Some(tok) = self.poll_if(|tok| match tok.kind {
-            // must skip quotes in case we're parsing text inside a string template
-            TokenKind::LAngle |
-            TokenKind::Quote(..) => false,
+            TokenKind::LAngle => false,
             _ => if let Some(t) = tok.text() { text += t; true } else { false },
         }) {
             range.end = tok.range.end;

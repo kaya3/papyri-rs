@@ -1,3 +1,6 @@
+//! This module contains various utility or convenience functions which may be
+//! used in multiple other modules.
+
 mod const_strs;
 mod outfiles;
 mod range;

@@ -6,8 +6,13 @@ use super::SourceFile;
 /// Represents a span of code in a Papyri source file. The source must be
 /// smaller than 4GiB.
 pub struct SourceRange {
+    /// The Papyri source file which this span occurs in.
     pub src: Rc<SourceFile>,
+    
+    /// The index of the start of this span.
     pub start: u32,
+    
+    /// The index of the end of this span.
     pub end: u32,
 }
 

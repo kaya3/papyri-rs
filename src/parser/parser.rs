@@ -7,6 +7,7 @@ use super::queue::Parser;
 use super::text;
 use super::token::{TokenKind, Token};
 
+/// Parses a Papyri source file into an abstract syntax tree.
 pub fn parse(src: Rc<SourceFile>, diagnostics: &mut Diagnostics, string_pool: &mut StringPool) -> Vec<AST> {
     let mut q = Parser::new(src, diagnostics, string_pool);
     q.parse_root()
@@ -108,9 +109,8 @@ impl <'a> Parser<'a> {
                 None
             },
             
-            TokenKind::Undetermined |
             TokenKind::Comment => {
-                ice_at("token kind should not occur here", &tok.range);
+                ice_at("comment should not occur here", &tok.range);
             },
             
             TokenKind::Whitespace => Some(AST::Whitespace(tok.range)),
@@ -146,6 +146,15 @@ impl <'a> Parser<'a> {
         }
     }
     
+    fn seq_range(open: Token, children: &[AST], close: Option<Token>) -> SourceRange {
+        let end = match (children.last(), close) {
+            (_, Some(close)) => close.range.end,
+            (Some(child), _) => child.range().end,
+            _ => open.range.end,
+        };
+        open.range.to_end(end)
+    }
+    
     pub fn parse_ellipsis_group(&mut self, open: Token) -> AST {
         let mut children = Vec::new();
         while let Some(tok) = self.poll_if(|tok| !matches!(tok.kind, TokenKind::CloseTag | TokenKind::RBrace)) {
@@ -154,7 +163,7 @@ impl <'a> Parser<'a> {
             }
         }
         
-        let range = AST::seq_range(open, &children, None);
+        let range = Parser::seq_range(open, &children, None);
         AST::Group(children.into_boxed_slice(), range)
     }
     
@@ -164,7 +173,7 @@ impl <'a> Parser<'a> {
             self.diagnostics.err_unmatched(&open);
         }
         
-        let range = AST::seq_range(open, &children, close);
+        let range = Parser::seq_range(open, &children, close);
         AST::Group(children.into_boxed_slice(), range)
     }
     

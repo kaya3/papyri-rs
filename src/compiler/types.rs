@@ -6,59 +6,107 @@ use super::html::HTML;
 use super::value::{Value, ValueMap};
 
 #[derive(Clone, PartialEq, Eq)]
+/// Represents a type in the Papyri language.
 pub enum Type {
+    /// The unit type `none`, inhabited only by `Value::UNIT`.
     Unit,
+    
+    /// The top type `any`, which all values are assignable to.
     AnyValue,
+    
+    /// The type `html`, representing any HTML content; `block` and `inline`
+    /// are subtypes.
     AnyHTML,
+    
+    /// The type `block`, representing block-level HTML content, or content
+    /// which otherwise need not be wrapped in a block-level element.
     Block,
+    
+    /// The type `inline`, representing inline HTML content.
     Inline,
+    
+    /// The type `bool`, representing the Boolean values `True` and `False`.
     Bool,
+    
+    /// The type `int`, representing signed 64-bit integer values.
     Int,
+    
+    /// The type `str`, representing string values. HTML text content is not
+    /// considered to be a string value.
     Str,
+    
+    /// The type `function`, representing all function with any signature.
     Function,
+    
+    /// A type of the form `T dict`, representing a dictionary whose elements
+    /// are of type `T`.
     Dict(Box<Type>),
+    
+    /// A type of the form `T list`, representing a list whose elements are of
+    /// type `T`.
     List(Box<Type>),
+    
+    /// A type of the form `T?`, representing either values of type `T` or the
+    /// unit value. This is normalised so that the child type is not itself
+    /// optional, and not `any` or `none`.
     Optional(Box<Type>),
 }
 
 impl Type {
+    /// Creates a representation of a `dict` type.
     pub fn dict(t: Type) -> Type {
         Type::Dict(Box::new(t))
     }
     
+    /// Creates a representation of a `list` type.
     pub fn list(t: Type) -> Type {
         Type::List(Box::new(t))
     }
     
+    /// Creates a representation of an optional type. The representation is
+    /// normalised by simplifying `T??` to `T?`, `any?` to `any`, and `none?`
+    /// to `none`.
     pub fn optional(t: Type) -> Type {
-        if matches!(t, Type::Optional(..) | Type::Unit) {
+        if matches!(t, Type::Optional(..) | Type::AnyValue | Type::Unit) {
             t
         } else {
             Type::Optional(Box::new(t))
         }
     }
     
+    /// Indicates whether this type is either `html`, `block` or `inline`. The
+    /// top type `any` is not considered to be an HTML type.
     pub fn is_html(&self) -> bool {
         matches!(self, Type::AnyHTML | Type::Block | Type::Inline)
     }
     
-    pub fn component_type(&self) -> Type {
+    /// Returns the type for list or dictionary components, if this type is
+    /// used as a type hint for a list or dictionary value. The returned type
+    /// is meaningless if a list or dictionary could never be coerced to this
+    /// type.
+    pub fn component_type(&self) -> &Type {
         match self {
-            Type::Dict(t) | Type::List(t) => *t.clone(),
-            t => t.clone(),
+            Type::Dict(t) | Type::List(t) => t,
+            Type::Block | Type::AnyHTML => &Type::AnyHTML,
+            _ => &Type::AnyValue,
         }
     }
     
+    /// Returns the strongest type representing all values of both `self` and
+    /// `other`.
     pub fn least_upper_bound(&self, other: &Type) -> Type {
         match (self, other) {
             (t1, t2) if t1 == t2 => t1.clone(),
             (Type::AnyValue, t) | (t, Type::AnyValue) => t.clone(),
+            (t, Type::Unit) | (Type::Unit, t) => Type::optional(t.clone()),
             
             (t1, t2) if t1.is_html() && t2.is_html() => Type::AnyHTML,
             (Type::AnyHTML, _) | (_, Type::AnyHTML) => Type::AnyHTML,
             
             (Type::List(t1), Type::List(t2)) => Type::list(t1.least_upper_bound(t2)),
             (Type::Dict(t1), Type::Dict(t2)) => Type::dict(t1.least_upper_bound(t2)),
+            (Type::Optional(t1), Type::Optional(t2)) => Type::optional(t1.least_upper_bound(t2)),
+            (Type::Optional(t1), t2) | (t2, Type::Optional(t1)) => Type::optional(t1.least_upper_bound(t2)),
             
             (Type::Dict(_) | Type::List(_), Type::Block) | (Type::Block, Type::Dict(_) | Type::List(_)) => Type::Block,
             (Type::Dict(_) | Type::List(_) | Type::Block, _) | (_, Type::Dict(_) | Type::List(_) | Type::Block) => Type::AnyHTML,
@@ -66,6 +114,7 @@ impl Type {
         }
     }
     
+    /// Compiles an AST type annotation into the Papyri type it represents.
     pub fn compile(type_annotation: &ast::TypeAnnotation) -> Type {
         match type_annotation {
             ast::TypeAnnotation::Primitive(range) => match range.as_str() {

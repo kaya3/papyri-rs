@@ -6,12 +6,28 @@ use super::tag::Tag;
 use super::value::Value;
 
 #[derive(Debug, Clone)]
+/// Some HTML content, possibly empty.
 pub enum HTML {
+    /// Represents the absence of any HTML content.
     Empty,
+    
+    /// An HTML Tag.
     Tag(Rc<Tag>),
+    
+    /// A sequence of HTML content. The sequence is normalised so that it does
+    /// not include `Empty` values or other sequences, and its length is at
+    /// least 2.
     Sequence(Rc<[HTML]>),
+    
+    /// Raw text content. May contain special characters which will need to be
+    /// escaped when rendering to HTML.
     Text(Rc<str>),
+    
+    /// A single space. Sequences of whitespace are collapsed to this.
     Whitespace,
+    
+    /// A literal newline. This is only useful in pre-formatted content, such
+    /// as a `<pre>` tag; otherwise it is equivalent to whitespace.
     RawNewline,
 }
 
@@ -28,6 +44,9 @@ impl From<String> for HTML {
 }
 
 impl HTML {
+    /// Converts a value to its HTML representation. Lists become `<ul>` tags,
+    /// dictionaries become tables, and functions will be represented as
+    /// `<code>(@fn name)</code>`.
     pub fn from_value(value: Value, string_pool: &mut StringPool) -> HTML {
         match value {
             Value::Bool(b) => Token::bool_to_string(b).into(),
@@ -61,6 +80,8 @@ impl HTML {
         }
     }
     
+    /// Converts a string to an HTML item. Empty strings become `HTML::Empty`,
+    /// but whitespace does not become `HTML::Whitespace`.
     pub fn text(s: &str) -> HTML {
         if s.is_empty() {
             HTML::Empty
@@ -69,10 +90,16 @@ impl HTML {
         }
     }
     
+    /// Creates an HTML tag with no attributes. Use `Tag::new` for more complex
+    /// use-cases.
     pub fn tag(name_id: NameID, content: HTML) -> HTML {
         Tag::new(name_id, content).into()
     }
     
+    /// Converts a sequence of HTML items into one normalised HTML item. Empty
+    /// items are dropped, and nested sequences are flattened, and if there are
+    /// fewer than two items then a single item (or `HTML::Empty`) is returned
+    /// instead of an `HTML::Sequence`.
     pub fn seq<T: IntoIterator<Item=HTML>>(content: T) -> HTML {
         let mut seq = Vec::new();
         for child in content.into_iter() {
@@ -90,14 +117,20 @@ impl HTML {
         }
     }
     
+    /// Indicates whether this HTML item is `HTML::Empty`. Whitespace and
+    /// literal newlines are not considered to be empty.
     pub fn is_empty(&self) -> bool {
         matches!(self, HTML::Empty)
     }
     
+    /// Indicates whether this HTML item is whitespace, including a literal
+    /// newline or `HTML::Empty`.
     pub fn is_whitespace(&self) -> bool {
         matches!(self, HTML::Whitespace | HTML::RawNewline | HTML::Empty)
     }
     
+    /// Indicates whether this HTML item is block-level content, or otherwise
+    /// does not need to be wrapped in a block-level element.
     pub fn is_block(&self) -> bool {
         match self {
             HTML::Tag(tag) => taginfo::is_block(tag.name_id),
@@ -106,6 +139,9 @@ impl HTML {
         }
     }
     
+    /// Indicates whether this HTML item matches a given set of allowed tag
+    /// names. This is used to ensure e.g. that a `<ul>` tag only directly
+    /// contains `<li>` tags.
     pub fn is_all(&self, allowed_tag_names: &[NameID]) -> bool {
         match self {
             HTML::Tag(tag) => allowed_tag_names.contains(&tag.name_id),

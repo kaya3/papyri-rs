@@ -1,3 +1,6 @@
+#[allow(missing_docs)]
+/// Represents a warning which occurs during compilation of a Papyri source
+/// file.
 pub enum Warning {
     AnonymousFunctionInText,
     NameAlreadyDeclared(String),
@@ -6,6 +9,9 @@ pub enum Warning {
     NameAlreadyExported(String),
 }
 
+#[allow(missing_docs)]
+/// Represents a warning which occurs at runtime; there is an associated stack
+/// trace.
 pub enum RuntimeWarning {
     NameNotImplicit(String),
     InlineHighlightEnumerate,

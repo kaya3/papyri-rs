@@ -1,3 +1,5 @@
+//! This module contains helper functions for some queries about HTML tags.
+
 use super::NameID;
 use super::str_ids;
 
@@ -14,6 +16,16 @@ pub enum ContentKind {
     RequireInline,
     /// Children must be inline; line breaks are forbidden
     RequireInlineNoLineBreaks,
+}
+
+impl ContentKind {
+    /// Content must be block-level; any inline content will be wrapped in
+    /// `<p>` tags.
+    pub const REQUIRE_P: ContentKind = ContentKind::RequireBlock(str_ids::P);
+    
+    /// Content may be either all block-level or all inline. If the content is
+    /// mixed, then inline content will be wrapped in `<p>` tags.
+    pub const ALLOW_P: ContentKind = ContentKind::AllowBlock(str_ids::P);
 }
 
 /// Indicates whether `name_id` is the id of a self-closing HTML tag name.

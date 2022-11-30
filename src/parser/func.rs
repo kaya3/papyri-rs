@@ -198,7 +198,7 @@ impl <'a> Parser<'a> {
         }
         
         let end = default_value.as_ref().map(|v| v.range().end)
-            .or_else(|| type_annotation.as_ref().map(|t| t.range().end))
+            .or_else(|| type_annotation.as_ref().map(|t| t.range_end()))
             .or_else(|| question_mark.as_ref().map(|t| t.range.end))
             .unwrap_or_else(|| name.range.end);
         let range = match spread.as_ref() {

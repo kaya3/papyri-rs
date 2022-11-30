@@ -1,3 +1,7 @@
+//! This module contains helper functions for text or string operations.
+
+use htmlentity::entity;
+
 /// Indicates whether the given string is a valid name, matching `[a-zA-Z_][a-zA-Z0-9_]*`.
 pub fn is_identifier(s: &str) -> bool {
     let mut s_chars = s.chars();
@@ -20,6 +24,16 @@ pub fn is_whitespace(s: &str) -> bool {
 /// given a quantity.
 pub fn pluralise(quantity: u32) -> &'static str {
     if quantity == 1 { "" } else { "s" }
+}
+
+/// Encodes the characters `<`, `>` and `&` in a string as HTML entities. If
+/// `escape_quotes` is true, the characters `'` and `"` are additionally encoded.
+pub fn encode_entities(s: &str, escape_quotes: bool) -> String {
+    entity::encode(
+        s,
+        if escape_quotes { entity::EntitySet::SpecialChars } else { entity::EntitySet::Html },
+        entity::EncodeType::NamedOrHex,
+    ).into_iter().collect()
 }
 
 /// Strips indentation from the start of each line of the given string. The

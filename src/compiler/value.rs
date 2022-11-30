@@ -10,13 +10,29 @@ use super::html::HTML;
 use super::types::Type;
 
 #[derive(Debug, Clone)]
+/// A value represented during compilation of a Papyri source file.
 pub enum Value {
+    /// A Boolean value, either `True` or `False`.
     Bool(bool),
+    
+    /// A 64-bit signed integer value.
     Int(i64),
+    
+    /// A string value.
     Str(Rc<str>),
+    
+    /// A list of values.
     List(SliceRef<Value>),
+    
+    /// A dictionary of values. The dictionary keys are strings, and must be
+    /// valid identifiers not beginning with underscores.
     Dict(Rc<ValueMap>),
+    
+    /// Some HTML content, represented as a value.
     HTML(HTML),
+    
+    /// A function, either defined in a Papyri source file, or with a native
+    /// implementation.
     Func(Func),
 }
 
@@ -53,24 +69,27 @@ impl From<&HTML> for Value {
 }
 
 impl Value {
+    /// The unit value, of type `none`.
     pub const UNIT: Value = Value::HTML(HTML::Empty);
     
-    pub fn int(i: i64) -> Value {
-        Value::Int(i)
-    }
-    
+    /// Wraps a hash-map into a dictionary value.
     pub fn dict(vs: ValueMap) -> Value {
         Value::Dict(Rc::new(vs))
     }
     
+    /// Wraps a vector into a list value.
     pub fn list(vs: Vec<Value>) -> Value {
         Value::List(SliceRef::from(vs))
     }
     
+    /// Indicates whether this value is the unit value, `Value::UNIT`.
     pub fn is_unit(&self) -> bool {
         matches!(self, Value::HTML(HTML::Empty))
     }
     
+    /// Convenience method for coercing a value to an optional string. Returns
+    /// `Some` if this value is a string, or `None` if this is `Value::UNIT`;
+    /// the value must not be of any other type.
     pub fn to_optional_rc_str(&self, range: &SourceRange) -> Option<Rc<str>> {
         match self {
             Value::Str(s) => Some(s.clone()),
@@ -79,6 +98,8 @@ impl Value {
         }
     }
     
+    /// Returns the type of this value. If it is a heterogeneous list or
+    /// dictionary, then the strongest representable type is chosen.
     pub fn get_type(&self) -> Type {
         match self {
             Value::Bool(..) => Type::Bool,
@@ -109,10 +130,13 @@ impl Value {
 }
 
 impl <'a> Compiler<'a> {
+    /// Compiles a value to HTML.
     pub fn compile_value(&mut self, value: Value) -> HTML {
         HTML::from_value(value, &mut self.loader.string_pool)
     }
     
+    /// Evaluates an AST node to a value. Returns `None` if a compilation error
+    /// occurs.
     pub fn evaluate_node(&mut self, node: &AST, type_hint: &Type) -> Option<Value> {
         let v = match node {
             AST::LiteralValue(tok) => if type_hint.is_html() {
@@ -140,6 +164,8 @@ impl <'a> Compiler<'a> {
         self.coerce(v, type_hint, node.range())
     }
     
+    /// Returns the value of the given variable, coerced to the given type, or
+    /// `None` if a compilation error occurs.
     pub fn evaluate_var(&mut self, var: &ast::VarName, type_hint: &Type) -> Option<Value> {
         let value = self.get_var(var.name_id, &var.range)?;
         self.coerce(value, type_hint, &var.range)
@@ -195,6 +221,9 @@ impl <'a> Compiler<'a> {
         Value::from(out)
     }
     
+    /// Evaluates a literal token to a value, or returns `None` if a parse
+    /// error occurs. The token must be either a `Dot`, `Boolean`, `Number`,
+    /// `Name` or `Verbatim`.
     pub fn evaluate_literal(&mut self, tok: &Token) -> Option<Value> {
         match tok.kind {
             TokenKind::Dot => Some(Value::UNIT),
@@ -203,7 +232,7 @@ impl <'a> Compiler<'a> {
             TokenKind::Verbatim => Some(tok.get_verbatim_text().into()),
             
             TokenKind::Number => match i64::from_str_radix(tok.as_str(), 10) {
-                Ok(value) => Some(Value::int(value)),
+                Ok(value) => Some(Value::Int(value)),
                 Err(err) => {
                     self.diagnostics.syntax_error(SyntaxError::TokenInvalidNumber(err), &tok.range);
                     None

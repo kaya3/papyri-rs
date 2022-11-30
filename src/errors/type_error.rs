@@ -1,5 +1,8 @@
 use crate::compiler::Type;
 
+#[allow(missing_docs)]
+/// Represents a type error which occurs during compilation of a Papyri source
+/// file.
 pub enum TypeError {
     ExpectedWas(Type, Type),
     TooManyPositionalArgs(usize, usize),

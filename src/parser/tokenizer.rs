@@ -6,17 +6,17 @@ use crate::utils::{SourceRange, SourceFile};
 use super::token::{Token, TokenKind, QuoteDir, QuoteKind};
 
 // Later patterns take priority
-static LEXER: Lazy<regex_lexer::Lexer<TokenKind>> = Lazy::new(
+static LEXER: Lazy<regex_lexer::Lexer<Option<TokenKind>>> = Lazy::new(
     || regex_lexer::LexerBuilder::new()
-        .token(r"<!--|-->|/>|->|\.\.\.|\*\*|.", TokenKind::Undetermined)
-        .token(r"\s+", TokenKind::Whitespace) // or Newline
-        .token(r"[a-zA-Z_][a-zA-Z0-9_]*", TokenKind::Name)
-        .token(r"-?[0-9]+", TokenKind::Number)
-        .token(r"</(?:[a-zA-Z_][a-zA-Z0-9_]*)?>", TokenKind::CloseTag)
-        .token(r"\\(?:x[0-9a-fA-F]{2}|u[0-9a-fA-F]{4}|U[0-9a-fA-F]{8}|[^xuU\n])", TokenKind::Escape)
-        .token(r"&(?:[a-zA-Z][a-zA-Z0-9]*|#[0-9]+|#x[0-9a-fA-F]+);", TokenKind::Entity)
-        .token(r"`+", TokenKind::Verbatim)
-        .token(r#"[^#\sa-zA-Z0-9_\\\-\(\)\[\]\{\}<>/\.,=:~\|!\?@\*\$&`'"]+"#, TokenKind::RawText)
+        .token(r"<!--|-->|/>|->|\.\.\.|\*\*|.", None)
+        .token(r"\s+", Some(TokenKind::Whitespace)) // or Newline
+        .token(r"[a-zA-Z_][a-zA-Z0-9_]*", Some(TokenKind::Name))
+        .token(r"-?[0-9]+", Some(TokenKind::Number))
+        .token(r"</(?:[a-zA-Z_][a-zA-Z0-9_]*)?>", Some(TokenKind::CloseTag))
+        .token(r"\\(?:x[0-9a-fA-F]{2}|u[0-9a-fA-F]{4}|U[0-9a-fA-F]{8}|[^xuU\n])", Some(TokenKind::Escape))
+        .token(r"&(?:[a-zA-Z][a-zA-Z0-9]*|#[0-9]+|#x[0-9a-fA-F]+);", Some(TokenKind::Entity))
+        .token(r"`+", Some(TokenKind::Verbatim))
+        .token(r#"[^#\sa-zA-Z0-9_\\\-\(\)\[\]\{\}<>/\.,=:~\|!\?@\*\$&`'"]+"#, Some(TokenKind::RawText))
         .build()
         .expect("Failed to build regex_lexer")
 );
@@ -42,13 +42,12 @@ pub fn tokenize(src: Rc<SourceFile>, strip_comments: bool, diagnostics: &mut Dia
     
     let mut token_stream = LEXER.tokens(&src.src).peekable();
     while let Some(t) = token_stream.next() {
-        let mut kind = t.kind;
         let mut s = t.text;
         
-        match kind {
-            TokenKind::Undetermined => {
-                kind = match s {
-                    "$" | "@" if matches!(token_stream.peek(), Some(tok) if tok.kind == TokenKind::Name) => {
+        let kind = match t.kind {
+            None => {
+                match s {
+                    "$" | "@" if matches!(token_stream.peek(), Some(tok) if tok.kind == Some(TokenKind::Name)) => {
                         let k = if s == "$" { TokenKind::VarName } else { TokenKind::FuncName };
                         let end = token_stream.next().unwrap().span.end;
                         s = &src.src[cur..end];
@@ -57,7 +56,7 @@ pub fn tokenize(src: Rc<SourceFile>, strip_comments: bool, diagnostics: &mut Dia
                     
                     "#" => {
                         // this would be much simpler if verbatims could be matched with backreferences
-                        while matches!(token_stream.peek(), Some(tok) if tok.kind != TokenKind::Whitespace || !tok.text.contains('\n')) {
+                        while matches!(token_stream.peek(), Some(tok) if tok.kind != Some(TokenKind::Whitespace) || !tok.text.contains('\n')) {
                             token_stream.next();
                         }
                         if matches!(token_stream.peek(), Some(tok) if !is_paragraph_break(tok.text)) {
@@ -113,32 +112,33 @@ pub fn tokenize(src: Rc<SourceFile>, strip_comments: bool, diagnostics: &mut Dia
                     "\"" => TokenKind::Quote(QuoteKind::Double, quote_dir),
                     
                     _ => TokenKind::RawText,
-                };
+                }
             },
             
-            TokenKind::Whitespace => {
-                if is_paragraph_break(s) { kind = TokenKind::Newline; }
+            Some(TokenKind::Whitespace) => {
+                if is_paragraph_break(s) { TokenKind::Newline } else { TokenKind::Whitespace }
             },
             
-            TokenKind::Name => {
-                if matches!(s, "True" | "False") { kind = TokenKind::Boolean; }
+            Some(TokenKind::Name) => match s {
+                "True" | "False" => TokenKind::Boolean,
+                _ => TokenKind::Name,
             },
             
-            TokenKind::Verbatim => {
+            Some(TokenKind::Verbatim) => {
                 // if `regex_lexer` supported backreferences, this would be a lot simpler
                 let open_backticks = t.text.len();
                 let mut extra_backtick = 0;
                 let close_tok = loop {
                     match token_stream.next() {
-                        Some(tok) if tok.kind == TokenKind::Verbatim => {
+                        Some(tok) if tok.kind == Some(TokenKind::Verbatim) => {
                             if tok.text.len() >= open_backticks {
                                 break Some(tok);
                             }
                         },
-                        Some(tok) if tok.kind == TokenKind::Escape && tok.text.ends_with('`') => {
+                        Some(tok) if tok.kind == Some(TokenKind::Escape) && tok.text.ends_with('`') => {
                             if open_backticks == 1 {
                                 break Some(tok);
-                            } else if matches!(token_stream.peek(), Some(t) if t.kind == TokenKind::Verbatim && t.text.len() + 1 >= open_backticks) {
+                            } else if matches!(token_stream.peek(), Some(t) if t.kind == Some(TokenKind::Verbatim) && t.text.len() + 1 >= open_backticks) {
                                 extra_backtick = 1;
                                 break token_stream.next();
                             }
@@ -151,7 +151,7 @@ pub fn tokenize(src: Rc<SourceFile>, strip_comments: bool, diagnostics: &mut Dia
                 
                 if let Some(close_tok) = close_tok {
                     s = &src.src[cur..close_tok.span.end];
-                    if close_tok.kind == TokenKind::Verbatim && close_tok.text.len() + extra_backtick > open_backticks {
+                    if close_tok.kind == Some(TokenKind::Verbatim) && close_tok.text.len() + extra_backtick > open_backticks {
                         error_kind = Some(SyntaxError::TokenVerbatimTooManyBackticks);
                     } else if open_backticks < 3 && s.contains('\n') {
                         error_kind = Some(SyntaxError::TokenVerbatimMultilineNotEnoughBackticks);
@@ -160,10 +160,11 @@ pub fn tokenize(src: Rc<SourceFile>, strip_comments: bool, diagnostics: &mut Dia
                     s = &src.src[cur..];
                     error_kind = Some(SyntaxError::TokenVerbatimEOF);
                 }
+                TokenKind::Verbatim
             },
             
-            _ => {},
-        }
+            Some(kind) => kind,
+        };
         
         let end = cur + s.len();
         let tok = Token {

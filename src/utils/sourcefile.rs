@@ -19,9 +19,18 @@ pub fn is_papyri_library(path: &path::Path) -> bool {
 /// Represents a Papyri source file. The source as a string must be smaller
 /// than 4 GiB.
 pub struct SourceFile {
+    /// The path to this source file, as a `path::Path`. If the source file is
+    /// synthetic, then this path is empty.
     pub path: Box<path::Path>,
+    
+    /// The path to this source file, as a string. If the source file is
+    /// synthetic, then this string is surrounded by angle-brackets, e.g.
+    /// `<string>`.
     pub path_str: Box<str>,
+    
+    /// The contents of this source file.
     pub src: Box<str>,
+    
     line_col_coords: OnceCell<Box<[(u32, u32)]>>,
 }
 
@@ -32,7 +41,7 @@ impl SourceFile {
     pub fn synthetic(path_str: &str, src: &str) -> Rc<SourceFile> {
         SourceFile::new(
             path::PathBuf::new().into_boxed_path(),
-            Box::from(path_str),
+            format!("<{path_str}>").into_boxed_str(),
             Box::from(src),
         )
     }

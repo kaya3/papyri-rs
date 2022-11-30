@@ -6,6 +6,9 @@ use super::syntax_error::SyntaxError;
 use super::type_error::TypeError;
 use super::warning::{Warning, RuntimeWarning};
 
+#[allow(missing_docs)]
+/// Represents an error or warning which occurs while attempting to compile a
+/// Papyri source file.
 pub enum PapyriError {
     ModuleError(Box<std::path::Path>, ModuleError),
     NameError(NameError),
@@ -30,6 +33,8 @@ impl std::fmt::Display for PapyriError {
     }
 }
 
+/// A diagnostic sink for `PapyriError`s. It has convenience methods for
+/// reporting each kind of error or warning.
 pub type Diagnostics = DiagnosticSink<PapyriError>;
 
 impl Diagnostics {

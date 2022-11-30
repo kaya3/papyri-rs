@@ -6,9 +6,6 @@ use super::compiler::Compiler;
 use super::html::HTML;
 
 impl ContentKind {
-    pub const REQUIRE_P: ContentKind = ContentKind::RequireBlock(str_ids::P);
-    pub const ALLOW_P: ContentKind = ContentKind::AllowBlock(str_ids::P);
-    
     fn wrap_with(self) -> NameID {
         match self {
             ContentKind::RequireOneOf(tag_name_ids) => tag_name_ids[0],

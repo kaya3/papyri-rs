@@ -11,9 +11,21 @@ use super::native::get_natives_frame;
 use super::value::ValueMap;
 use super::{CompileResult, compile};
 
+/// A module loader is used to compile a set of Papyri source files, including
+/// loading of other Papyri source files by the `@import` and `@include`
+/// functions. Modules loaded this way are cached, so a library imported by
+/// multiple files is only compiled once.
 pub struct ModuleLoader {
+    /// The pool of interned strings which may be used in modules, and may be
+    /// added to during compilation.
     pub string_pool: StringPool,
+    
+    /// A stack frame containing the compiled declarations from the Papyri
+    /// standard library. It is only `None` during compilation of the standard
+    /// library itself.
     stdlib: Option<InactiveFrame>,
+    
+    /// The cache of compiled modules.
     cache: IndexMap<Box<path::Path>, ModuleState>,
 }
 
@@ -28,6 +40,8 @@ enum ModuleState {
 }
 
 impl ModuleLoader {
+    /// Creates a new module loader. This includes compiling the standard
+    /// library.
     pub fn new() -> ModuleLoader {
         let mut loader = ModuleLoader {
             string_pool: StringPool::new(),
@@ -38,6 +52,9 @@ impl ModuleLoader {
         loader
     }
     
+    /// Creates and returns a new stack frame in which a Papyri module can be
+    /// compiled. The new stack frame normally contains all native functions
+    /// and the standard library.
     pub fn get_initial_frame(&self) -> ActiveFrame {
         self.stdlib.as_ref().map_or_else(
             get_natives_frame,
@@ -45,12 +62,24 @@ impl ModuleLoader {
         )
     }
     
+    /// Loads a Papyri source file from the filesystem and compiles it. This
+    /// only fails if the source file cannot be read; any other errors which
+    /// occur during compilation are reported through `diagnostics`.
     pub fn load_uncached(&mut self, path: &path::Path, diagnostics: &mut Diagnostics, output_files: Option<&mut OutFiles<HTML>>) -> Result<CompileResult, ModuleError> {
         SourceFile::from_path(path)
             .map(|src| compile(src, self, diagnostics, output_files))
             .map_err(ModuleError::IOError)
     }
     
+    /// Loads a Papyri source file from the filesystem and compiles it, or
+    /// returns a cached result if the source file has already been loaded and
+    /// compiled. This fails if the source file cannot be read, if a circular
+    /// import is detected, or if either of those two failures occurred during
+    /// a previous attempt to load the same module; any other errors which
+    /// occur during compilation are reported through `diagnostics`.
+    /// 
+    /// This method should only be used to load a module included or imported
+    /// by another Papyri source file.
     pub fn load_cached(&mut self, path: &path::Path, diagnostics: &mut Diagnostics) -> Result<CachedCompileResult, ModuleError> {
         let k = fs::canonicalize(&path)
             .map_err(ModuleError::IOError)?;

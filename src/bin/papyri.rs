@@ -113,15 +113,15 @@ fn run_main() -> Result<(), String> {
         }
         
         diagnostics.clear();
-        if let Some(o) = output_files.as_mut() { o.clear(); }
+        if matches!(output_files, Some(ref o) if !o.is_empty()) { errors::ice("Output files were not consumed"); }
         
         let result = loader.load_uncached(&src_path, &mut diagnostics, output_files.as_mut())
             .map_err(|e| format!("Error loading \"{src_path_str}\": {e}"))?;
         
-        let mut to_write = output_files.as_ref()
-            .map_or_else(Vec::new, |o| o.iter().collect());
+        let mut to_write = output_files.as_mut()
+            .map_or_else(Vec::new, |o| o.take_iter().collect());
         if !result.out.is_empty() {
-            to_write.push((out_path, &result.out));
+            to_write.push((out_path, result.out));
         }
         
         diagnostics.print();

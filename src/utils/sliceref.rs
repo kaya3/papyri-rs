@@ -31,16 +31,6 @@ impl <T> AsRef<[T]> for SliceRef<T> {
 }
 
 impl <T> SliceRef<T> {
-    pub fn empty() -> SliceRef<T> {
-        let rc: Rc<[T]> = Rc::from([]);
-        rc.into()
-    }
-    
-    pub fn of_one(t: T) -> SliceRef<T> {
-        let rc: Rc<[T]> = Rc::new([t]);
-        rc.into()
-    }
-    
     /// Returns a reference to the element at index `i` in this slice.
     pub fn get(&self, i: usize) -> &T {
         &self.original[self.a + i]

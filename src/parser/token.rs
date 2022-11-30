@@ -2,9 +2,9 @@ use crate::errors::ice_at;
 use crate::utils::SourceRange;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[allow(missing_docs)]
+/// A kind of token in the Papyri language grammar.
 pub enum TokenKind {
-    Undetermined,
-    
     Comment,
     Whitespace,
     Newline,
@@ -44,15 +44,18 @@ pub enum TokenKind {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[allow(missing_docs)]
+/// A kind of quote token; either single (`'`) or double (`"`).
 pub enum QuoteKind {Single, Double}
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[allow(missing_docs)]
+/// The direction a quote character should face (either left or right).
 pub enum QuoteDir {Left, Right}
 
 impl std::fmt::Display for TokenKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
-            TokenKind::Undetermined => "(unknown token)",
             TokenKind::Comment => "comment",
             TokenKind::Whitespace => "whitespace",
             TokenKind::Newline => "paragraph break",
@@ -93,8 +96,12 @@ impl std::fmt::Display for TokenKind {
 }
 
 #[derive(Clone)]
+/// A concrete token which occurs at some position in a Papyri source file.
 pub struct Token {
+    /// The kind of token this is.
     pub kind: TokenKind,
+    
+    /// The source span of this token.
     pub range: SourceRange,
 }
 

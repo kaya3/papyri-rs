@@ -2,9 +2,10 @@ use super::stringpool::NameID;
 
 macro_rules! const_strs {
     (@count () {$id: expr}) => {};
-    (@count ($name_head: ident $($name_tail: ident)*) {$id: expr}) => {
+    (@count ($name_head: ident, $val_head: expr, $($name_tail: ident, $val_tail: expr,)*) {$id: expr}) => {
+        #[doc = concat!("The ID of the interned string `", stringify!($val_head), "`.")]
         pub const $name_head: NameID = NameID($id);
-        const_strs!(@count ($($name_tail)*) {$id + 1});
+        const_strs!(@count ($($name_tail, $val_tail,)*) {$id + 1});
     };
     
     ($($name: ident = $val: expr,)*) => {
@@ -15,7 +16,7 @@ macro_rules! const_strs {
         /// Constants for ids of names which are always pooled.
         pub mod str_ids {
             use super::NameID;
-            const_strs!{@count ($($name)*) {0}}
+            const_strs!{@count ($($name, $val,)*) {0}}
         }
     }
 }

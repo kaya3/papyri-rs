@@ -9,11 +9,11 @@ impl <'a> Compiler<'a> {
     pub fn evaluate_match(&mut self, match_: &ast::Match, type_hint: &Type) -> Option<Value> {
         let value = self.evaluate_node(&match_.value, &Type::AnyValue)?;
         let mut bindings = ValueMap::new();
-        for branch in match_.branches.iter() {
+        for (pattern, handler) in match_.branches.iter() {
             bindings.clear();
-            if self.bind_pattern(&branch.pattern, value.clone(), &mut bindings) {
+            if self.bind_pattern(pattern, value.clone(), &mut bindings) {
                 let frame = self.frame().to_inactive().new_child_frame(bindings, None);
-                return self.evaluate_in_frame(frame, &branch.then, type_hint);
+                return self.evaluate_in_frame(frame, handler, type_hint);
             }
         }
         

@@ -1,8 +1,13 @@
+//! This module contains helper functions for dealing with relative paths.
+
 use std::path::{Path, PathBuf};
 use normalize_path::NormalizePath;
 
 use crate::errors;
 
+/// Converts the given path `rel` into a normalised relative path using the
+/// given `base` path. Returns `None` if the resulting path would not be a
+/// descendant of `base`.
 pub fn make_relative(base: &Path, rel: &Path) -> Option<PathBuf> {
     base.join(rel)
         .normalize()
@@ -11,6 +16,12 @@ pub fn make_relative(base: &Path, rel: &Path) -> Option<PathBuf> {
         .map(Path::to_path_buf)
 }
 
+/// Returns a list of paths to all Papyri source files (files with a `.papyri`
+/// extension) contained recursively in the given base path. The paths returned
+/// are relative to the given base path.
+/// 
+/// Any filesystem errors which occur are reported to the `on_error` callback;
+/// `None` is returned if the given base path is erroneous.
 pub fn find_papyri_source_files_in_dir(path: &Path, mut on_error: impl FnMut(&Path, std::io::Error)) -> Option<Vec<PathBuf>> {
     let canonical_path = std::fs::canonicalize(path)
         .map_err(|e| on_error(path, e))

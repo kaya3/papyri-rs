@@ -1,3 +1,6 @@
+//! This module contains the backend of the Papyri compiler; it is responsible
+//! for compiling an abstract syntax tree into HTML (or plain text).
+
 mod compiler;
 mod frame;
 mod func;

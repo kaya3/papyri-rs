@@ -1,5 +1,7 @@
 use crate::parser::{TokenKind, Token};
 
+#[allow(missing_docs)]
+/// Represents a syntax error in a Papyri source file.
 pub enum SyntaxError {
     TokenExpected(TokenKind),
     TokenExpectedDoctype,

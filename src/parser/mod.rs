@@ -1,3 +1,6 @@
+//! This module contains the frontend of the Papyri compiler; it is responsible
+//! for parsing a Papyri source file into an abstract syntax tree.
+
 pub mod ast;
 mod func;
 mod matcher;

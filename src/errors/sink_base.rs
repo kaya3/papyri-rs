@@ -3,9 +3,14 @@ use std::fmt;
 use crate::utils::{SourceRange, text};
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord)]
+#[allow(missing_docs)]
+/// The severity of a diagnostic which occurs while attempting to compiling a
+/// Papyri source file.
 pub enum Severity {Warning, Error}
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord)]
+#[allow(missing_docs)]
+/// Controls which severity of diagnostics are reported by the Papyri compiler.
 pub enum ReportingLevel {All, Warning, Error, IgnoreAll}
 
 impl ReportingLevel {
@@ -28,6 +33,12 @@ impl fmt::Display for Severity {
     }
 }
 
+/// Represents a stack trace, which is associated with a diagnostic.
+/// 
+/// Each line in the trace is a pair of (name, pos), where a function with that
+/// name was called at that source position. The source position for the direct
+/// cause of the diagnostic is held in the `Diagnostic` struct. The pairs are in
+/// order from least recent to most recent.
 pub type StackTrace = Box<[(String, SourceRange)]>;
 
 /// Holds information about an error or warning which has occurred during
@@ -140,6 +151,7 @@ impl <T: fmt::Display> DiagnosticSink<T> {
         }
     }
     
+    /// Adds a new diagnostic to this collection.
     pub fn add(&mut self, severity: Severity, msg: T, range: &SourceRange, trace: Option<StackTrace>) {
         match severity {
             Severity::Warning => self.num_warnings += 1,

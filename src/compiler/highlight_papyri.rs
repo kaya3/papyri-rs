@@ -6,7 +6,7 @@ use super::html::HTML;
 
 pub fn syntax_highlight_papyri(src: &str) -> Vec<HTML> {
     let tokens = parser::tokenize(
-        SourceFile::synthetic("<string>", src.trim_end()),
+        SourceFile::synthetic("string", src.trim_end()),
         false,
         &mut Diagnostics::new(ReportingLevel::IgnoreAll),
     );

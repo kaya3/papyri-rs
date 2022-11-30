@@ -134,12 +134,10 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
                 self.any_errors = true;
             }
         } else {
-            let tmp_type: Type;
             let type_hint = if let Some(param) = self.sig.positional_params.get(self.positional_arg_count) {
                 &param.type_
             } else if let Some(param) = &self.sig.spread_param {
-                tmp_type = param.type_.component_type();
-                &tmp_type
+                param.type_.component_type()
             } else {
                 &Type::AnyValue
             };
@@ -161,12 +159,10 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
                 self.any_errors = true;
             }
         } else {
-            let tmp_type: Type;
             let type_hint = if let Some(param) = self.sig.named_params.get(&arg.name_id) {
                 &param.type_
             } else if let Some(param) = &self.sig.spread_named_param {
-                tmp_type = param.type_.component_type();
-                &tmp_type
+                param.type_.component_type()
             } else {
                 &Type::AnyValue
             };
@@ -212,12 +208,10 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
     }
     
     pub fn add_named_arg(&mut self, name_id: NameID, value: Value, range: &SourceRange) {
-        let tmp_type: Type;
         let (type_, map) = if let Some(param) = self.sig.named_params.get(&name_id) {
             (&param.type_, &mut self.map)
         } else if let Some(param) = &self.sig.spread_named_param {
-            tmp_type = param.type_.component_type();
-            (&tmp_type, &mut self.spread_named)
+            (param.type_.component_type(), &mut self.spread_named)
         } else {
             let name = self.compiler.get_name(name_id).to_string();
             self.compiler.diagnostics.name_error(NameError::NoSuchParameter(name), range);

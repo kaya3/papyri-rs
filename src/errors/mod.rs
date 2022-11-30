@@ -1,3 +1,6 @@
+//! This module contains type definitions for errors and warnings which can
+//! occur during compilation of a Papyri source file.
+
 mod module_error;
 mod runtime_error;
 mod syntax_error;

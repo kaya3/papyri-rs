@@ -9,11 +9,20 @@ use super::loader::ModuleLoader;
 use super::types::Type;
 use super::value::{Value, ValueMap};
 
+/// The result of compiling a Papyri source file. The output may be incomplete
+/// if there were errors during compilation. 
 pub struct CompileResult {
+    /// The direct HTML output from compiling a Papyri source file. Other output
+    /// may have been queued in an `OutFiles` collector, if the Papyri source
+    /// file used the `@write_file` function to produce its output.
     pub out: HTML,
+    
+    /// The values exported by this Papyri source file, using the `@export`
+    /// function.
     pub exports: ValueMap,
 }
 
+/// Compiles a Papyri source file.
 pub fn compile(src: Rc<SourceFile>, loader: &mut ModuleLoader, diagnostics: &mut Diagnostics, out_files: Option<&mut OutFiles<HTML>>) -> CompileResult {
     let root = parse(src, diagnostics, &mut loader.string_pool);
     let mut compiler = Compiler::new(diagnostics, loader, out_files);
@@ -25,7 +34,7 @@ pub fn compile(src: Rc<SourceFile>, loader: &mut ModuleLoader, diagnostics: &mut
 }
 
 pub fn compile_stdlib(loader: &mut ModuleLoader) -> InactiveFrame {
-    let stdlib_src = SourceFile::synthetic("<stdlib>", include_str!("../std.papyri"));
+    let stdlib_src = SourceFile::synthetic("stdlib", include_str!("../std.papyri"));
     
     let mut diagnostics = Diagnostics::new(ReportingLevel::All);
     let root = parse(stdlib_src, &mut diagnostics, &mut loader.string_pool);

@@ -1,3 +1,6 @@
+#[allow(missing_docs)]
+/// Represents an error which occurs at runtime due to an undefined or invalid
+/// name; there is an associated stack trace.
 pub enum NameError {
     NoSuchVariable(String),
     NoSuchParameter(String),
@@ -5,6 +8,9 @@ pub enum NameError {
     InvalidTag(std::rc::Rc<str>),
 }
 
+#[allow(missing_docs)]
+/// Represents an error which occurs at runtime; there is an associated stack
+/// trace.
 pub enum RuntimeError {
     AttrMultipleValues(String),
     

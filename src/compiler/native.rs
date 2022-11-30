@@ -257,7 +257,7 @@ impl <'a> Compiler<'a> {
                     self.runtime_error(RuntimeError::WriteFileNotAllowed, call_range);
                     return None;
                 };
-                if !sink.push(path.as_ref(), content) {
+                if !sink.try_push(path.as_ref(), content) {
                     self.runtime_error(RuntimeError::PathNotInOutDir(path), call_range);
                     return None;
                 }

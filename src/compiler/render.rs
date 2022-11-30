@@ -1,10 +1,10 @@
 use std::io;
 
-use crate::utils::{StringPool, taginfo, str_ids};
-use crate::parser::text;
+use crate::utils::{StringPool, str_ids, taginfo, text};
 use super::html::HTML;
 use super::tag::Tag;
 
+/// Renders a compiled Papyri document to HTML (or plain text).
 pub struct Renderer<'a, T: io::Write> {
     string_pool: &'a StringPool,
     as_html: bool,
@@ -12,10 +12,13 @@ pub struct Renderer<'a, T: io::Write> {
 }
 
 impl <'a, T: io::Write> Renderer<'a, T> {
+    /// Creates a new renderer, which outputs to the given writer. If `as_html`
+    /// is false, the renderer will write plain text instead of HTML.
     pub fn new(string_pool: &'a StringPool, as_html: bool, writer: &'a mut T) -> Renderer<'a, T> {
         Renderer {string_pool, as_html, writer}
     }
     
+    /// Renders an HTML item to this renderer's output writer.
     pub fn render(&mut self, html: &HTML) -> Result<(), io::Error> {
         match html {
             HTML::Tag(tag) => {

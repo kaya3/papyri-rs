@@ -1,10 +1,31 @@
 use indexmap::IndexMap;
 
 use crate::errors::{ice_at, SyntaxError};
-use crate::utils::{taginfo, SourceRange};
+use crate::utils::{taginfo, SourceRange, NameID};
 use super::ast::*;
 use super::queue::Parser;
 use super::token::{Token, TokenKind};
+
+#[derive(Debug)]
+enum PositionalMatchPattern {
+    One(MatchPattern),
+    Spread(MatchPattern),
+}
+
+#[derive(Debug)]
+enum NamedMatchPattern {
+    One(NameID, MatchPattern),
+    Spread(MatchPattern),
+}
+
+impl NamedMatchPattern {
+    fn range(&self) -> &SourceRange {
+        match self {
+            NamedMatchPattern::One(_, p) |
+            NamedMatchPattern::Spread(p) => p.range(),
+        }
+    }
+}
 
 impl <'a> Parser<'a> {
     pub fn parse_match(&mut self, at: Token) -> Option<Match> {
@@ -26,12 +47,12 @@ impl <'a> Parser<'a> {
         })
     }
     
-    fn parse_match_branch(&mut self) -> Option<MatchBranch> {
+    fn parse_match_branch(&mut self) -> Option<(MatchPattern, AST)> {
         let pattern = self.parse_match_pattern()?;
         self.skip_whitespace();
         self.expect_poll_kind(TokenKind::Arrow)?;
         let then = self.parse_value()?;
-        Some(MatchBranch {pattern, then})
+        Some((pattern, then))
     }
     
     fn parse_match_pattern(&mut self) -> Option<MatchPattern> {
@@ -316,7 +337,7 @@ impl <'a> Parser<'a> {
             ))
         } else {
             let type_ = self.parse_type()?;
-            let range = pattern.range().to_end(type_.range().end);
+            let range = pattern.range().to_end(type_.range_end());
             Some(MatchPattern::Typed(
                 range,
                 Box::new(pattern),
