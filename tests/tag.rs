@@ -1,5 +1,3 @@
-use papyri_lang::errors::PapyriError;
-
 mod common;
 
 assert_ok! {
@@ -92,41 +90,41 @@ assert_ok! {
 assert_err! {
     unclosed_tag(
         "<span>",
-        PapyriError::SyntaxError(..),
+        SyntaxError::TagUnmatchedOpen,
     );
     
     unmatched_closing_tag(
         "</span>",
-        PapyriError::SyntaxError(..),
+        SyntaxError::TagUnmatchedClose,
     );
     
     incorrect_closing_tag(
         "<span></div>",
-        PapyriError::SyntaxError(..),
+        SyntaxError::TagUnmatchedOpen,
     );
     
     unclosed_template(
         r#"<span id="foobar>Foobar</span>"#,
-        PapyriError::SyntaxError(..),
+        SyntaxError::TokenExpectedWasEOF,
     );
     
     unmatched_self_closing(
         "<br></br>",
-        PapyriError::SyntaxError(..),
+        SyntaxError::TagUnmatchedClose,
     );
     
     duplicate_attribute(
         "<span id=`foo` id=`bar`>Foobar</span>",
-        PapyriError::SyntaxError(..),
+        SyntaxError::TagDuplicateAttr,
     );
     
     invalid_tag_name(
         "@let(t=`12345`). <$t>Foobar</>",
-        PapyriError::NameError(..),
+        NameError::InvalidTag,
     );
     
     duplicate_attribute_var(
         "<span id=`foo` **@dict(id=`bar`).>Foobar</span>",
-        PapyriError::RuntimeError(..),
+        RuntimeError::AttrMultipleValues,
     );
 }

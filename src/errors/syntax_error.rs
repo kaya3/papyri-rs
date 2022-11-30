@@ -52,6 +52,7 @@ pub enum SyntaxError {
     PatternNamedAfterSpread,
     PatternDuplicateName(String),
     PatternIncorrectCloseTag,
+    PatternCannotMatchHTML,
 }
 
 impl std::fmt::Display for SyntaxError {
@@ -101,7 +102,8 @@ impl std::fmt::Display for SyntaxError {
             SyntaxError::PatternNamedUnderscore => f.write_str("named pattern cannot begin with underscore"),
             SyntaxError::PatternNamedAfterSpread => f.write_str("named pattern cannot occur after spread"),
             SyntaxError::PatternDuplicateName(name) => write!(f, "duplicate named pattern '{name}'"),
-            SyntaxError::PatternIncorrectCloseTag => write!(f, "incorrect closing tag in match pattern; use </> for unnamed tag"),
+            SyntaxError::PatternIncorrectCloseTag => f.write_str("incorrect closing tag in match pattern; use </> for unnamed tag"),
+            SyntaxError::PatternCannotMatchHTML => f.write_str("this pattern cannot match HTML content")
         }
     }
 }

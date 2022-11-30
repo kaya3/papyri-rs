@@ -196,6 +196,22 @@ impl MatchPattern {
             MatchPattern::VarName(VarName {range, ..}) => range,
         }
     }
+    
+    pub fn can_match_html(&self) -> bool {
+        match self {
+            MatchPattern::Ignore(..) |
+            MatchPattern::LiteralNone(..) |
+            MatchPattern::VarName(..) |
+            MatchPattern::Tag(..) |
+            MatchPattern::ExactHTMLSeq(..) |
+            MatchPattern::SpreadHTMLSeq(..) => true,
+            
+            MatchPattern::Typed(_, t, _) |
+            MatchPattern::TypeOf(_, t, _) => t.can_match_html(),
+            
+            _ => false,
+        }
+    }
 }
 
 #[derive(Debug)]

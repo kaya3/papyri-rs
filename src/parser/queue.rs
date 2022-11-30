@@ -11,9 +11,14 @@ impl Diagnostics {
         self.syntax_error(SyntaxError::TokenUnexpected(tok.clone()), &tok.range);
     }
     
-    /// Reports a syntax error caused by an unmatched opening token.
+    /// Reports a syntax error caused by an unmatched opening or closing token.
     pub fn err_unmatched(&mut self, tok: &Token) {
-        self.syntax_error(SyntaxError::TokenUnmatched(tok.clone()), &tok.range);
+        let e = if tok.kind == TokenKind::CloseTag {
+            SyntaxError::TagUnmatchedClose
+        } else {
+            SyntaxError::TokenUnmatched(tok.clone())
+        };
+        self.syntax_error(e, &tok.range);
     }
 }
 

@@ -41,6 +41,11 @@ impl <T> SliceRef<T> {
         rc.into()
     }
     
+    /// Returns a reference to the element at index `i` in this slice.
+    pub fn get(&self, i: usize) -> &T {
+        &self.original[self.a + i]
+    }
+    
     /// Creates a new reference-counted pointer to a sub-slice of this slice,
     /// without copying.
     pub fn slice(&self, a: usize, b: usize) -> SliceRef<T> {

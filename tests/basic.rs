@@ -1,5 +1,3 @@
-use papyri_lang::errors::PapyriError;
-
 mod common;
 
 assert_ok! {
@@ -20,8 +18,5 @@ assert_ok! {
 }
 
 assert_err! {
-    raise(
-        "@raise `foobar`",
-        PapyriError::RuntimeError(..),
-    );
+    raise("@raise `foobar`", RuntimeError::Raised);
 }

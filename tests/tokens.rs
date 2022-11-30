@@ -1,5 +1,3 @@
-use papyri_lang::errors::PapyriError;
-
 mod common;
 
 assert_ok! {
@@ -50,8 +48,5 @@ assert_ok! {
 }
 
 assert_err! {
-    verbatim_eof(
-        "`some string literal",
-        PapyriError::SyntaxError(..),
-    );
+    verbatim_eof("`some string literal", SyntaxError::TokenVerbatimEOF);
 }

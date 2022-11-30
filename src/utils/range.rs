@@ -32,6 +32,16 @@ impl SourceRange {
         }
     }
     
+    /// Returns a new span, starting at the end of this one, with a new end
+    /// index.
+    pub fn from_end(&self, end: u32) -> SourceRange {
+        SourceRange {
+            src: self.src.clone(),
+            start: self.end,
+            end,
+        }
+    }
+    
     /// Returns a new span, with a starting index offset relative to this
     /// one's, ending at the same position as this one, 
     pub fn offset_start(&self, offset: u32) -> SourceRange {

@@ -26,11 +26,13 @@ assert_matches! {
     spread_list("[1, 2, 3]", "[1, *[2, 3]]");
     spread_dict("@dict(x=1, y=2, z=3).", "(x=1, **(y=2, z=3))");
     
-    tag_simple("<span>Foo</span>", "<span> _ </span>");
-    tag_attr("<span id=`foobar`>Foo</span>", "<span id=`foobar`> _ </span>");
-    tag_wildcard_name("<span>Foo</span>", "<_> _ </>");
+    tag_simple("<span>Foo</span>", "<span> *_ </span>");
+    tag_empty("<span/>", "<span/>");
+    tag_attr("<span id=`foobar`>Foo</span>", "<span id=`foobar`> *_ </span>");
+    tag_wildcard_name("<span>Foo</span>", "<_> *_ </>");
     tag_seq("{<a/><b/><i/>}", "{<a/><b/><i/>}");
-    tag_spread("{<a/><b/><i/><u/>}", "{<a/>*_<u/>}");
+    tag_spread("{<a/><b/><i/><u/>}", "{<a/> *_ <u/>}");
+    tag_one_in_seq("<span/>", "{<span/>}");
 }
 
 assert_ok! {
@@ -63,4 +65,8 @@ assert_ok! {
         "@match `foobar` {_: $t -> $t}",
         "<p>str</p>",
     );
+}
+
+assert_err! {
+    literal_in_html("@match 5 {{5} -> OK}", SyntaxError::PatternCannotMatchHTML);
 }

@@ -77,7 +77,7 @@ impl <'a> Compiler<'a> {
                     child_patterns,
                     *spread_index,
                     child_values.len(),
-                    |a, b| child_values.as_ref()[a..b].iter().cloned(),
+                    |i| child_values.get(i).clone(),
                     |a, b| Value::List(child_values.slice(a, b)),
                     bindings,
                 )
@@ -101,7 +101,7 @@ impl <'a> Compiler<'a> {
                     child_patterns,
                     *spread_index,
                     html_slice.len(),
-                    |a, b| html_slice[a..b].iter().map(Value::from),
+                    |i| Value::from(&html_slice[i]),
                     |a, b| HTML::seq(html_slice[a..b].iter().cloned()).into(),
                     bindings,
                 )
@@ -161,7 +161,15 @@ impl <'a> Compiler<'a> {
         }
     }
     
-    fn bind_all_with_spread<T: Iterator<Item=Value>>(&mut self, patterns: &[ast::MatchPattern], spread_index: usize, values_len: usize, f_each: impl Fn(usize, usize) -> T, f_spread: impl Fn(usize, usize) -> Value, bindings: &mut ValueMap) -> bool {
+    fn bind_all_with_spread(
+        &mut self,
+        patterns: &[ast::MatchPattern],
+        spread_index: usize,
+        values_len: usize,
+        f_one: impl Fn(usize) -> Value,
+        f_slice: impl Fn(usize, usize) -> Value,
+        bindings: &mut ValueMap,
+    ) -> bool {
         if values_len + 1 < patterns.len() { return false; }
         
         let i = spread_index;
@@ -171,9 +179,9 @@ impl <'a> Compiler<'a> {
         
         let j = values_len - post_patterns.len();
         
-        self.bind_all(pre_patterns, f_each(0, i), bindings)
-            && self.bind_pattern(spread_pattern, f_spread(i, j), bindings)
-            && self.bind_all(post_patterns, f_each(j, values_len), bindings)
+        self.bind_all(pre_patterns, (0..i).map(&f_one), bindings)
+            && self.bind_pattern(spread_pattern, f_slice(i, j), bindings)
+            && self.bind_all(post_patterns, (j..values_len).map(f_one), bindings)
     }
     
     fn bind_all<T: Iterator<Item=Value>>(&mut self, patterns: &[ast::MatchPattern], values: T, bindings: &mut ValueMap) -> bool {

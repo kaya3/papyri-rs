@@ -47,15 +47,16 @@ impl <'a> Parser<'a> {
                 self.parse_optional_typed_pattern(p)
             },
             
-            TokenKind::Dot |
+            TokenKind::Dot => Some(MatchPattern::LiteralNone(tok.range)),
+            
             TokenKind::Boolean |
             TokenKind::Number |
             TokenKind::Verbatim => Some(MatchPattern::Literal(tok)),
             
             TokenKind::LAngle => self.parse_tag_pattern(tok),
-            TokenKind::LSqb => self.parse_list_pattern(tok, TokenKind::Comma, TokenKind::RSqb),
+            TokenKind::LSqb => self.parse_seq_pattern(tok, TokenKind::Comma, TokenKind::RSqb).map(|(p, _)| p),
             TokenKind::LPar => self.parse_dict_pattern(tok),
-            TokenKind::LBrace => self.parse_list_pattern(tok, TokenKind::Whitespace, TokenKind::RBrace),
+            TokenKind::LBrace => self.parse_seq_pattern(tok, TokenKind::Whitespace, TokenKind::RBrace).map(|(p, _)| p),
             TokenKind::Quote(..) => self.parse_template_pattern(tok),
             
             TokenKind::Name => {
@@ -116,7 +117,7 @@ impl <'a> Parser<'a> {
         }
     }
     
-    fn parse_list_pattern(&mut self, open: Token, sep_kind: TokenKind, close_kind: TokenKind) -> Option<MatchPattern> {
+    fn parse_seq_pattern(&mut self, open: Token, sep_kind: TokenKind, close_kind: TokenKind) -> Option<(MatchPattern, Token)> {
         let (children, close) = self.parse_separated_until(
             &open,
             Parser::parse_positional_match_pattern,
@@ -142,9 +143,19 @@ impl <'a> Parser<'a> {
         }
         
         let is_list = open.kind == TokenKind::LSqb;
-        let range = open.range.to_end(close.range.end);
+        if !is_list {
+            for child in child_patterns.iter().filter(|p| !p.can_match_html()) {
+                self.diagnostics.syntax_error(SyntaxError::PatternCannotMatchHTML, child.range());
+            }
+        }
+        
+        let range = if close_kind == TokenKind::CloseTag {
+            open.range.from_end(close.range.start)
+        } else {
+            open.range.to_end(close.range.end)
+        };
         let child_patterns = child_patterns.into_boxed_slice();
-        Some(match spread_index {
+        let pattern = match spread_index {
             Some(spread_index) => if is_list {
                 MatchPattern::SpreadList(range, child_patterns, spread_index)
             } else {
@@ -157,7 +168,8 @@ impl <'a> Parser<'a> {
             } else {
                 MatchPattern::ExactHTMLSeq(range, child_patterns)
             },
-        })
+        };
+        Some((pattern, close))
     }
     
     fn parse_dict_pattern(&mut self, lpar: Token) -> Option<MatchPattern> {
@@ -212,10 +224,7 @@ impl <'a> Parser<'a> {
         } else if let Some(close_tag) = self.poll_if_kind(TokenKind::CloseTag) {
             (MatchPattern::LiteralNone(close_tag.range.clone()), close_tag)
         } else {
-            let content_pattern = self.parse_match_pattern()?;
-            self.skip_whitespace();
-            let close_tag = self.expect_poll_kind(TokenKind::CloseTag)?;
-            (content_pattern, close_tag)
+            self.parse_seq_pattern(rangle, TokenKind::Whitespace, TokenKind::CloseTag)?
         };
         
         if close_tag.kind == TokenKind::CloseTag && !close_tag.is_close_tag(&name_str) {

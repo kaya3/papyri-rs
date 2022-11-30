@@ -15,14 +15,14 @@ macro_rules! assert_ok {
 
 #[macro_export]
 macro_rules! assert_err {
-    ($($name: ident ($src: expr, $expected: pat$(,)?);)*) => {
+    ($($name: ident ($src: expr, $category: ident :: $expected: ident $(,)?);)*) => {
         $(
             #[test]
             fn $name() -> $crate::common::TestResult {
                 let Err(diagnostics) = papyri_lang::compile_str($src) else {
                     panic!("No errors");
                 };
-                if diagnostics.has_any(|d| matches!(d, $expected)) {
+                if diagnostics.has_any(|d| matches!(d, papyri_lang::errors::PapyriError::$category(papyri_lang::errors::$category::$expected {..}))) {
                     Ok(())
                 } else {
                     Err(diagnostics)
@@ -38,7 +38,9 @@ macro_rules! assert_matches {
         $(
             #[test]
             fn $name() -> $crate::common::TestResult {
-                let src = format!("@match {} {{{} -> OK, _ -> Failed}}", $val, $pattern);
+                let val = $val;
+                let pattern = $pattern;
+                let src = format!("@match {val} {{ {pattern} -> OK, _ -> Failed }}");
                 assert_eq!("<p>OK</p>", papyri_lang::compile_str(&src)?);
                 Ok(())
             }
