@@ -336,7 +336,7 @@ impl <'a> Compiler<'a> {
         
         if param.question_mark {
             type_ = Type::optional(type_);
-            default_value = default_value.or(Some(Value::Unit));
+            default_value = default_value.or(Some(Value::UNIT));
         }
         FuncParam {
             name_id: param.name_id,

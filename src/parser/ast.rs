@@ -139,6 +139,8 @@ pub enum MatchPattern {
     SpreadList(SourceRange, Box<[MatchPattern]>, usize),
     Dict(SourceRange, Box<DictMatchPattern>),
     Tag(SourceRange, Box<TagMatchPattern>),
+    ExactHTMLSeq(SourceRange, Box<[MatchPattern]>),
+    SpreadHTMLSeq(SourceRange, Box<[MatchPattern]>, usize),
 }
 
 #[derive(Debug)]
@@ -185,6 +187,8 @@ impl MatchPattern {
             MatchPattern::SpreadList(range, ..) |
             MatchPattern::Dict(range, ..) |
             MatchPattern::Tag(range, ..) |
+            MatchPattern::ExactHTMLSeq(range, ..) |
+            MatchPattern::SpreadHTMLSeq(range, ..) |
             MatchPattern::Regex(range, ..) |
             MatchPattern::LiteralNone(range) |
             MatchPattern::LiteralName(range, ..) |

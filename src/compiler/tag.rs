@@ -70,10 +70,9 @@ impl <'a> Compiler<'a> {
                     match attr.value.as_ref() {
                         Some(node) => {
                             let expected_type = if attr.question_mark { Type::optional(Type::Str) } else { Type::Str };
-                            match self.evaluate_node(node, &expected_type) {
-                                Some(Value::Str(s)) => { self.add_attr(&mut attrs, attr.name_id, Some(s), range); },
-                                Some(Value::Unit) | None => {},
-                                Some(_) => ice_at("failed to coerce", range),
+                            if let Some(v) = self.evaluate_node(node, &expected_type) {
+                                let s = v.to_optional_rc_str(range);
+                                if s.is_some() { self.add_attr(&mut attrs, attr.name_id, s, range); }
                             }
                         },
                         None => { self.add_attr(&mut attrs, attr.name_id, None, range); },
@@ -84,11 +83,8 @@ impl <'a> Compiler<'a> {
                     match self.evaluate_node(spread, &Type::dict(Type::optional(Type::Str))) {
                         Some(Value::Dict(dict)) => {
                             for (&k, v) in dict.iter() {
-                                match v {
-                                    Value::Str(s) => { self.add_attr(&mut attrs, k, Some(s.clone()), range); },
-                                    Value::Unit => { self.add_attr(&mut attrs, k, None, range); },
-                                    _ => ice_at("failed to coerce", range),
-                                }
+                                let s = v.to_optional_rc_str(range);
+                                self.add_attr(&mut attrs, k, s, range);
                             }
                         },
                         None => {},

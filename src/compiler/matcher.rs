@@ -1,6 +1,4 @@
-use std::rc::Rc;
-
-use crate::errors::{ice, ice_at, Warning};
+use crate::errors::{ice_at, Warning};
 use crate::parser::ast;
 use super::compiler::Compiler;
 use super::html::HTML;
@@ -20,19 +18,17 @@ impl <'a> Compiler<'a> {
         }
         
         self.diagnostics.warning(Warning::NoMatchingBranch, &match_.range);
-        Some(Value::Unit)
+        Some(Value::UNIT)
     }
     
     fn bind_pattern(&mut self, pattern: &ast::MatchPattern, value: Value, bindings: &mut ValueMap) -> bool {
         match pattern {
             ast::MatchPattern::Ignore(..) => true,
-            ast::MatchPattern::LiteralNone(_) => {
-                matches!(value, Value::Unit | Value::HTML(HTML::Empty))
-            },
+            ast::MatchPattern::LiteralNone(..) => value.is_unit(),
             ast::MatchPattern::Literal(other) => {
                 let Some(other) = self.evaluate_literal(other) else { return false; };
                 match (value, other) {
-                    (Value::Unit, Value::Unit) => true,
+                    (v, o) if o.is_unit() => v.is_unit(),
                     (Value::Bool(a), Value::Bool(b)) => a == b,
                     (Value::Int(i), Value::Int(j)) => i == j,
                     (Value::Int(i), Value::Str(s)) => i.to_string() == *s,
@@ -54,29 +50,61 @@ impl <'a> Compiler<'a> {
                 }
             },
             ast::MatchPattern::TypeOf(_, child, t_var) => {
-                let t = Value::Str(Rc::from(value.get_type().to_string()));
+                let t = Value::from(value.get_type().to_string());
                 self.bind_one(t_var, t, bindings);
                 self.bind_pattern(child, value, bindings)
             },
             ast::MatchPattern::ExactList(_, child_patterns) => {
                 let Value::List(child_values) = value else { return false; };
                 child_patterns.len() == child_values.len()
-                    && self.bind_all(child_patterns, child_values.as_ref(), bindings)
+                    && self.bind_all(child_patterns, child_values.as_ref().iter().cloned(), bindings)
+            },
+            ast::MatchPattern::ExactHTMLSeq(_, child_patterns) => {
+                let Value::HTML(html) = value else { return false; };
+                match html {
+                    HTML::Empty => child_patterns.is_empty(),
+                    HTML::Sequence(seq) => {
+                        if child_patterns.len() != seq.len() { return false; }
+                        let child_values = seq.iter().map(Value::from);
+                        self.bind_all(child_patterns, child_values, bindings)
+                    },
+                    _ => child_patterns.len() == 1 && self.bind_pattern(&child_patterns[0], Value::from(html), bindings),
+                }
             },
             ast::MatchPattern::SpreadList(_, child_patterns, spread_index) => {
                 let Value::List(child_values) = value else { return false; };
-                if child_values.len() < child_patterns.len() - 1 { return false; }
+                self.bind_all_with_spread(
+                    child_patterns,
+                    *spread_index,
+                    child_values.len(),
+                    |a, b| child_values.as_ref()[a..b].iter().cloned(),
+                    |a, b| Value::List(child_values.slice(a, b)),
+                    bindings,
+                )
+            },
+            ast::MatchPattern::SpreadHTMLSeq(_, child_patterns, spread_index) => {
+                let Value::HTML(html) = value else { return false; };
                 
-                let i = *spread_index;
-                let pre_patterns = &child_patterns[..i];
-                let spread_pattern = &child_patterns[i];
-                let post_patterns = &child_patterns[i + 1..];
+                let html_slice = match &html {
+                    HTML::Empty => {
+                        if child_patterns.len() != 1 { return false; }
+                        &[]
+                    },
+                    HTML::Sequence(seq) => {
+                        if seq.len() + 1 < child_patterns.len() { return false; }
+                        seq.as_ref()
+                    },
+                    _ => std::slice::from_ref(&html),
+                };
                 
-                let j = child_values.len() - post_patterns.len();
-                
-                self.bind_all(pre_patterns, &child_values.as_ref()[..i], bindings)
-                    && self.bind_pattern(spread_pattern, Value::List(child_values.slice(i, j)), bindings)
-                    && self.bind_all(post_patterns, &child_values.as_ref()[j..], bindings)
+                self.bind_all_with_spread(
+                    child_patterns,
+                    *spread_index,
+                    html_slice.len(),
+                    |a, b| html_slice[a..b].iter().map(Value::from),
+                    |a, b| HTML::seq(html_slice[a..b].iter().cloned()).into(),
+                    bindings,
+                )
             },
             ast::MatchPattern::Dict(_, dict_pattern) => {
                 let Value::Dict(dict_value) = value else { return false; };
@@ -125,7 +153,7 @@ impl <'a> Compiler<'a> {
                     .zip(name_ids.iter());
                 
                 for (s, var) in match_ {
-                    let v = s.map_or(Value::Unit, |m| m.as_str().into());
+                    let v = s.map_or(Value::UNIT, |m| m.as_str().into());
                     self.bind_one(var, v, bindings);
                 }
                 true
@@ -133,11 +161,25 @@ impl <'a> Compiler<'a> {
         }
     }
     
-    fn bind_all(&mut self, patterns: &[ast::MatchPattern], values: &[Value], bindings: &mut ValueMap) -> bool {
-        if patterns.len() != values.len() { ice("unequal numbers of patterns and values to bind"); }
+    fn bind_all_with_spread<T: Iterator<Item=Value>>(&mut self, patterns: &[ast::MatchPattern], spread_index: usize, values_len: usize, f_each: impl Fn(usize, usize) -> T, f_spread: impl Fn(usize, usize) -> Value, bindings: &mut ValueMap) -> bool {
+        if values_len + 1 < patterns.len() { return false; }
+        
+        let i = spread_index;
+        let pre_patterns = &patterns[..i];
+        let spread_pattern = &patterns[i];
+        let post_patterns = &patterns[i + 1..];
+        
+        let j = values_len - post_patterns.len();
+        
+        self.bind_all(pre_patterns, f_each(0, i), bindings)
+            && self.bind_pattern(spread_pattern, f_spread(i, j), bindings)
+            && self.bind_all(post_patterns, f_each(j, values_len), bindings)
+    }
+    
+    fn bind_all<T: Iterator<Item=Value>>(&mut self, patterns: &[ast::MatchPattern], values: T, bindings: &mut ValueMap) -> bool {
         patterns.iter()
-            .zip(values.iter())
-            .all(|(p, v)| self.bind_pattern(p, v.clone(), bindings))
+            .zip(values)
+            .all(|(p, v)| self.bind_pattern(p, v, bindings))
     }
     
     fn bind_one(&mut self, var: &ast::VarName, value: Value, bindings: &mut ValueMap) {

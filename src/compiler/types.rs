@@ -135,13 +135,14 @@ impl <'a> Compiler<'a> {
     
     fn _coerce(&mut self, value: Value, mut expected: &Type, range: Option<&SourceRange>) -> Option<Value> {
         if let Type::Optional(t) = expected {
-            if matches!(value, Value::Unit) { return Some(value); }
+            if value.is_unit() { return Some(Value::UNIT); }
             expected = t;
         }
         
         match (expected, &value) {
+            (Type::Unit, v) if v.is_unit() => return Some(Value::UNIT),
+            
             (Type::AnyValue, _) |
-            (Type::Unit, Value::Unit) |
             (Type::Bool, Value::Bool(..)) |
             (Type::Int, Value::Int(..)) |
             (Type::Str, Value::Str(..)) |
@@ -201,8 +202,6 @@ impl <'a> Compiler<'a> {
                     Some(Value::HTML(v))
                 }
             },
-            
-            (Type::Unit, Value::HTML(HTML::Empty)) => return Some(Value::Unit),
             
             _ => {},
         }

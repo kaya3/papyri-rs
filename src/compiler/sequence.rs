@@ -67,7 +67,7 @@ impl SequenceBuilder {
         while matches!(self.children.last(), Some(c) if c.is_whitespace()) {
             self.children.pop();
         }
-        HTML::seq(&self.children)
+        HTML::seq(self.children)
     }
     
     fn newline(&mut self) {

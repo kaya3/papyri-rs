@@ -1,4 +1,4 @@
-use crate::errors::ice;
+use crate::errors::ice_at;
 use crate::utils::SourceRange;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -143,7 +143,7 @@ impl Token {
     
     /// Returns the `bool` value of a Boolean literal token.
     pub fn get_bool_value(&self) -> bool {
-        if self.kind != TokenKind::Boolean { ice("token is not Boolean"); }
+        if self.kind != TokenKind::Boolean { ice_at("token is not Boolean", &self.range); }
         self.as_str() == "True"
     }
     
@@ -157,25 +157,25 @@ impl Token {
     pub fn get_func_name(&self) -> &str {
         match self.kind {
             TokenKind::FuncName => &self.as_str()[1..],
-            _ => ice("token is not FuncName"),
+            _ => ice_at("token is not FuncName", &self.range),
         }
     }
     
     /// Returns the variable name from this VarName token.
     pub fn get_var_name(&self) -> &str {
-        if self.kind != TokenKind::VarName { ice("token is not VarName"); }
+        if self.kind != TokenKind::VarName { ice_at("token is not VarName", &self.range); }
         &self.as_str()[1..]
     }
     
     /// Returns the raw text of this Verbatim token.
     pub fn get_verbatim_text(&self) -> &str {
-        if self.kind != TokenKind::Verbatim { ice("token is not Verbatim"); }
+        if self.kind != TokenKind::Verbatim { ice_at("token is not Verbatim", &self.range); }
         self.as_str().trim_matches('`')
     }
     
     /// Indicates whether this Verbatim token is a multi-line string literal.
     pub fn is_multiline_verbatim(&self) -> bool {
-        if self.kind != TokenKind::Verbatim { ice("token is not Verbatim"); }
+        if self.kind != TokenKind::Verbatim { ice_at("token is not Verbatim", &self.range); }
         self.as_str().starts_with("```")
     }
     

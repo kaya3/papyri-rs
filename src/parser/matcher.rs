@@ -53,8 +53,9 @@ impl <'a> Parser<'a> {
             TokenKind::Verbatim => Some(MatchPattern::Literal(tok)),
             
             TokenKind::LAngle => self.parse_tag_pattern(tok),
-            TokenKind::LSqb => self.parse_list_pattern(tok),
+            TokenKind::LSqb => self.parse_list_pattern(tok, TokenKind::Comma, TokenKind::RSqb),
             TokenKind::LPar => self.parse_dict_pattern(tok),
+            TokenKind::LBrace => self.parse_list_pattern(tok, TokenKind::Whitespace, TokenKind::RBrace),
             TokenKind::Quote(..) => self.parse_template_pattern(tok),
             
             TokenKind::Name => {
@@ -115,12 +116,12 @@ impl <'a> Parser<'a> {
         }
     }
     
-    fn parse_list_pattern(&mut self, lsqb: Token) -> Option<MatchPattern> {
-        let (children, rsqb) = self.parse_separated_until(
-            &lsqb,
+    fn parse_list_pattern(&mut self, open: Token, sep_kind: TokenKind, close_kind: TokenKind) -> Option<MatchPattern> {
+        let (children, close) = self.parse_separated_until(
+            &open,
             Parser::parse_positional_match_pattern,
-            TokenKind::Comma,
-            TokenKind::RSqb,
+            sep_kind,
+            close_kind,
         )?;
         
         let mut child_patterns = Vec::new();
@@ -140,11 +141,22 @@ impl <'a> Parser<'a> {
             child_patterns.push(child);
         }
         
-        let range = lsqb.range.to_end(rsqb.range.end);
+        let is_list = open.kind == TokenKind::LSqb;
+        let range = open.range.to_end(close.range.end);
         let child_patterns = child_patterns.into_boxed_slice();
         Some(match spread_index {
-            Some(spread_index) => MatchPattern::SpreadList(range, child_patterns, spread_index),
-            None => MatchPattern::ExactList(range, child_patterns),
+            Some(spread_index) => if is_list {
+                MatchPattern::SpreadList(range, child_patterns, spread_index)
+            } else {
+                MatchPattern::SpreadHTMLSeq(range, child_patterns, spread_index)
+            },
+            None => if is_list {
+                MatchPattern::ExactList(range, child_patterns)
+            } else if child_patterns.is_empty() {
+                MatchPattern::LiteralNone(range)
+            } else {
+                MatchPattern::ExactHTMLSeq(range, child_patterns)
+            },
         })
     }
     

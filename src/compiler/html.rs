@@ -30,19 +30,18 @@ impl From<String> for HTML {
 impl HTML {
     pub fn from_value(value: Value, string_pool: &mut StringPool) -> HTML {
         match value {
-            Value::Unit => HTML::Empty,
             Value::Bool(b) => Token::bool_to_string(b).into(),
             Value::Int(t) => text::substitutions(&t.to_string()).into(),
             Value::Str(t) => HTML::Text(t),
             Value::Dict(vs) => {
                 let rows: Vec<HTML> = vs.iter()
-                    .map(|(&k, v)| HTML::tag(str_ids::TR, HTML::seq(&[
+                    .map(|(&k, v)| HTML::tag(str_ids::TR, HTML::seq([
                         HTML::tag(str_ids::TH, HTML::text(string_pool.get(k))),
                         HTML::tag(str_ids::TD, HTML::from_value(v.clone(), string_pool)),
                     ])))
                     .collect();
                 
-                Tag::new(str_ids::TABLE, HTML::seq(&rows))
+                Tag::new(str_ids::TABLE, HTML::seq(rows))
                     .str_attr(str_ids::CLASS, "tabular-data")
                     .into()
             },
@@ -51,7 +50,7 @@ impl HTML {
                     .iter()
                     .map(|child| HTML::tag(str_ids::LI, HTML::from_value(child.clone(), string_pool)))
                     .collect();
-                HTML::tag(str_ids::UL, HTML::seq(&items))
+                HTML::tag(str_ids::UL, HTML::seq(items))
             },
             Value::HTML(html) => html,
             
@@ -74,13 +73,20 @@ impl HTML {
         Tag::new(name_id, content).into()
     }
     
-    pub fn seq(content: &[HTML]) -> HTML {
-        if content.is_empty() {
-            HTML::Empty
-        } else if content.len() == 1 {
-            content[0].clone()
+    pub fn seq<T: IntoIterator<Item=HTML>>(content: T) -> HTML {
+        let mut seq = Vec::new();
+        for child in content.into_iter() {
+            match child {
+                HTML::Empty => {},
+                HTML::Sequence(grandchildren) => seq.extend(grandchildren.iter().cloned()),
+                _ => seq.push(child.clone()),
+            }
+        }
+        
+        if seq.len() >= 2 {
+            HTML::Sequence(Rc::from(seq))
         } else {
-            HTML::Sequence(Rc::from(content))
+            seq.pop().unwrap_or(HTML::Empty)
         }
     }
     

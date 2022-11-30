@@ -1,6 +1,6 @@
 use indexmap::IndexSet;
 
-use crate::errors::ice;
+use crate::errors;
 use super::const_strs::CONST_STRS;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
@@ -48,7 +48,7 @@ impl StringPool {
     pub fn get(&self, id: NameID) -> &str {
         let id = id.0 as usize;
         let Some(s) = self.0.get_index(id) else {
-            ice(&format!("no string with ID {id}"));
+            errors::ice(&format!("no string with ID {id}"));
         };
         s
     }

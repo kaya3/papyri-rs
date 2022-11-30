@@ -11,7 +11,6 @@ use super::types::Type;
 
 #[derive(Debug, Clone)]
 pub enum Value {
-    Unit,
     Bool(bool),
     Int(i64),
     Str(Rc<str>),
@@ -37,7 +36,7 @@ impl From<String> for Value {
 
 impl From<Option<Rc<str>>> for Value {
     fn from(s: Option<Rc<str>>) -> Self {
-        s.map_or(Value::Unit, Value::Str)
+        s.map_or(Value::UNIT, Value::Str)
     }
 }
 
@@ -54,6 +53,8 @@ impl From<&HTML> for Value {
 }
 
 impl Value {
+    pub const UNIT: Value = Value::HTML(HTML::Empty);
+    
     pub fn int(i: i64) -> Value {
         Value::Int(i)
     }
@@ -66,14 +67,25 @@ impl Value {
         Value::List(SliceRef::from(vs))
     }
     
+    pub fn is_unit(&self) -> bool {
+        matches!(self, Value::HTML(HTML::Empty))
+    }
+    
+    pub fn to_optional_rc_str(&self, range: &SourceRange) -> Option<Rc<str>> {
+        match self {
+            Value::Str(s) => Some(s.clone()),
+            v if v.is_unit() => None,
+            _ => ice_at("failed to coerce", range),
+        }
+    }
+    
     pub fn get_type(&self) -> Type {
         match self {
-            Value::Unit => Type::Unit,
             Value::Bool(..) => Type::Bool,
             Value::Int(..) => Type::Int,
             Value::Str(..) => Type::Str,
             Value::Dict(vs) => {
-                if vs.is_empty() { return Type::Unit; }
+                if vs.is_empty() { return Type::dict(Type::Unit); }
                 let mut vs = vs.values();
                 let mut t = vs.next().unwrap().get_type();
                 for v in vs {
@@ -83,14 +95,14 @@ impl Value {
             },
             Value::List(vs) => {
                 let vs = vs.as_ref();
-                if vs.is_empty() { return Type::Unit; }
+                if vs.is_empty() { return Type::list(Type::Unit); }
                 let mut t = vs[0].get_type();
                 for v in &vs[1..] {
                     t = t.least_upper_bound(&v.get_type());
                 }
                 Type::list(t)
             },
-            Value::HTML(html) => if html.is_block() { Type::Block } else { Type::Inline },
+            Value::HTML(html) => if html.is_empty() { Type::Unit } else if html.is_block() { Type::Block } else { Type::Inline },
             Value::Func(..) => Type::Function,
         }
     }
@@ -169,10 +181,10 @@ impl <'a> Compiler<'a> {
                     out += s;
                 },
                 ast::TemplatePart::VarName(var) => {
-                    match self.evaluate_var(var, &Type::optional(Type::Str)) {
-                        Some(Value::Str(t)) => out += &t,
-                        Some(Value::Unit) | None => {},
-                        _ => ice_at("coercion failed", &var.range),
+                    if let Some(v) = self.evaluate_var(var, &Type::optional(Type::Str)) {
+                        if let Some(s) = v.to_optional_rc_str(&var.range) {
+                            out += s.as_ref();
+                        }
                     }
                 },
                 ast::TemplatePart::Whitespace => {
@@ -185,7 +197,7 @@ impl <'a> Compiler<'a> {
     
     pub fn evaluate_literal(&mut self, tok: &Token) -> Option<Value> {
         match tok.kind {
-            TokenKind::Dot => Some(Value::Unit),
+            TokenKind::Dot => Some(Value::UNIT),
             TokenKind::Boolean => Some(Value::Bool(tok.get_bool_value())),
             TokenKind::Name => Some(tok.as_str().into()),
             TokenKind::Verbatim => Some(tok.get_verbatim_text().into()),

@@ -2,7 +2,7 @@ use std::ops::Range;
 
 use once_cell::sync::Lazy;
 
-use crate::errors::ice;
+use crate::errors;
 use crate::utils::str_ids;
 use super::html::HTML;
 use super::tag::Tag;
@@ -34,7 +34,7 @@ fn matching_paren(s: &str) -> &'static str {
         "(" => ")",
         "{" => "}",
         "[" => "]",
-        _ => ice("not a paren"),
+        _ => errors::ice("not a paren"),
     }
 }
 
@@ -137,8 +137,7 @@ impl <'a> LineHighlighter<'a> {
     
     pub fn take_line(&mut self) -> HTML {
         self.close_part();
-        let line = HTML::seq(&self.parts);
-        self.parts.clear();
+        let line = HTML::seq(std::mem::take(&mut self.parts));
         self.current_token_kind = None;
         line
     }
@@ -191,7 +190,7 @@ pub fn enumerate_lines(lines: Vec<HTML>, start: i64) -> HTML {
         out.push(HTML::from(tag));
         out.push(HTML::RawNewline);
     }
-    HTML::seq(&out)
+    HTML::seq(out)
 }
 
 fn no_highlighting(src: &str) -> Vec<HTML> {

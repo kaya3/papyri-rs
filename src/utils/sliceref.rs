@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use crate::errors::ice;
+use crate::errors;
 
 #[derive(Debug, Clone)]
 /// A reference-counted pointer to a slice, allowing reference-counted pointers
@@ -12,13 +12,13 @@ pub struct SliceRef<T> {
 }
 
 impl <T> From<Vec<T>> for SliceRef<T> {
-    fn from(original: Vec<T>) -> Self {
-        Self::from(Rc::from(original))
+    fn from(original: Vec<T>) -> SliceRef<T> {
+        SliceRef::from(Rc::from(original))
     }
 }
 
 impl <T> From<Rc<[T]>> for SliceRef<T> {
-    fn from(original: Rc<[T]>) -> Self {
+    fn from(original: Rc<[T]>) -> SliceRef<T> {
         let b = original.len();
         SliceRef {original, a: 0, b}
     }
@@ -31,10 +31,20 @@ impl <T> AsRef<[T]> for SliceRef<T> {
 }
 
 impl <T> SliceRef<T> {
+    pub fn empty() -> SliceRef<T> {
+        let rc: Rc<[T]> = Rc::from([]);
+        rc.into()
+    }
+    
+    pub fn of_one(t: T) -> SliceRef<T> {
+        let rc: Rc<[T]> = Rc::new([t]);
+        rc.into()
+    }
+    
     /// Creates a new reference-counted pointer to a sub-slice of this slice,
     /// without copying.
     pub fn slice(&self, a: usize, b: usize) -> SliceRef<T> {
-        if a > b || self.a + b > self.original.len() { ice("illegal slice"); }
+        if a > b || self.a + b > self.original.len() { errors::ice("illegal slice"); }
         
         SliceRef {
             original: self.original.clone(),

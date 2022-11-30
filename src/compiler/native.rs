@@ -57,9 +57,9 @@ pub fn get_natives_frame() -> ActiveFrame {
         positional_params: Box::new([]),
         spread_param: None,
         named_params: IndexMap::from([
-            (str_ids::LANGUAGE, FuncParam::new(str_ids::LANGUAGE, Type::optional(Type::Str)).implicit().with_default(Value::Unit)),
+            (str_ids::LANGUAGE, FuncParam::new(str_ids::LANGUAGE, Type::optional(Type::Str)).implicit().with_default(Value::UNIT)),
             (str_ids::CODE_BLOCK, FuncParam::new(str_ids::CODE_BLOCK, Type::Bool).with_default(Value::Bool(false))),
-            (str_ids::FIRST_LINE_NO, FuncParam::new(str_ids::FIRST_LINE_NO, Type::optional(Type::Int)).with_default(Value::Unit)),
+            (str_ids::FIRST_LINE_NO, FuncParam::new(str_ids::FIRST_LINE_NO, Type::optional(Type::Int)).with_default(Value::UNIT)),
         ]),
         spread_named_param: None,
         content_param: FuncParam::new(str_ids::CONTENT, Type::Str),
@@ -203,7 +203,7 @@ impl <'a> Compiler<'a> {
                     )?;
                     out.push(self.compile_value(r));
                 }
-                return Some(HTML::seq(&out).into());
+                return Some(HTML::seq(out).into());
             },
             
             NativeFunc::Raise => {
@@ -241,7 +241,7 @@ impl <'a> Compiler<'a> {
                     enumerate_lines(r, first_line_no)
                 } else {
                     if r.len() > 1 { self.runtime_warning(RuntimeWarning::InlineHighlightMultiline, call_range); }
-                    HTML::seq(&r)
+                    HTML::seq(r)
                 }.into());
             },
             
@@ -264,10 +264,10 @@ impl <'a> Compiler<'a> {
             },
         }
         
-        Some(Value::Unit)
+        Some(Value::UNIT)
     }
 }
 
 fn take_val(bindings: &mut ValueMap, key: NameID) -> Option<Value> {
-    bindings.insert(key, Value::Unit)
+    bindings.insert(key, Value::UNIT)
 }

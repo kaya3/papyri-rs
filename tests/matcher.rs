@@ -9,6 +9,13 @@ assert_matches! {
     literal_list("[1, 2]", "[1, 2]");
     literal_dict("@dict(x=1, y=2).", "(x=1, y=2)");
     
+    unit_dot_dot(".", ".");
+    unit_dot_braces(".", "{}");
+    unit_braces_dot("{}", ".");
+    unit_braces_braces("{}", "{}");
+    typed_unit_dot(".", "_: none");
+    typed_unit_braces("{}", "_: none");
+    
     typed_int("23", "_: int");
     typed_str("`foobar`", "_: str");
     typed_bool("True", "_: bool");
@@ -22,6 +29,8 @@ assert_matches! {
     tag_simple("<span>Foo</span>", "<span> _ </span>");
     tag_attr("<span id=`foobar`>Foo</span>", "<span id=`foobar`> _ </span>");
     tag_wildcard_name("<span>Foo</span>", "<_> _ </>");
+    tag_seq("{<a/><b/><i/>}", "{<a/><b/><i/>}");
+    tag_spread("{<a/><b/><i/><u/>}", "{<a/>*_<u/>}");
 }
 
 assert_ok! {
@@ -38,6 +47,16 @@ assert_ok! {
     template_part(
         r#"@match `hello world` {"hello $x" -> $x}"#,
         "<p>world</p>",
+    );
+    
+    tag_part(
+        "@match {<a/><b>Foo</b><i/>} {{<a/>$x<i/>} -> $x}",
+        "<p><b>Foo</b></p>"
+    );
+    
+    tag_spread_part(
+        "@match {<a/><b>Foo</b><b>Bar</b><i/>} {{<a/>*$x<i/>} -> $x}",
+        "<p><b>Foo</b><b>Bar</b></p>"
     );
     
     type_of(
