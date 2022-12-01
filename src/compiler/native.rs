@@ -243,7 +243,7 @@ impl <'a> Compiler<'a> {
                     ice_at("failed to unpack", call_range);
                 };
                 
-                let Some(ref mut sink) = self.ctx.out_files else {
+                let Some(sink) = self.ctx.out_files.as_deref_mut() else {
                     self.runtime_error(RuntimeError::WriteFileNotAllowed, call_range);
                     return None;
                 };

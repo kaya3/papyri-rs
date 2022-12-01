@@ -170,11 +170,7 @@ impl <'a> Parser<'a> {
             }
         }
         
-        let range = if close_kind == TokenKind::CloseTag {
-            open.range.from_end(close.range.start)
-        } else {
-            open.range.to_end(close.range.end)
-        };
+        let range = open.range.to_end(close.range.end);
         let child_patterns = child_patterns.into_boxed_slice();
         let pattern = match spread_index {
             Some(spread_index) => if is_list {
@@ -245,7 +241,10 @@ impl <'a> Parser<'a> {
         } else if let Some(close_tag) = self.poll_if_kind(TokenKind::CloseTag) {
             (MatchPattern::LiteralNone(close_tag.range.clone()), close_tag)
         } else {
-            self.parse_seq_pattern(rangle, TokenKind::Whitespace, TokenKind::CloseTag)?
+            let content = self.parse_match_pattern()?;
+            self.skip_whitespace();
+            let close_tag = self.expect_poll_kind(TokenKind::CloseTag)?;
+            (content, close_tag)
         };
         
         if close_tag.kind == TokenKind::CloseTag && !close_tag.is_close_tag(&name_str) {

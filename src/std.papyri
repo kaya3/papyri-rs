@@ -19,17 +19,17 @@
 @fn typeof $v -> @match $v {_: $t -> $t}
 
 @fn attributes(**$d: str? dict) $v: html -> @match $v {
-    <$t **$a>*$v</> -> <$t **$a **$d>$v</>,
+    <$t **$a>$v</> -> <$t **$a **$d>$v</>,
     _: $t -> @raise "expected tag, was $t",
 }
 @fn class($_c: str) $v: html -> @match $v {
-    <$t class=$o **$a>*$v</> -> <$t class="$o $_c" **$a>$v</>,
-    <$t **$a>*$v</> -> <$t class=$_c **$a>$v</>,
+    <$t class=$o **$a>$v</> -> <$t class="$o $_c" **$a>$v</>,
+    <$t **$a>$v</> -> <$t class=$_c **$a>$v</>,
     _: $t -> @raise "expected tag, was $t",
 }
 @fn style($_s: str) $v: html -> @match $v {
-    <$t style=$o **$a>*$v</> -> <$t style="$o$_s" **$a>$v</>,
-    <$t **$a>*$v</> -> <$t style=$_s **$a>$v</>,
+    <$t style=$o **$a>$v</> -> <$t style="$o$_s" **$a>$v</>,
+    <$t **$a>$v</> -> <$t style=$_s **$a>$v</>,
     _: $t -> @raise "expected tag, was $t",
 }
 
