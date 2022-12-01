@@ -57,7 +57,6 @@ const_strs!(
     FIGCAPTION = "figcaption",
     FIGURE = "figure",
     FIRST_LINE_NO = "first_line_no",
-    FIX_INDENTATION = "fix_indentation",
     FOOTER = "footer",
     FORM = "form",
     H1 = "h1",

@@ -16,7 +16,6 @@ use super::value::{Value, ValueMap};
 pub enum NativeFunc {
     Code,
     Export,
-    FixIndentation,
     Implicit,
     Import,
     Include,
@@ -44,6 +43,18 @@ pub fn get_natives_frame() -> ActiveFrame {
         content_param: FuncParam::new(str_ids::CONTENT, Type::Str),
     });
     
+    let code = Rc::new(FuncSignature {
+        positional_params: Box::new([]),
+        spread_param: None,
+        named_params: IndexMap::from([
+            (str_ids::LANGUAGE, FuncParam::new(str_ids::LANGUAGE, Type::optional(Type::Str)).implicit().with_default(Value::UNIT)),
+            (str_ids::CODE_BLOCK, FuncParam::new(str_ids::CODE_BLOCK, Type::Bool).with_default(Value::Bool(false))),
+            (str_ids::FIRST_LINE_NO, FuncParam::new(str_ids::FIRST_LINE_NO, Type::Int).with_default(Value::Int(1))),
+        ]),
+        spread_named_param: None,
+        content_param: FuncParam::new(str_ids::CONTENT, Type::Str),
+    });
+    
     let map = Rc::new(FuncSignature {
         positional_params: Box::new([
             FuncParam::new(str_ids::_0, Type::Function),
@@ -52,18 +63,6 @@ pub fn get_natives_frame() -> ActiveFrame {
         named_params: IndexMap::new(),
         spread_named_param: None,
         content_param: FuncParam::new(str_ids::CONTENT, Type::list(Type::AnyValue)),
-    });
-    
-    let syntax_highlight = Rc::new(FuncSignature {
-        positional_params: Box::new([]),
-        spread_param: None,
-        named_params: IndexMap::from([
-            (str_ids::LANGUAGE, FuncParam::new(str_ids::LANGUAGE, Type::optional(Type::Str)).implicit().with_default(Value::UNIT)),
-            (str_ids::CODE_BLOCK, FuncParam::new(str_ids::CODE_BLOCK, Type::Bool).with_default(Value::Bool(false))),
-            (str_ids::FIRST_LINE_NO, FuncParam::new(str_ids::FIRST_LINE_NO, Type::optional(Type::Int)).with_default(Value::UNIT)),
-        ]),
-        spread_named_param: None,
-        content_param: FuncParam::new(str_ids::CONTENT, Type::Str),
     });
     
     let write_file = Rc::new(FuncSignature {
@@ -77,9 +76,8 @@ pub fn get_natives_frame() -> ActiveFrame {
     });
     
     let bindings: ValueMap = [
-        (NativeFunc::Code, syntax_highlight),
+        (NativeFunc::Code, code),
         (NativeFunc::Export, args_dict.clone()),
-        (NativeFunc::FixIndentation, content_str.clone()),
         (NativeFunc::Implicit, args_dict.clone()),
         (NativeFunc::Import, content_str.clone()),
         (NativeFunc::Include, content_str.clone()),
@@ -100,7 +98,6 @@ impl NativeFunc {
         match self {
             NativeFunc::Code => str_ids::CODE,
             NativeFunc::Export => str_ids::EXPORT,
-            NativeFunc::FixIndentation => str_ids::FIX_INDENTATION,
             NativeFunc::Implicit => str_ids::IMPLICIT,
             NativeFunc::Import => str_ids::IMPORT,
             NativeFunc::Include => str_ids::INCLUDE,
@@ -118,7 +115,12 @@ impl <'a> Compiler<'a> {
         let bindings = &mut bindings;
         match f {
             NativeFunc::Code => {
-                let (Some(language), Some(Value::Bool(is_block)), Some(first_line_no), Some(Value::Str(src))) = (
+                let (
+                    Some(language),
+                    Some(Value::Bool(is_block)),
+                    Some(Value::Int(first_line_no)),
+                    Some(Value::Str(src)),
+                ) = (
                     take_val(bindings, str_ids::LANGUAGE),
                     take_val(bindings, str_ids::CODE_BLOCK),
                     take_val(bindings, str_ids::FIRST_LINE_NO),
@@ -138,11 +140,6 @@ impl <'a> Compiler<'a> {
                     (None, src.as_ref())
                 };
                 
-                let first_line_no = if let Value::Int(i) = first_line_no {
-                    if !is_block { self.runtime_warning(RuntimeWarning::InlineHighlightEnumerate, call_range); }
-                    i
-                } else { 1 };
-                
                 return self.native_code_impl(language, is_block, first_line_no, src, call_range);
             },
             
@@ -157,13 +154,6 @@ impl <'a> Compiler<'a> {
                         self.warning(Warning::NameAlreadyExported(name), call_range);
                     }
                 }
-            },
-            
-            NativeFunc::FixIndentation => {
-                let Some(Value::Str(content)) = take_val(bindings, str_ids::CONTENT) else {
-                    ice_at("failed to unpack", call_range);
-                };
-                return Some(text::fix_indentation(content.as_ref()).into());
             },
             
             NativeFunc::Import | NativeFunc::Include | NativeFunc::ListFiles => {
@@ -292,7 +282,12 @@ impl <'a> Compiler<'a> {
         tag.content = if is_block {
             enumerate_lines(lines, first_line_no)
         } else {
-            if lines.len() > 1 { self.runtime_warning(RuntimeWarning::InlineHighlightMultiline, call_range); }
+            if first_line_no != 1 {
+                self.runtime_warning(RuntimeWarning::InlineHighlightEnumerate, call_range);
+            }
+            if lines.len() > 1 {
+                self.runtime_warning(RuntimeWarning::InlineHighlightMultiline, call_range);
+            }
             HTML::seq(lines)
         };
         
