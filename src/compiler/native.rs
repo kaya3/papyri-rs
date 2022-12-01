@@ -5,9 +5,10 @@ use crate::errors::{ice_at, RuntimeError, Warning, RuntimeWarning, ModuleError};
 use crate::utils::{str_ids, text, NameID, SourceRange, relpath};
 use super::frame::ActiveFrame;
 use super::func::{FuncSignature, FuncParam, Func};
-use super::highlight::{syntax_highlight, enumerate_lines};
+use super::highlight::{syntax_highlight, enumerate_lines, no_highlighting};
 use super::html::HTML;
 use super::compiler::Compiler;
+use super::tag::Tag;
 use super::types::Type;
 use super::value::{Value, ValueMap};
 
@@ -226,9 +227,15 @@ impl <'a> Compiler<'a> {
                 };
                 
                 let src = if is_block { src.as_ref() } else { src.trim() };
+                let with_hint = is_block.then(|| text::get_source_language_hint(src))
+                    .flatten();
                 
-                let Value::Str(language) = language else {
-                    return Some(HTML::text(src).into());
+                let (language, src) = if let Some((l, ref s)) = with_hint {
+                    (Some(l), s.as_str())
+                } else if let Value::Str(ref language) = language {
+                    (Some(language.as_ref()), src)
+                } else {
+                    (None, src)
                 };
                 
                 let first_line_no = if let Value::Int(i) = first_line_no {
@@ -236,13 +243,7 @@ impl <'a> Compiler<'a> {
                     i
                 } else { 1 };
                 
-                let r = syntax_highlight(src.as_ref(), language.as_ref());
-                return Some(if is_block {
-                    enumerate_lines(r, first_line_no)
-                } else {
-                    if r.len() > 1 { self.runtime_warning(RuntimeWarning::InlineHighlightMultiline, call_range); }
-                    HTML::seq(r)
-                }.into());
+                return self.syntax_highlight_impl(language, is_block, first_line_no, src, call_range);
             },
             
             NativeFunc::WriteFile => {
@@ -265,6 +266,42 @@ impl <'a> Compiler<'a> {
         }
         
         Some(Value::UNIT)
+    }
+    
+    fn syntax_highlight_impl(&mut self, language: Option<&str>, is_block: bool, first_line_no: i64, src: &str, call_range: &SourceRange) -> Option<Value> {
+        let (css_class, content) = language.map(|language| {
+            match syntax_highlight(src, language) {
+                Some(lines) => Some((
+                    Some(format!("syntax-highlight lang-{language}")),
+                    lines,
+                )),
+                None => {
+                    let w = if cfg!(feature = "syntect") {
+                        RuntimeWarning::HighlightLanguageUnknown(language.to_string())
+                    } else {
+                        RuntimeWarning::HighlightNotEnabled
+                    };
+                    self.runtime_warning(w, call_range);
+                    None
+                },
+            }
+        }).flatten().unwrap_or_else(|| (
+            None,
+            no_highlighting(src),
+        ));
+        
+        let content = if is_block {
+            enumerate_lines(content, first_line_no)
+        } else {
+            if content.len() > 1 { self.runtime_warning(RuntimeWarning::InlineHighlightMultiline, call_range); }
+            HTML::seq(content)
+        };
+        
+        let mut tag = Tag::new(str_ids::CODE, content);
+        if let Some(css_class) = css_class {
+            tag = tag.str_attr(str_ids::CLASS, &css_class);
+        }
+        Some(tag.into())
     }
 }
 

@@ -42,6 +42,12 @@ impl From<Tag> for HTML {
     }
 }
 
+impl From<Tag> for Value {
+    fn from(tag: Tag) -> Value {
+        HTML::from(tag).into()
+    }
+}
+
 impl <'a> Compiler<'a> {
     pub fn compile_tag(&mut self, tag: &ast::Tag) -> HTML {
         let tag_name_id = match tag.name {

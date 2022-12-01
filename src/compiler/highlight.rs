@@ -1,9 +1,9 @@
 use std::ops::Range;
-
 use once_cell::sync::Lazy;
 
 use crate::errors;
 use crate::utils::str_ids;
+use super::highlight_papyri::syntax_highlight_papyri;
 use super::html::HTML;
 use super::tag::Tag;
 
@@ -193,25 +193,25 @@ pub fn enumerate_lines(lines: Vec<HTML>, start: i64) -> HTML {
     HTML::seq(out)
 }
 
-fn no_highlighting(src: &str) -> Vec<HTML> {
+pub fn no_highlighting(src: &str) -> Vec<HTML> {
     src.lines()
         .map(HTML::text)
         .collect()
 }
 
 #[cfg(not(feature="syntect"))]
-pub fn syntax_highlight(src: &str, language: &str) -> Vec<HTML> {
+pub fn syntax_highlight(src: &str, language: &str) -> Option<Vec<HTML>> {
     if language == "papyri" {
-        super::highlight_papyri::syntax_highlight_papyri(src)
+        Some(syntax_highlight_papyri(src))
     } else {
-        no_highlighting(src)
+        None
     }
 }
 
 #[cfg(feature="syntect")]
-pub fn syntax_highlight(src: &str, language: &str) -> Vec<HTML> {
+pub fn syntax_highlight(src: &str, language: &str) -> Option<Vec<HTML>> {
     if language == "papyri" {
-        super::highlight_papyri::syntax_highlight_papyri(src)
+        Some(syntax_highlight_papyri(src))
     } else {
         syntect_highlighting::highlight(src, language)
     }
@@ -311,10 +311,8 @@ mod syntect_highlighting {
         }
     }
     
-    pub fn highlight(src: &str, language: &str) -> Vec<HTML> {
-        let Some(syntax) = CACHE.syntax_set.find_syntax_by_token(language) else {
-            return super::no_highlighting(src);
-        };
+    pub fn highlight(src: &str, language: &str) -> Option<Vec<HTML>> {
+        let syntax = CACHE.syntax_set.find_syntax_by_token(language)?;
         
         let mut state = ParseState::new(syntax);
         let mut stack = ScopeStack::new();
@@ -343,6 +341,6 @@ mod syntect_highlighting {
         
         // TODO: if paren_stack is not empty, need to go back and mark left-parens as unmatched
         
-        out
+        Some(out)
     }
 }

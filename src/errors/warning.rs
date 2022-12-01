@@ -16,6 +16,8 @@ pub enum RuntimeWarning {
     NameNotImplicit(String),
     InlineHighlightEnumerate,
     InlineHighlightMultiline,
+    HighlightNotEnabled,
+    HighlightLanguageUnknown(String),
     BrokenLink(std::rc::Rc<str>),
 }
 
@@ -37,6 +39,8 @@ impl std::fmt::Display for RuntimeWarning {
             RuntimeWarning::NameNotImplicit(name) => write!(f, "name '{name}' exists but is not declared as implicit"),
             RuntimeWarning::InlineHighlightEnumerate => f.write_str("cannot enumerate lines in inline code"),
             RuntimeWarning::InlineHighlightMultiline => f.write_str("inline code cannot be multiple lines"),
+            RuntimeWarning::HighlightNotEnabled => f.write_str("syntax highlighting is not enabled in this build"),
+            RuntimeWarning::HighlightLanguageUnknown(language) => write!(f, "no syntax highlighter found for language \"{language}\""),
             RuntimeWarning::BrokenLink(path) => write!(f, "linked file does not exist at \"{path}\""),
         }
     }
