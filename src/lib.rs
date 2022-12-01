@@ -17,9 +17,11 @@ pub fn compile_str(src: &str) -> Result<String, errors::Diagnostics> {
     let mut diagnostics = errors::Diagnostics::new(errors::ReportingLevel::Warning);
     let result = compiler::compile(
         utils::SourceFile::synthetic("string", src),
-        &mut loader,
-        &mut diagnostics,
-        None,
+        compiler::Context {
+            loader: &mut loader,
+            diagnostics: &mut diagnostics,
+            out_files: None,
+        },
     );
     
     if diagnostics.is_empty() {

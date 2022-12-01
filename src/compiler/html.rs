@@ -6,7 +6,8 @@ use super::tag::Tag;
 use super::value::Value;
 
 #[derive(Debug, Clone)]
-/// Some HTML content, possibly empty.
+/// Some HTML content, possibly empty. HTML content is classified as either
+/// "block", "inline" or "empty".
 pub enum HTML {
     /// Represents the absence of any HTML content.
     Empty,
@@ -123,20 +124,35 @@ impl HTML {
         matches!(self, HTML::Empty)
     }
     
-    /// Indicates whether this HTML item is whitespace, including a literal
-    /// newline or `HTML::Empty`.
-    pub fn is_whitespace(&self) -> bool {
-        matches!(self, HTML::Whitespace | HTML::RawNewline | HTML::Empty)
-    }
-    
     /// Indicates whether this HTML item is block-level content, or otherwise
-    /// does not need to be wrapped in a block-level element.
+    /// does not need to be wrapped in a block-level element. Empty content is
+    /// not considered to be block-level.
     pub fn is_block(&self) -> bool {
         match self {
             HTML::Tag(tag) => taginfo::is_block(tag.name_id),
             HTML::Sequence(seq) => seq[0].is_block(),
             _ => false,
         }
+    }
+    
+    /// Indicates whether this HTML item is inline content which may need to be
+    /// wrapped in a block-level element. Empty content is not considered to be
+    /// inline, since it doesn't need to be wrapped.
+    pub fn is_inline(&self) -> bool {
+        match self {
+            HTML::Tag(tag) => !taginfo::is_block(tag.name_id),
+            HTML::Sequence(seq) => seq[0].is_inline(),
+            HTML::Text(_) |
+            HTML::Whitespace |
+            HTML::RawNewline => true,
+            _ => false,
+        }
+    }
+    
+    /// Indicates whether this HTML item is whitespace, including a literal
+    /// newline or `HTML::Empty`.
+    pub fn is_whitespace(&self) -> bool {
+        matches!(self, HTML::Whitespace | HTML::RawNewline | HTML::Empty)
     }
     
     /// Indicates whether this HTML item matches a given set of allowed tag

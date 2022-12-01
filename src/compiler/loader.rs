@@ -2,14 +2,15 @@ use std::{fs, path};
 use std::rc::Rc;
 use indexmap::IndexMap;
 
-use crate::errors::{Diagnostics, ModuleError};
+use crate::errors::{Diagnostics, ModuleError, ReportingLevel};
 use crate::utils::{SourceFile, StringPool, OutFiles};
-use super::compiler::compile_stdlib;
+use super::compile;
+use super::compiler::{Compiler, CompileResult};
+use super::context::Context;
 use super::frame::{InactiveFrame, ActiveFrame};
 use super::html::HTML;
 use super::native::get_natives_frame;
 use super::value::ValueMap;
-use super::{CompileResult, compile};
 
 /// A module loader is used to compile a set of Papyri source files, including
 /// loading of other Papyri source files by the `@import` and `@include`
@@ -48,7 +49,7 @@ impl ModuleLoader {
             stdlib: None,
             cache: IndexMap::new(),
         };
-        loader.stdlib = Some(compile_stdlib(&mut loader));
+        loader.compile_stdlib();
         loader
     }
     
@@ -65,9 +66,9 @@ impl ModuleLoader {
     /// Loads a Papyri source file from the filesystem and compiles it. This
     /// only fails if the source file cannot be read; any other errors which
     /// occur during compilation are reported through `diagnostics`.
-    pub fn load_uncached(&mut self, path: &path::Path, diagnostics: &mut Diagnostics, output_files: Option<&mut OutFiles<HTML>>) -> Result<CompileResult, ModuleError> {
+    pub fn load_uncached(&mut self, path: &path::Path, diagnostics: &mut Diagnostics, out_files: Option<&mut OutFiles<HTML>>) -> Result<CompileResult, ModuleError> {
         SourceFile::from_path(path)
-            .map(|src| compile(src, self, diagnostics, output_files))
+            .map(|src| compile(src, Context {loader: self, diagnostics, out_files}))
             .map_err(ModuleError::IOError)
     }
     
@@ -116,5 +117,36 @@ impl ModuleLoader {
     fn set_by_index(&mut self, index: usize, state: ModuleState) {
         let (_, value) = self.cache.get_index_mut(index).unwrap();
         *value = state;
+    }
+
+    fn compile_stdlib(&mut self) {
+        use crate::errors;
+        use crate::parser;
+        use crate::utils::taginfo;
+        
+        let stdlib_src = SourceFile::synthetic("stdlib", include_str!("../std.papyri"));
+        
+        let mut diagnostics = Diagnostics::new(ReportingLevel::All);
+        let root = parser::parse(stdlib_src, &mut diagnostics, &mut self.string_pool);
+        
+        let mut compiler = Compiler::new(Context {
+            diagnostics: &mut diagnostics,
+            loader: self,
+            out_files: None,
+        });
+        
+        let html = compiler.compile_sequence(&root, taginfo::ContentKind::REQUIRE_P);
+        let exports = compiler.exports;
+        self.stdlib = Some(InactiveFrame::from(compiler.call_stack.pop().unwrap()));
+        
+        if !diagnostics.is_empty() {
+            diagnostics.print();
+            errors::ice("Standard library had errors or warnings");
+        } else if !html.is_empty() {
+            errors::ice("Standard library had non-empty output");
+        } else if !exports.is_empty() {
+            errors::ice("Standard library had exports");
+        }
+        
     }
 }

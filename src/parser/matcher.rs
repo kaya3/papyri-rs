@@ -261,7 +261,7 @@ impl <'a> Parser<'a> {
     fn parse_template_pattern(&mut self, open: Token) -> Option<MatchPattern> {
         let (parts, range) = self.parse_template_parts(open)?;
         
-        let mut regex_str = "^(?:".to_string();
+        let mut regex_str = "^(?s:".to_string();
         let mut vars = Vec::new();
         for part in parts {
             match part {
@@ -272,7 +272,7 @@ impl <'a> Parser<'a> {
                     regex_str += &regex::escape(&s);
                 },
                 TemplatePart::VarName(var) => {
-                    regex_str += "(.+)";
+                    regex_str += "(.+?)";
                     vars.push(var);
                 },
                 TemplatePart::Whitespace => {
@@ -284,7 +284,7 @@ impl <'a> Parser<'a> {
         
         match regex::Regex::new(&regex_str) {
             Ok(r) => Some(MatchPattern::Regex(range, r, vars.into_boxed_slice())),
-            Err(e) => ice_at(&e.to_string(), &range),
+            Err(e) => ice_at(&format!("regex {regex_str} failed to parse: {e}"), &range),
         }
     }
     
@@ -315,10 +315,10 @@ impl <'a> Parser<'a> {
             return spread;
         }
         
-        Some(MatchPattern::Dict(range, Box::new(DictMatchPattern {
-            attrs,
-            spread,
-        })))
+        Some(MatchPattern::Dict(
+            range,
+            Box::new(DictMatchPattern {attrs, spread}),
+        ))
     }
     
     fn parse_optional_typed_pattern(&mut self, pattern: MatchPattern) -> Option<MatchPattern> {

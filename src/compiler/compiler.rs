@@ -1,11 +1,11 @@
 use std::rc::Rc;
 
-use crate::errors::{Diagnostics, ice, ice_at, Warning, RuntimeError, ReportingLevel, RuntimeWarning};
-use crate::parser::{parse, AST, text};
-use crate::utils::{SourceFile, SourceRange, NameID, OutFiles, taginfo};
-use super::frame::{ActiveFrame, InactiveFrame};
+use crate::errors::{ice_at, Warning};
+use crate::parser::{AST, parse, text};
+use crate::utils::{taginfo, SourceFile};
+use super::context::Context;
+use super::frame::ActiveFrame;
 use super::html::HTML;
-use super::loader::ModuleLoader;
 use super::types::Type;
 use super::value::{Value, ValueMap};
 
@@ -23,9 +23,9 @@ pub struct CompileResult {
 }
 
 /// Compiles a Papyri source file.
-pub fn compile(src: Rc<SourceFile>, loader: &mut ModuleLoader, diagnostics: &mut Diagnostics, out_files: Option<&mut OutFiles<HTML>>) -> CompileResult {
-    let root = parse(src, diagnostics, &mut loader.string_pool);
-    let mut compiler = Compiler::new(diagnostics, loader, out_files);
+pub fn compile(src: Rc<SourceFile>, context: Context) -> CompileResult {
+    let root = parse(src, context.diagnostics, &mut context.loader.string_pool);
+    let mut compiler = Compiler::new(context);
     let out = compiler.compile_sequence(&root, taginfo::ContentKind::REQUIRE_P);
     CompileResult {
         out,
@@ -33,62 +33,27 @@ pub fn compile(src: Rc<SourceFile>, loader: &mut ModuleLoader, diagnostics: &mut
     }
 }
 
-pub fn compile_stdlib(loader: &mut ModuleLoader) -> InactiveFrame {
-    let stdlib_src = SourceFile::synthetic("stdlib", include_str!("../std.papyri"));
-    
-    let mut diagnostics = Diagnostics::new(ReportingLevel::All);
-    let root = parse(stdlib_src, &mut diagnostics, &mut loader.string_pool);
-    let mut compiler = Compiler::new(&mut diagnostics, loader, None);
-    let result = compiler.compile_sequence(&root, taginfo::ContentKind::REQUIRE_P);
-    
-    if !compiler.diagnostics.is_empty() {
-        diagnostics.print();
-        ice("Standard library had errors or warnings");
-    } else if !compiler.exports.is_empty() {
-        ice("Standard library had exports");
-    } else if !result.is_empty() {
-        ice("Standard library had non-empty output");
-    }
-    InactiveFrame::from(compiler.call_stack.pop().unwrap())
-}
-
 pub struct Compiler<'a> {
-    pub diagnostics: &'a mut Diagnostics,
-    pub loader: &'a mut ModuleLoader,
-    pub out_files: Option<&'a mut OutFiles<HTML>>,
+    pub ctx: Context<'a>,
     pub call_stack: Vec<ActiveFrame>,
     pub exports: ValueMap,
 }
 
 impl <'a> Compiler<'a> {
-    fn new(diagnostics: &'a mut Diagnostics, loader: &'a mut ModuleLoader, out_files: Option<&'a mut OutFiles<HTML>>) -> Compiler<'a> {
-        let frame = loader.get_initial_frame();
+    pub fn new(ctx: Context<'a>) -> Compiler<'a> {
+        let frame = ctx.loader.get_initial_frame();
         Compiler {
-            diagnostics,
-            loader,
-            out_files,
+            ctx,
             call_stack: vec![frame],
             exports: ValueMap::new(),
         }
-    }
-    
-    pub fn runtime_error(&mut self, e: RuntimeError, range: &SourceRange) {
-        self.diagnostics.runtime_error(e, self.stack_trace(), range);
-    }
-    
-    pub fn runtime_warning(&mut self, e: RuntimeWarning, range: &SourceRange) {
-        self.diagnostics.runtime_warning(e, self.stack_trace(), range);
-    }
-    
-    pub fn get_name(&self, name_id: NameID) -> &str {
-        self.loader.string_pool.get(name_id)
     }
     
     pub fn compile_node(&mut self, node: &AST) -> HTML {
         match node {
             AST::FuncDef(def) => {
                 if def.name_id.is_anonymous() {
-                    self.diagnostics.warning(Warning::AnonymousFunctionInText, &def.range);
+                    self.warning(Warning::AnonymousFunctionInText, &def.range);
                 } else {
                     let f = self.compile_func_def(def);
                     self.set_var(def.name_id, Value::Func(f), false, node.range());
@@ -108,7 +73,11 @@ impl <'a> Compiler<'a> {
                     .map_or(HTML::Empty, |v| self.compile_value(v))
             },
             
-            AST::LiteralValue(tok) => tok.text().map(text::substitutions).map_or(HTML::Empty, HTML::from),
+            AST::LiteralValue(tok) => {
+                tok.text()
+                    .map(text::substitutions)
+                    .map_or(HTML::Empty, HTML::from)
+            },
             AST::Text(text, ..) => HTML::Text(text.clone()),
             AST::Whitespace(..) => HTML::Whitespace,
             

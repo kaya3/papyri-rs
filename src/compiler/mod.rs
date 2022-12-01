@@ -2,6 +2,7 @@
 //! for compiling an abstract syntax tree into HTML (or plain text).
 
 mod compiler;
+mod context;
 mod frame;
 mod func;
 mod highlight;
@@ -16,7 +17,8 @@ mod tag;
 mod types;
 mod value;
 
-pub use compiler::{compile, CompileResult};
+pub use compiler::{CompileResult, compile};
+pub use context::Context;
 pub use html::HTML;
 pub use loader::ModuleLoader;
 pub use render::Renderer;

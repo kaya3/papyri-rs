@@ -24,13 +24,13 @@ impl <'a> Compiler<'a> {
         for child in sequence {
             if let AST::ParagraphBreak(range) = child {
                 if forbid_breaks {
-                    self.diagnostics.type_error(TypeError::InlineParagraphBreak, range);
+                    self.type_error(TypeError::InlineParagraphBreak, range);
                 }
                 comp.newline();
             } else {
                 let child_html = self.compile_node(child);
                 if require_inline && child_html.is_block() {
-                    self.diagnostics.type_error(TypeError::InlineBlockContent, child.range());
+                    self.type_error(TypeError::InlineBlockContent, child.range());
                 }
                 comp.push(child_html);
             }

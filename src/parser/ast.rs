@@ -238,7 +238,7 @@ pub struct Match {
 #[derive(Debug)]
 /// An AST node for a pattern in a `@match` expression.
 pub enum MatchPattern {
-    /// A pattern which matches anything, unconditionally.
+    /// A pattern which matches any value, unconditionally.
     Ignore(SourceRange),
     
     /// A pattern which only matches a unit value.

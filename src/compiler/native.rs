@@ -124,7 +124,7 @@ impl <'a> Compiler<'a> {
                 for (&k, v) in args.iter() {
                     if self.exports.insert(k, v.clone()).is_some() {
                         let name = self.get_name(k).to_string();
-                        self.diagnostics.warning(Warning::NameAlreadyExported(name), call_range);
+                        self.warning(Warning::NameAlreadyExported(name), call_range);
                     }
                 }
             },
@@ -153,7 +153,7 @@ impl <'a> Compiler<'a> {
                 if f == NativeFunc::ListFiles {
                     let paths = relpath::find_papyri_source_files_in_dir(
                             &path,
-                            |p, e| self.diagnostics.module_error(p, ModuleError::IOError(e), call_range),
+                            |p, e| self.module_error(p, ModuleError::IOError(e), call_range),
                         )?
                         .into_iter()
                         .map(|p| Value::from(p.to_string_lossy()
@@ -165,8 +165,8 @@ impl <'a> Compiler<'a> {
                     return Some(Value::list(paths));
                 }
                 
-                let (module_out, module_exports) = self.loader.load_cached(&path, self.diagnostics)
-                    .map_err(|e| self.diagnostics.module_error(&path, e, call_range))
+                let (module_out, module_exports) = self.ctx.loader.load_cached(&path, self.ctx.diagnostics)
+                    .map_err(|e| self.module_error(&path, e, call_range))
                     .ok()?;
                 
                 return Some(if f == NativeFunc::Import {
@@ -253,7 +253,7 @@ impl <'a> Compiler<'a> {
                     ice_at("failed to unpack", call_range);
                 };
                 
-                let Some(ref mut sink) = self.out_files else {
+                let Some(ref mut sink) = self.ctx.out_files else {
                     self.runtime_error(RuntimeError::WriteFileNotAllowed, call_range);
                     return None;
                 };

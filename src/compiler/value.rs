@@ -132,7 +132,7 @@ impl Value {
 impl <'a> Compiler<'a> {
     /// Compiles a value to HTML.
     pub fn compile_value(&mut self, value: Value) -> HTML {
-        HTML::from_value(value, &mut self.loader.string_pool)
+        HTML::from_value(value, self.string_pool_mut())
     }
     
     /// Evaluates an AST node to a value. Returns `None` if a compilation error
@@ -140,11 +140,17 @@ impl <'a> Compiler<'a> {
     pub fn evaluate_node(&mut self, node: &AST, type_hint: &Type) -> Option<Value> {
         let v = match node {
             AST::LiteralValue(tok) => if type_hint.is_html() {
+                // This is a shortcut, to avoid parsing ints and bools and then
+                // converting back to text. It also avoids the possibility of a
+                // parse error if an integer is not in the signed 64-bit range.
                 HTML::from(text::substitutions(tok.text().unwrap())).into()
             } else {
                 self.evaluate_literal(tok)?
             },
             AST::Verbatim(tok) => if type_hint.is_html() {
+                // This gives a different result to `evaluate_literal` + `coerce`,
+                // but it gives the expected result of formatting code blocks if
+                // they appear where HTML is expected.
                 return self.evaluate_code_or_code_block(tok, type_hint);
             } else {
                 self.evaluate_literal(tok)?
@@ -177,7 +183,7 @@ impl <'a> Compiler<'a> {
             Type::List(t) => t,
             t if t.is_html() => &Type::AnyHTML,
             t => {
-                self.diagnostics.err_expected_type(t, &Type::list(Type::AnyValue), range);
+                self.err_expected_type(t, &Type::list(Type::AnyValue), range);
                 return None;
             },
         };
@@ -234,7 +240,7 @@ impl <'a> Compiler<'a> {
             TokenKind::Number => match i64::from_str_radix(tok.as_str(), 10) {
                 Ok(value) => Some(Value::Int(value)),
                 Err(err) => {
-                    self.diagnostics.syntax_error(SyntaxError::TokenInvalidNumber(err), &tok.range);
+                    self.ctx.diagnostics.syntax_error(SyntaxError::TokenInvalidNumber(err), &tok.range);
                     None
                 },
             },

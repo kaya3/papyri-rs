@@ -214,7 +214,7 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
             (param.type_.component_type(), &mut self.spread_named)
         } else {
             let name = self.compiler.get_name(name_id).to_string();
-            self.compiler.diagnostics.name_error(NameError::NoSuchParameter(name), range);
+            self.compiler.name_error(NameError::NoSuchParameter(name), range);
             self.any_errors = true;
             return;
         };
@@ -222,7 +222,7 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
             Some(v) => {
                 if map.insert(name_id, v).is_some() {
                     let name = self.compiler.get_name(name_id).to_string();
-                    self.compiler.diagnostics.name_error(NameError::NoSuchParameter(name), range);
+                    self.compiler.name_error(NameError::NoSuchParameter(name), range);
                     self.any_errors = true;
                 }
             },
@@ -242,7 +242,7 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
     
     pub fn build(mut self, call_range: &SourceRange) -> Option<ValueMap> {
         if self.positional_arg_count > self.sig.positional_params.len() {
-            self.compiler.diagnostics.type_error(
+            self.compiler.type_error(
                 TypeError::TooManyPositionalArgs(
                     self.sig.positional_params.len(),
                     self.positional_arg_count,
@@ -269,7 +269,7 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
         if self.positional_arg_count < self.sig.positional_params.len() {
             for param in &self.sig.positional_params[self.positional_arg_count..] {
                 let Some(v) = &param.default_value else {
-                    self.compiler.diagnostics.type_error(
+                    self.compiler.type_error(
                         TypeError::NotEnoughPositionalArgs(
                             self.sig.positional_params.iter().filter(|p| p.default_value.is_none()).count(),
                             self.positional_arg_count,

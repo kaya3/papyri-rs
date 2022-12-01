@@ -17,7 +17,7 @@ impl <'a> Compiler<'a> {
             }
         }
         
-        self.diagnostics.warning(Warning::NoMatchingBranch, &match_.range);
+        self.warning(Warning::NoMatchingBranch, &match_.range);
         Some(Value::UNIT)
     }
     
@@ -193,7 +193,7 @@ impl <'a> Compiler<'a> {
     fn bind_one(&mut self, var: &ast::VarName, value: Value, bindings: &mut ValueMap) {
         if bindings.insert(var.name_id, value).is_some() {
             let name = self.get_name(var.name_id).to_string();
-            self.diagnostics.warning(Warning::PatternNameAlreadyBound(name), &var.range);
+            self.warning(Warning::PatternNameAlreadyBound(name), &var.range);
         }
     }
 }

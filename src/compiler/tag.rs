@@ -49,11 +49,11 @@ impl <'a> Compiler<'a> {
             ast::TagName::Variable(ref var) => match self.evaluate_var(var, &Type::Str) {
                 Some(Value::Str(name)) => {
                     if text::is_identifier(&name) {
-                        self.loader.string_pool.insert(&name.to_ascii_lowercase())
+                        self.string_pool_mut().insert(&name.to_ascii_lowercase())
                     } else if name.eq_ignore_ascii_case("!DOCTYPE") {
                         str_ids::_DOCTYPE
                     } else {
-                        self.diagnostics.name_error(NameError::InvalidTag(name), &var.range);
+                        self.name_error(NameError::InvalidTag(name), &var.range);
                         str_ids::ANONYMOUS
                     }
                 },

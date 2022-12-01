@@ -1,4 +1,4 @@
-use super::stringpool::NameID;
+use super::string_pool::NameID;
 
 macro_rules! const_strs {
     (@count () {$id: expr}) => {};

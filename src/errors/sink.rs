@@ -50,7 +50,8 @@ impl Diagnostics {
     
     /// Reports an error which occurs while loading a Papyri module.
     pub fn module_error<P: AsRef<std::path::Path>>(&mut self, path: P, e: ModuleError, range: &SourceRange) {
-        self.add(Severity::Error, PapyriError::ModuleError(Box::from(path.as_ref()), e), range, None);
+        let path = Box::from(path.as_ref());
+        self.add(Severity::Error, PapyriError::ModuleError(path, e), range, None);
     }
     
     /// Reports a name error which occurs during compilation of a Papyri source
