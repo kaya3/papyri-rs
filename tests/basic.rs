@@ -15,6 +15,11 @@ assert_ok! {
         "@let(x=5). $x $x",
         "<p>5 5</p>",
     );
+    
+    code_inline(
+        "`some_code`",
+        "<p><code>some_code</code></p>",
+    );
 }
 
 assert_err! {

@@ -101,7 +101,6 @@ const_strs!(
     SPAN = "span",
     SRC = "src",
     STYLE = "style",
-    SYNTAX_HIGHLIGHT = "syntax_highlight",
     TABLE = "table",
     TBODY = "tbody",
     TD = "td",

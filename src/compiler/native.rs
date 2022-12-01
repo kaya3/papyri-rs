@@ -14,6 +14,7 @@ use super::value::{Value, ValueMap};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NativeFunc {
+    Code,
     Export,
     FixIndentation,
     Implicit,
@@ -23,7 +24,6 @@ pub enum NativeFunc {
     ListFiles,
     Map,
     Raise,
-    SyntaxHighlight,
     WriteFile,
 }
 
@@ -77,6 +77,7 @@ pub fn get_natives_frame() -> ActiveFrame {
     });
     
     let bindings: ValueMap = [
+        (NativeFunc::Code, syntax_highlight),
         (NativeFunc::Export, args_dict.clone()),
         (NativeFunc::FixIndentation, content_str.clone()),
         (NativeFunc::Implicit, args_dict.clone()),
@@ -86,7 +87,6 @@ pub fn get_natives_frame() -> ActiveFrame {
         (NativeFunc::ListFiles, content_str.clone()),
         (NativeFunc::Map, map),
         (NativeFunc::Raise, content_str),
-        (NativeFunc::SyntaxHighlight, syntax_highlight),
         (NativeFunc::WriteFile, write_file),
     ].into_iter().map(|(f, sig)| {
         (f.name_id(), Value::Func(Func::Native(f, sig)))
@@ -98,6 +98,7 @@ pub fn get_natives_frame() -> ActiveFrame {
 impl NativeFunc {
     pub fn name_id(&self) -> NameID {
         match self {
+            NativeFunc::Code => str_ids::CODE,
             NativeFunc::Export => str_ids::EXPORT,
             NativeFunc::FixIndentation => str_ids::FIX_INDENTATION,
             NativeFunc::Implicit => str_ids::IMPLICIT,
@@ -107,7 +108,6 @@ impl NativeFunc {
             NativeFunc::ListFiles => str_ids::LIST_FILES,
             NativeFunc::Map => str_ids::MAP,
             NativeFunc::Raise => str_ids::RAISE,
-            NativeFunc::SyntaxHighlight => str_ids::SYNTAX_HIGHLIGHT,
             NativeFunc::WriteFile => str_ids::WRITE_FILE,
         }
     }
@@ -117,6 +117,35 @@ impl <'a> Compiler<'a> {
     pub fn evaluate_native_func(&mut self, f: NativeFunc, mut bindings: ValueMap, call_range: &SourceRange) -> Option<Value> {
         let bindings = &mut bindings;
         match f {
+            NativeFunc::Code => {
+                let (Some(language), Some(Value::Bool(is_block)), Some(first_line_no), Some(Value::Str(src))) = (
+                    take_val(bindings, str_ids::LANGUAGE),
+                    take_val(bindings, str_ids::CODE_BLOCK),
+                    take_val(bindings, str_ids::FIRST_LINE_NO),
+                    take_val(bindings, str_ids::CONTENT),
+                ) else {
+                    ice_at("failed to unpack", call_range);
+                };
+                
+                let with_hint = is_block.then(|| text::get_source_language_hint(src.as_ref()))
+                    .flatten();
+                
+                let (language, src) = if let Some((l, s)) = with_hint {
+                    (Some(l), s)
+                } else if let Value::Str(ref language) = language {
+                    (Some(language.as_ref()), src.as_ref())
+                } else {
+                    (None, src.as_ref())
+                };
+                
+                let first_line_no = if let Value::Int(i) = first_line_no {
+                    if !is_block { self.runtime_warning(RuntimeWarning::InlineHighlightEnumerate, call_range); }
+                    i
+                } else { 1 };
+                
+                return self.native_code_impl(language, is_block, first_line_no, src, call_range);
+            },
+            
             NativeFunc::Export => {
                 let Some(Value::Dict(args)) = take_val(bindings, str_ids::ARGS) else {
                     ice_at("failed to unpack", call_range);
@@ -216,36 +245,6 @@ impl <'a> Compiler<'a> {
                 return None;
             },
             
-            NativeFunc::SyntaxHighlight => {
-                let (Some(language), Some(Value::Bool(is_block)), Some(first_line_no), Some(Value::Str(src))) = (
-                    take_val(bindings, str_ids::LANGUAGE),
-                    take_val(bindings, str_ids::CODE_BLOCK),
-                    take_val(bindings, str_ids::FIRST_LINE_NO),
-                    take_val(bindings, str_ids::CONTENT),
-                ) else {
-                    ice_at("failed to unpack", call_range);
-                };
-                
-                let src = if is_block { src.as_ref() } else { src.trim() };
-                let with_hint = is_block.then(|| text::get_source_language_hint(src))
-                    .flatten();
-                
-                let (language, src) = if let Some((l, ref s)) = with_hint {
-                    (Some(l), s.as_str())
-                } else if let Value::Str(ref language) = language {
-                    (Some(language.as_ref()), src)
-                } else {
-                    (None, src)
-                };
-                
-                let first_line_no = if let Value::Int(i) = first_line_no {
-                    if !is_block { self.runtime_warning(RuntimeWarning::InlineHighlightEnumerate, call_range); }
-                    i
-                } else { 1 };
-                
-                return self.syntax_highlight_impl(language, is_block, first_line_no, src, call_range);
-            },
-            
             NativeFunc::WriteFile => {
                 let (Some(Value::Str(path)), Some(Value::HTML(content))) = (
                     take_val(bindings, str_ids::_0),
@@ -268,14 +267,16 @@ impl <'a> Compiler<'a> {
         Some(Value::UNIT)
     }
     
-    fn syntax_highlight_impl(&mut self, language: Option<&str>, is_block: bool, first_line_no: i64, src: &str, call_range: &SourceRange) -> Option<Value> {
-        let (css_class, content) = language.map(|language| {
-            match syntax_highlight(src, language) {
-                Some(lines) => Some((
-                    Some(format!("syntax-highlight lang-{language}")),
-                    lines,
-                )),
-                None => {
+    fn native_code_impl(&mut self, language: Option<&str>, is_block: bool, first_line_no: i64, src: &str, call_range: &SourceRange) -> Option<Value> {
+        let mut tag = Tag::new(str_ids::CODE, HTML::Empty);
+        
+        let src = text::fix_indentation(src);
+        let lines = language
+            .map(|language| {
+                if let Some(lines) = syntax_highlight(&src, language) {
+                    tag.attributes.insert(str_ids::CLASS, Some(format!("syntax-highlight lang-{language}").into()));
+                    Some(lines)
+                } else {
                     let w = if cfg!(feature = "syntect") {
                         RuntimeWarning::HighlightLanguageUnknown(language.to_string())
                     } else {
@@ -283,28 +284,23 @@ impl <'a> Compiler<'a> {
                     };
                     self.runtime_warning(w, call_range);
                     None
-                },
-            }
-        }).flatten().unwrap_or_else(|| (
-            None,
-            no_highlighting(src),
-        ));
+                }
+            })
+            .flatten()
+            .unwrap_or_else(|| no_highlighting(&src));
         
-        let content = if is_block {
-            enumerate_lines(content, first_line_no)
+        tag.content = if is_block {
+            enumerate_lines(lines, first_line_no)
         } else {
-            if content.len() > 1 { self.runtime_warning(RuntimeWarning::InlineHighlightMultiline, call_range); }
-            HTML::seq(content)
+            if lines.len() > 1 { self.runtime_warning(RuntimeWarning::InlineHighlightMultiline, call_range); }
+            HTML::seq(lines)
         };
         
-        let mut tag = Tag::new(str_ids::CODE, content);
-        if let Some(css_class) = css_class {
-            tag = tag.str_attr(str_ids::CLASS, &css_class);
-        }
         Some(tag.into())
     }
 }
 
 fn take_val(bindings: &mut ValueMap, key: NameID) -> Option<Value> {
-    bindings.insert(key, Value::UNIT)
+    bindings.get_mut(&key)
+        .map(|v_mut_ref| std::mem::replace(v_mut_ref, Value::UNIT))
 }

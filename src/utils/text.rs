@@ -71,14 +71,11 @@ pub fn fix_indentation(s: &str) -> String {
 /// If the given string's first line is a valid identifier, then this function
 /// returns a pair of that identifier and the remainder of the string with
 /// indentation stripped. Otherwise, `None` is returned.
-pub fn get_source_language_hint(src: &str) -> Option<(&str, String)> {
+pub fn get_source_language_hint(src: &str) -> Option<(&str, &str)> {
     let k = src.find('\n')?;
     let first_line = src[..k].trim_end();
     if is_identifier(first_line) {
-        Some((
-            first_line,
-            fix_indentation(&src[k..]),
-        ))
+        Some((first_line, &src[k + 1..]))
     } else {
         None
     }
