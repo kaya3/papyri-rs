@@ -143,15 +143,15 @@ impl <T: fmt::Display> DiagnosticSink<T> {
         }
     }
     
-    /// Prints the diagnostics in this collection to stderr. If `ignore_warnings`
-    /// is true, only errors are printed.
+    /// Prints the diagnostics in this collection to stderr.
     pub fn print(&self) {
         for diag in self.v.iter() {
             eprintln!("{diag}");
         }
     }
     
-    /// Adds a new diagnostic to this collection.
+    /// Adds a new diagnostic to this collection. The diagnostic is not added
+    /// if its severity is lower than the specified reporting level.
     pub fn add(&mut self, severity: Severity, msg: T, range: &SourceRange, trace: Option<StackTrace>) {
         match severity {
             Severity::Warning => self.num_warnings += 1,

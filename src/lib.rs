@@ -5,7 +5,6 @@
 //! This crate provides a compiler for the [Papyri markup language](https://kaya3.github.io/papyri).
 
 pub mod compiler;
-pub mod config;
 pub mod errors;
 pub mod parser;
 pub mod utils;
