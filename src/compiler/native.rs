@@ -23,6 +23,7 @@ pub enum NativeFunc {
     ListFiles,
     Map,
     Raise,
+    UniqueID,
     WriteFile,
 }
 
@@ -65,6 +66,16 @@ pub fn get_natives_frame() -> ActiveFrame {
         content_param: FuncParam::new(str_ids::CONTENT, Type::list(Type::AnyValue)),
     });
     
+    let unique_id = Rc::new(FuncSignature {
+        positional_params: Box::new([]),
+        spread_param: None,
+        named_params: IndexMap::from([
+            (str_ids::MAX_LENGTH, FuncParam::new(str_ids::MAX_LENGTH, Type::Int).with_default(Value::Int(128))),
+        ]),
+        spread_named_param: None,
+        content_param: FuncParam::new(str_ids::CONTENT, Type::Str),
+    });
+    
     let write_file = Rc::new(FuncSignature {
         positional_params: Box::new([
             FuncParam::new(str_ids::_0, Type::Str),
@@ -85,6 +96,7 @@ pub fn get_natives_frame() -> ActiveFrame {
         (NativeFunc::ListFiles, content_str.clone()),
         (NativeFunc::Map, map),
         (NativeFunc::Raise, content_str),
+        (NativeFunc::UniqueID, unique_id),
         (NativeFunc::WriteFile, write_file),
     ].into_iter().map(|(f, sig)| {
         (f.name_id(), Value::Func(Func::Native(f, sig)))
@@ -105,6 +117,7 @@ impl NativeFunc {
             NativeFunc::ListFiles => str_ids::LIST_FILES,
             NativeFunc::Map => str_ids::MAP,
             NativeFunc::Raise => str_ids::RAISE,
+            NativeFunc::UniqueID => str_ids::UNIQUE_ID,
             NativeFunc::WriteFile => str_ids::WRITE_FILE,
         }
     }
@@ -185,7 +198,7 @@ impl <'a> Compiler<'a> {
                     return Some(Value::list(paths));
                 }
                 
-                let (module_out, module_exports) = self.ctx.loader.load_cached(&path, self.ctx.diagnostics)
+                let (module_out, module_exports) = self.ctx.load_cached(&path)
                     .map_err(|e| self.module_error(&path, e, call_range))
                     .ok()?;
                 
@@ -235,6 +248,24 @@ impl <'a> Compiler<'a> {
                 return None;
             },
             
+            NativeFunc::UniqueID => {
+                let (Some(Value::Int(max_len)), Some(Value::Str(id_base))) = (
+                    take_val(bindings, str_ids::MAX_LENGTH),
+                    take_val(bindings, str_ids::CONTENT),
+                ) else {
+                    ice_at("failed to unpack", call_range);
+                };
+                
+                if max_len <= 0 {
+                    let e = RuntimeError::ParamMustBePositive(self.get_name(str_ids::MAX_LENGTH).to_string(), max_len);
+                    self.runtime_error(e, call_range);
+                    return None;
+                }
+                
+                let id = self.ctx.unique_ids.get_unique_id(id_base, max_len as usize);
+                return Some(Value::Str(id));
+            },
+            
             NativeFunc::WriteFile => {
                 let (Some(Value::Str(path)), Some(Value::HTML(content))) = (
                     take_val(bindings, str_ids::_0),
@@ -243,7 +274,7 @@ impl <'a> Compiler<'a> {
                     ice_at("failed to unpack", call_range);
                 };
                 
-                let Some(sink) = self.ctx.out_files.as_deref_mut() else {
+                let Some(sink) = self.ctx.out_files.as_mut() else {
                     self.runtime_error(RuntimeError::WriteFileNotAllowed, call_range);
                     return None;
                 };

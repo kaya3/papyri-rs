@@ -1,8 +1,6 @@
-use std::rc::Rc;
-
 use crate::errors::{ice_at, Warning};
-use crate::parser::{AST, parse, text};
-use crate::utils::{taginfo, SourceFile};
+use crate::parser::{AST, text};
+use crate::utils::taginfo;
 use super::context::Context;
 use super::frame::ActiveFrame;
 use super::html::HTML;
@@ -22,26 +20,15 @@ pub struct CompileResult {
     pub exports: ValueMap,
 }
 
-/// Compiles a Papyri source file.
-pub fn compile(src: Rc<SourceFile>, context: Context) -> CompileResult {
-    let root = parse(src, context.diagnostics, &mut context.loader.string_pool);
-    let mut compiler = Compiler::new(context);
-    let out = compiler.compile_sequence(&root, taginfo::ContentKind::REQUIRE_P);
-    CompileResult {
-        out,
-        exports: compiler.exports,
-    }
-}
-
 pub struct Compiler<'a> {
-    pub ctx: Context<'a>,
+    pub ctx: &'a mut Context,
     pub call_stack: Vec<ActiveFrame>,
     pub exports: ValueMap,
 }
 
 impl <'a> Compiler<'a> {
-    pub fn new(ctx: Context<'a>) -> Compiler<'a> {
-        let frame = ctx.loader.get_initial_frame();
+    pub fn new(ctx: &'a mut Context) -> Compiler<'a> {
+        let frame = ctx.module_cache.get_initial_frame();
         Compiler {
             ctx,
             call_stack: vec![frame],

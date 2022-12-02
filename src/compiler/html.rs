@@ -48,7 +48,7 @@ impl HTML {
     /// Converts a value to its HTML representation. Lists become `<ul>` tags,
     /// dictionaries become tables, and functions will be represented as
     /// `<code>(@fn name)</code>`.
-    pub fn from_value(value: Value, string_pool: &mut StringPool) -> HTML {
+    pub fn from_value(value: Value, string_pool: &StringPool) -> HTML {
         match value {
             Value::Bool(b) => Token::bool_to_string(b).into(),
             Value::Int(t) => text::substitutions(&t.to_string()).into(),

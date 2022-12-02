@@ -1,12 +1,19 @@
 @fn page(
     $title: str,
     $web_root: str = `https://kaya3.github.io/papyri`,
+    $before?: html,
+    $after?: html,
 ) $content: block -> {
     @let(w=@match $web_root {"$w/" -> $w, _ -> $web_root}).
     <!DOCTYPE html>
     <html>
     <head><title>$title</><link rel=`stylesheet` type=`text/css` href="$w/papyri.css"></>#
-    <body><article>$content</><script type=`text/javascript` src="$w/papyri.js"/></>
+    <body>
+        $before#
+        <article>$content</>#
+        $after#
+        <script type=`text/javascript` src="$w/papyri.js"/>
+    </>
     </>
 }
 

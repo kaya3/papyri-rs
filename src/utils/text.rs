@@ -1,5 +1,6 @@
 //! This module contains helper functions for text or string operations.
 
+use deunicode;
 use htmlentity::entity;
 
 /// Indicates whether the given string is a valid name, matching `[a-zA-Z_][a-zA-Z0-9_]*`.
@@ -7,6 +8,29 @@ pub fn is_identifier(s: &str) -> bool {
     let mut s_chars = s.chars();
     matches!(s_chars.next(), Some('a'..='z' | 'A'..='Z' | '_'))
         && s_chars.all(|c| matches!(c, 'a'..='z' | 'A'..='Z' | '0'..='9' | '_'))
+}
+
+/// Returns a usually-reasonable approximation of the given string, using only
+/// valid identifier characters. The result matches `[a-zA-Z_][a-zA-Z0-9_]*`
+/// and has length at most `max_len` (which should be at least 1).
+pub fn make_identifier(s: &str, max_len: usize) -> String {
+    let s = deunicode::deunicode(s);
+    let mut s_chars = s.chars();
+    let mut id = "".to_string();
+    match s_chars.next() {
+        Some(c) if matches!(c, 'a'..='z' | 'A'..='Z') => id.push(c),
+        _ => id.push('_'),
+    }
+    for c in s_chars {
+        if id.len() >= max_len {
+            break;
+        } else if matches!(c, 'a'..='z' | 'A'..='Z' | '0'..='9') {
+            id.push(c);
+        } else if !id.ends_with("_") {
+            id += "_";
+        }
+    }
+    id
 }
 
 /// Indicates whether the given string contains any of the characters '*', '?',

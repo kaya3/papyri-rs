@@ -1,11 +1,12 @@
 use std::io;
 
 use crate::utils::{StringPool, str_ids, taginfo, text};
+use super::context::Context;
 use super::html::HTML;
 use super::tag::Tag;
 
 /// Renders a compiled Papyri document to HTML (or plain text).
-pub struct Renderer<'a, T: io::Write> {
+struct Renderer<'a, T: io::Write> {
     string_pool: &'a StringPool,
     as_html: bool,
     writer: &'a mut T,
@@ -52,7 +53,9 @@ impl <'a, T: io::Write> Renderer<'a, T> {
         if self.as_html {
             write!(self.writer, "<{name}")?;
             for (&k, v) in tag.attributes.iter() {
-                write!(self.writer, " {}", self.string_pool.get(k))?;
+                let attr_name = self.string_pool.get(k)
+                    .replace("_", "-");
+                write!(self.writer, " {attr_name}")?;
                 if let Some(v) = v {
                     write!(self.writer, "=\"{}\"", text::encode_entities(v, true))?;
                 }
@@ -74,5 +77,13 @@ impl <'a, T: io::Write> Renderer<'a, T> {
             writeln!(self.writer)?;
         }
         Ok(())
+    }
+}
+
+impl Context {
+    /// Renders 
+    pub fn render<T: io::Write>(&self, html: &HTML, as_html: bool, writer: &mut T) -> Result<(), io::Error> {
+        Renderer::new(&self.string_pool, as_html, writer)
+            .render(html)
     }
 }

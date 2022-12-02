@@ -59,9 +59,7 @@ pub struct ProgramArgs {
 
 struct Main {
     options: ProgramArgs,
-    loader: compiler::ModuleLoader,
-    output_files: Option<utils::OutFiles<compiler::HTML>>,
-    diagnostics: errors::Diagnostics,
+    ctx: compiler::Context,
 }
 
 enum SourceFileResult {
@@ -74,22 +72,14 @@ enum SourceFileResult {
 
 impl Main {
     fn new(options: ProgramArgs) -> Main {
-        let output_files = options.out_dir
-            .as_ref()
-            .map(utils::OutFiles::new);
-        
-        let diagnostics = errors::Diagnostics::new(if options.ignore_warnings {
+        let reporting_level = if options.ignore_warnings {
             errors::ReportingLevel::Error
         } else {
             errors::ReportingLevel::All
-        });
+        };
         
-        Main {
-            options,
-            loader: compiler::ModuleLoader::new(),
-            output_files,
-            diagnostics,
-        }
+        let ctx = compiler::Context::new(reporting_level, options.out_dir.as_deref());
+        Main {options, ctx}
     }
     
     fn run(&mut self) -> Result<(), String> {
@@ -190,26 +180,28 @@ impl Main {
             return Ok(SourceFileResult::SkippedUnchanged);
         }
         
-        self.diagnostics.clear();
-        if matches!(self.output_files, Some(ref o) if !o.is_empty()) { errors::ice("Output files were not consumed"); }
-        
-        let result = self.loader.load_uncached(&src_path, &mut self.diagnostics, self.output_files.as_mut())
+        self.ctx.reset();
+        let result = self.ctx
+            .load_uncached(&src_path)
             .map_err(|e| format!("Error loading \"{src_path_str}\": {e}"))?;
         
-        let mut to_write = self.output_files.as_mut()
+        let mut to_write = self.ctx.out_files
+            .as_mut()
             .map_or_else(Vec::new, |o| o.take_iter().collect());
         if !result.out.is_empty() {
             to_write.push((out_path, result.out));
         }
         
-        self.diagnostics.print();
-        if !self.diagnostics.is_empty() {
-            eprintln!("{src_path_str} ({})", self.diagnostics.summary());
+        let diagnostics = &mut self.ctx.diagnostics;
+        diagnostics.print();
+        
+        if !diagnostics.is_empty() {
+            eprintln!("{src_path_str} ({})", diagnostics.summary());
         } else if !self.options.silent {
             println!("{src_path_str} ({})", if to_write.is_empty() { "no output, skipping" } else { "OK" });
         }
         
-        if self.diagnostics.num_errors > 0 {
+        if diagnostics.num_errors > 0 {
             Ok(SourceFileResult::Failed)
         } else if to_write.is_empty() {
             Ok(SourceFileResult::SkippedNoOutput)
@@ -251,8 +243,7 @@ impl Main {
             .map(io::BufWriter::new)
             .map_err(|e| format!("Failed to create file \"{path_str}\": {e}"))?;
         
-        compiler::Renderer::new(&self.loader.string_pool, !self.options.text, &mut out_writer)
-            .render(&html)
+        self.ctx.render(&html, !self.options.text, &mut out_writer)
             .map_err(|e| format!("Failed to write file \"{path_str}\": {e}"))?;
         
         if !self.options.silent {
