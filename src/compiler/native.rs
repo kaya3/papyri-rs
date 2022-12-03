@@ -262,7 +262,7 @@ impl <'a> Compiler<'a> {
                     return None;
                 }
                 
-                let id = self.ctx.unique_ids.get_unique_id(id_base, max_len as usize);
+                let id = self.ctx.unique_ids.get_unique_id(id_base.as_ref(), max_len as usize);
                 return Some(Value::Str(id));
             },
             

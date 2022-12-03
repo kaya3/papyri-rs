@@ -15,7 +15,6 @@ mod render;
 mod sequence;
 mod tag;
 mod types;
-mod unique_id;
 mod value;
 
 pub use compiler::CompileResult;

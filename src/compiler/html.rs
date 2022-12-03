@@ -149,6 +149,30 @@ impl HTML {
         }
     }
     
+    /// Attempts to convert this HTML content into a string. The conversion
+    /// fails if the content contains any tags.
+    pub fn to_string(&self) -> Option<String> {
+        let mut s = "".to_string();
+        self._write_string(&mut s)
+            .then_some(s)
+    }
+    
+    fn _write_string(&self, s: &mut String) -> bool {
+        match self {
+            HTML::Sequence(seq) => {
+                return seq.iter()
+                    .all(|child| child._write_string(s));
+            },
+            
+            HTML::Empty => {},
+            HTML::Text(t) => *s += t,
+            HTML::Whitespace => *s += " ",
+            HTML::RawNewline => *s += "\n",
+            HTML::Tag(_) => return false,
+        }
+        true
+    }
+    
     /// Indicates whether this HTML item is whitespace, including a literal
     /// newline or `HTML::Empty`.
     pub fn is_whitespace(&self) -> bool {

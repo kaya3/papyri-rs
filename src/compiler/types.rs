@@ -199,6 +199,11 @@ impl <'a> Compiler<'a> {
             
             (Type::Str, Value::Bool(b)) => return Some(Token::bool_to_string(*b).into()),
             (Type::Str, Value::Int(i)) => return Some(i.to_string().into()),
+            (Type::Str, Value::HTML(html)) => {
+                if let Some(s) = html.to_string() {
+                    return Some(Value::from(s));
+                }
+            },
             
             (Type::Dict(t), Value::Dict(vs)) => {
                 let mut coerced_vs = ValueMap::new();

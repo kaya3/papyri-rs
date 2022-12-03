@@ -1,10 +1,9 @@
 use crate::errors;
-use crate::utils::{OutFiles, SourceRange, NameID, StringPool};
+use crate::utils::{OutFiles, SourceRange, NameID, StringPool, text};
 use super::compiler::Compiler;
 use super::html::HTML;
 use super::module_loader::ModuleCache;
 use super::types::Type;
-use super::unique_id::UniqueIDGenerator;
 
 /// Holds the context for a compilation job.
 pub struct Context {
@@ -18,7 +17,7 @@ pub struct Context {
     pub string_pool: StringPool,
     
     /// The unique ID generator for this compiler context.
-    pub unique_ids: UniqueIDGenerator,
+    pub unique_ids: text::UniqueIDGenerator,
     
     /// The output files collector for this compiler context, if it has one.
     pub out_files: Option<OutFiles<HTML>>,
@@ -32,7 +31,7 @@ impl Context {
             string_pool: StringPool::new(),
             diagnostics: errors::Diagnostics::new(reporting_level),
             module_cache: ModuleCache::new(),
-            unique_ids: UniqueIDGenerator::new(),
+            unique_ids: text::UniqueIDGenerator::new(),
             out_files: out_dir.map(OutFiles::new),
         };
         ctx.compile_stdlib();

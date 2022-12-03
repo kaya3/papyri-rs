@@ -48,6 +48,6 @@ assert_ok! {
     
     unique_id_transliterate_unicode(
         "@unique_id `l'Hôpital's rule`",
-        "<p>l_Hopital_s_rule</p>",
+        "<p>l_hopital_s_rule</p>",
     );
 }

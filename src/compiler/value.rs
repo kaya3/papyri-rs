@@ -139,7 +139,9 @@ impl <'a> Compiler<'a> {
     /// occurs.
     pub fn evaluate_node(&mut self, node: &AST, type_hint: &Type) -> Option<Value> {
         let v = match node {
-            AST::LiteralValue(tok) => if type_hint.is_html() {
+            AST::LiteralValue(tok) => if tok.kind == TokenKind::Dot {
+                Value::UNIT
+            } else if type_hint.is_html() {
                 // This is a shortcut, to avoid parsing ints and bools and then
                 // converting back to text. It also avoids the possibility of a
                 // parse error if an integer is not in the signed 64-bit range.
@@ -228,11 +230,10 @@ impl <'a> Compiler<'a> {
     }
     
     /// Evaluates a literal token to a value, or returns `None` if a parse
-    /// error occurs. The token must be either a `Dot`, `Boolean`, `Number`,
-    /// `Name` or `Verbatim`.
+    /// error occurs. The token must be either a `Boolean`, `Number`, `Name` or
+    /// `Verbatim`.
     pub fn evaluate_literal(&mut self, tok: &Token) -> Option<Value> {
         match tok.kind {
-            TokenKind::Dot => Some(Value::UNIT),
             TokenKind::Boolean => Some(Value::Bool(tok.get_bool_value())),
             TokenKind::Name => Some(tok.as_str().into()),
             TokenKind::Verbatim => Some(tok.get_verbatim_text().into()),

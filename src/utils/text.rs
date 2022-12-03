@@ -1,7 +1,9 @@
 //! This module contains helper functions for text or string operations.
 
+use std::rc::Rc;
 use deunicode;
 use htmlentity::entity;
+use indexmap::IndexSet;
 
 /// Indicates whether the given string is a valid name, matching `[a-zA-Z_][a-zA-Z0-9_]*`.
 pub fn is_identifier(s: &str) -> bool {
@@ -102,5 +104,68 @@ pub fn get_source_language_hint(src: &str) -> Option<(&str, &str)> {
         Some((first_line, &src[k + 1..]))
     } else {
         None
+    }
+}
+
+/// A generator of unique string IDs. It converts arbitrary strings into valid
+/// identifiers; IDs generated will be distinct until the `clear()` method is
+/// called.
+pub struct UniqueIDGenerator {
+    ids_used: IndexSet<Rc<str>>,
+}
+
+impl UniqueIDGenerator {
+    /// Creates a new unique ID generator.
+    pub fn new() -> UniqueIDGenerator {
+        UniqueIDGenerator {
+            ids_used: IndexSet::new(),
+        }
+    }
+    
+    /// Clears this generator, allowing previously-issued IDs to be reused.
+    pub fn clear(&mut self) {
+        self.ids_used.clear();
+    }
+    
+    /// Returns a valid identifier based on the given `id_base` string, which
+    /// distinct from all other identifiers returned by this generator since
+    /// the last call to `clear()`.
+    /// 
+    /// The identifier is lowercase, and its length is at most `max_len` unless
+    /// it is necessary to exceed that length to ensure uniqueness.
+    pub fn get_unique_id(&mut self, id_base: &str, max_len: usize) -> Rc<str> {
+        let mut id = if !is_identifier(&id_base) {
+            make_identifier(&id_base, max_len)
+        } else if id_base.len() > max_len {
+            id_base[..max_len].to_string()
+        } else {
+            id_base.to_string()
+        };
+        id.make_ascii_lowercase();
+        
+        let id: Rc<str> = Rc::from(id);
+        if self.ids_used.insert(id.clone()) { return id; }
+        
+        let mut id_base = id_base;
+        if id_base.len() + 2 > max_len && max_len >= 3 {
+            id_base = &id_base[..max_len - 2];
+        }
+        
+        let mut counter = 2;
+        let id: Rc<str> = loop {
+            let id = format!("{id_base}_{counter}");
+            if !self.ids_used.contains(id.as_str()) {
+                break Rc::from(id);
+            }
+            
+            counter += 1;
+            // check if we're about to overflow
+            if id.len() >= max_len && id_base.len() > 1 && id.trim_end_matches('9').ends_with('_') {
+                id_base = &id_base[..id_base.len() - 1];
+            }
+        };
+        
+        self.ids_used.insert(id.clone());
+        id
     }
 }
