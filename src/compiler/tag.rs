@@ -3,7 +3,7 @@ use indexmap::IndexMap;
 
 use crate::errors::{ice, ice_at, NameError, RuntimeError};
 use crate::parser::ast;
-use crate::utils::{str_ids, NameID, taginfo, text, SourceRange};
+use crate::utils::{str_ids, NameID, taginfo, text, SourceRange, equals};
 use super::compiler::Compiler;
 use super::html::HTML;
 use super::types::Type;
@@ -33,6 +33,12 @@ impl Tag {
             ice("duplicate attribute");
         }
         self
+    }
+    
+    pub fn equals(&self, other: &Tag) -> bool {
+        self.name_id == other.name_id
+            && equals::equal_maps(&self.attributes, &other.attributes, |s1, s2| s1 == s2)
+            && self.content.equals(&other.content)
     }
 }
 

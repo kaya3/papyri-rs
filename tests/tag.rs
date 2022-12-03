@@ -127,4 +127,9 @@ assert_err! {
         "<span id=`foo` **@dict(id=`bar`).>Foobar</span>",
         RuntimeError::AttrMultipleValues,
     );
+    
+    self_closing_with_content(
+        "@let(tag_name=`img`). <$tag_name>Foo</>",
+        TypeError::NoContentAllowed,
+    );
 }

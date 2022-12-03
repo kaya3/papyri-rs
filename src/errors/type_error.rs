@@ -7,8 +7,9 @@ pub enum TypeError {
     ExpectedWas(Type, Type),
     TooManyPositionalArgs(usize, usize),
     NotEnoughPositionalArgs(usize, usize),
-    InlineBlockContent,
+    TagNotAllowed(String),
     InlineParagraphBreak,
+    NoContentAllowed,
 }
 
 impl std::fmt::Display for TypeError {
@@ -17,8 +18,9 @@ impl std::fmt::Display for TypeError {
             TypeError::ExpectedWas(expected, was) => write!(f, "expected {expected}, was {was}"),
             TypeError::TooManyPositionalArgs(expected, was) => write!(f, "too many positional arguments (expected {expected}, was {was})"),
             TypeError::NotEnoughPositionalArgs(expected, was) => write!(f, "not enough positional arguments (expected {expected}, was {was})"),
-            TypeError::InlineBlockContent => f.write_str("block content not allowed inside inline content"),
+            TypeError::TagNotAllowed(tag_name) => write!(f, "'{tag_name}' tag not allowed here"),
             TypeError::InlineParagraphBreak => f.write_str("paragraph break not allowed in inline content"),
+            TypeError::NoContentAllowed => f.write_str("non-content content not allowed here"),
         }
     }
 }

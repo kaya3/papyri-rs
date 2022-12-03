@@ -353,7 +353,7 @@ impl <'a> Compiler<'a> {
             Func::NonNative(ref f) => {
                 let call = (func.clone(), call_range.clone());
                 let frame = f.closure.new_child_frame(bindings, Some(call));
-                self.evaluate_in_frame(frame, f.body.as_ref(), type_hint)
+                self.evaluate_in_frame(frame, |_self| _self.evaluate_node(f.body.as_ref(), type_hint))
             },
             Func::Native(f, _) => {
                 self.evaluate_native_func(f, bindings, call_range)

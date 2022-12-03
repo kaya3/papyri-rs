@@ -138,15 +138,13 @@ impl Context {
         let root = parser::parse(stdlib_src, &mut self.diagnostics, &mut self.string_pool);
         let mut compiler = Compiler::new(self);
         
-        let html = compiler.compile_sequence(&root, taginfo::ContentKind::REQUIRE_P);
+        compiler.compile_sequence(&root, taginfo::ContentKind::RequireEmpty);
         let exports = compiler.exports;
         self.module_cache.stdlib = Some(InactiveFrame::from(compiler.call_stack.pop().unwrap()));
         
         if !self.diagnostics.is_empty() {
             self.diagnostics.print();
             errors::ice("Standard library had errors or warnings");
-        } else if !html.is_empty() {
-            errors::ice("Standard library had non-empty output");
         } else if !exports.is_empty() {
             errors::ice("Standard library had exports");
         }

@@ -253,6 +253,10 @@ pub enum MatchPattern {
     /// A pattern which matches unconditionally, and binds it to a variable.
     VarName(VarName),
     
+    /// A pattern which matches if the value is equal to the value of an
+    /// expression.
+    EqualsValue(SourceRange, AST),
+    
     /// A pattern which matches a string according to a regular expression,
     /// binding its capturing groups to variables. Any capturing groups which
     /// do not match will be bound to a unit value.
@@ -321,6 +325,7 @@ impl MatchPattern {
     pub fn range(&self) -> &SourceRange {
         match self {
             MatchPattern::Ignore(range) |
+            MatchPattern::EqualsValue(range, ..) |
             MatchPattern::Typed(range, ..) |
             MatchPattern::TypeOf(range, ..) |
             MatchPattern::ExactList(range, ..) |

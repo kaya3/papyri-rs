@@ -2,6 +2,7 @@
 //! used in multiple other modules.
 
 mod const_strs;
+pub mod equals;
 mod outfiles;
 mod range;
 pub mod relpath;
@@ -17,4 +18,3 @@ pub use range::SourceRange;
 pub use sliceref::SliceRef;
 pub use sourcefile::{SourceFile, is_papyri_file, is_papyri_library};
 pub use string_pool::{StringPool, NameID};
-

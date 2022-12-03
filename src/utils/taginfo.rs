@@ -6,16 +6,24 @@ use super::str_ids;
 #[derive(Debug, Clone, Copy)]
 /// Specifies what contents/children an HTML tag can have.
 pub enum ContentKind {
-    /// Children must all be one of these specific tag kinds; wrap with the first one otherwise
+    /// Children must all be one of these specific tag kinds; wrap with the
+    /// first one otherwise.
     RequireOneOf(&'static [NameID]),
-    /// Children must all be blocks; wrap with this otherwise
+    
+    /// Children must all be blocks; wrap with this otherwise.
     RequireBlock(NameID),
-    /// Children may be all inline or all blocks; wrap with this if necessary
+    
+    /// Children may be all inline or all blocks; wrap with this if necessary.
     AllowBlock(NameID),
-    /// Children must be inline; convert paragraph breaks to `<br>` tags
+    
+    /// Children must be inline; convert paragraph breaks to `<br>` tags.
     RequireInline,
-    /// Children must be inline; line breaks are forbidden
+    
+    /// Children must be inline; line breaks are forbidden.
     RequireInlineNoLineBreaks,
+    
+    /// No contents are allowed.
+    RequireEmpty,
 }
 
 impl ContentKind {
@@ -127,7 +135,8 @@ pub fn content_kind(name_id: NameID) -> ContentKind {
         str_ids::FIELDSET |
         str_ids::FIGCAPTION |
         str_ids::FIGURE |
-        str_ids::FORM => ContentKind::ALLOW_P,
+        str_ids::FORM |
+        str_ids::LI => ContentKind::ALLOW_P,
         
         str_ids::DL => ContentKind::RequireOneOf(&[
             str_ids::DD,
@@ -183,6 +192,10 @@ pub fn content_kind(name_id: NameID) -> ContentKind {
         str_ids::H6 |
         str_ids::P => ContentKind::RequireInlineNoLineBreaks,
         
-        _ => ContentKind::RequireInline,
+        _ => if is_self_closing(name_id) {
+            ContentKind::RequireEmpty
+        } else {
+            ContentKind::RequireInline
+        },
     }
 }

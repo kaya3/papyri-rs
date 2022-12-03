@@ -3,7 +3,7 @@ use indexmap::IndexMap;
 
 use crate::errors::{ice_at, SyntaxError};
 use crate::parser::{ast, AST, Token, TokenKind, text};
-use crate::utils::{NameID, str_ids, SliceRef, SourceRange};
+use crate::utils::{NameID, str_ids, SliceRef, SourceRange, equals};
 use super::compiler::Compiler;
 use super::func::Func;
 use super::html::HTML;
@@ -125,6 +125,25 @@ impl Value {
             },
             Value::HTML(html) => if html.is_empty() { Type::Unit } else if html.is_block() { Type::Block } else { Type::Inline },
             Value::Func(..) => Type::Function,
+        }
+    }
+    
+    /// Determines whether two values are equal; lists and dictionaries are
+    /// compared deeply. Functions are never equal, not even to themselves.
+    pub fn equals(&self, other: &Value) -> bool {
+        match (self, other) {
+            (Value::Bool(b1), Value::Bool(b2)) => b1 == b2,
+            (Value::Int(i1), Value::Int(i2)) => i1 == i2,
+            (Value::Str(s1), Value::Str(s2)) => s1 == s2,
+            (Value::HTML(h1), Value::HTML(h2)) => h1.equals(h2),
+            
+            (Value::List(v1), Value::List(v2)) => equals::equal_lists(v1.as_ref(), v2.as_ref(), Value::equals),
+            (Value::Dict(v1), Value::Dict(v2)) => equals::equal_maps(v1.as_ref(), v2.as_ref(), Value::equals),
+            
+            (Value::Str(s1), Value::HTML(h)) |
+            (Value::HTML(h), Value::Str(s1)) => h.to_string().map_or(false, |s2| s1.as_ref() == s2.as_str()),
+            
+            _ => false,
         }
     }
 }

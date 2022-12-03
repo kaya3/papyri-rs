@@ -74,6 +74,12 @@ impl <'a> Parser<'a> {
             TokenKind::Number |
             TokenKind::Verbatim => Some(MatchPattern::Literal(tok)),
             
+            TokenKind::Equals => {
+                let value = self.parse_value()?;
+                let range = tok.range.to_end(value.range().end);
+                Some(MatchPattern::EqualsValue(range, value))
+            }
+            
             TokenKind::LAngle => self.parse_tag_pattern(tok),
             TokenKind::LSqb => self.parse_seq_pattern(tok, TokenKind::Comma, TokenKind::RSqb).map(|(p, _)| p),
             TokenKind::LPar => self.parse_dict_pattern(tok),

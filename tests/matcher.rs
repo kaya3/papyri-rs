@@ -33,9 +33,16 @@ assert_matches! {
     tag_seq("{<a/><b/><i/>}", "{<a/><b/><i/>}");
     tag_spread("{<a/><b/><i/><u/>}", "{<a/> *_ <u/>}");
     tag_one_in_seq("<span/>", "{<span/>}");
+    
+    equals_captured_var("[23, 23]", "[$x, =$x]");
 }
 
 assert_ok! {
+    equals_value(
+        "@let(x=23, y=17). @match 17 {=$x -> {Failed (equals x)}, =$y -> OK, _ -> Failed}",
+        "<p>OK</p>"
+    );
+    
     list_part(
         "@match [1, 2, 3] {[$x, *_] -> $x}",
         "<p>1</p>",

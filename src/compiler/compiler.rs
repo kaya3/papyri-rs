@@ -65,7 +65,7 @@ impl <'a> Compiler<'a> {
                     .map(text::substitutions)
                     .map_or(HTML::Empty, HTML::from)
             },
-            AST::Text(text, ..) => HTML::Text(text.clone()),
+            AST::Text(text, ..) => text.clone().into(),
             AST::Whitespace(..) => HTML::Whitespace,
             
             AST::ParagraphBreak(range) => ice_at("paragraph break should be handled in SequenceCompiler", range),

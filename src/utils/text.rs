@@ -41,9 +41,10 @@ pub fn looks_like_glob(s: &str) -> bool {
     s.contains(|c| matches!(c, '*' | '?' | '[' | ']'))
 }
 
-/// Indicates whether the given string is all whitespace.
+/// Indicates whether the given string is all ASCII whitespace. A non-breaking
+/// space character is not ASCII whitespace.
 pub fn is_whitespace(s: &str) -> bool {
-    s.chars().all(char::is_whitespace)
+    s.chars().all(|c| c.is_ascii_whitespace())
 }
 
 /// Returns either the empty string, or the string "s", to pluralise a word

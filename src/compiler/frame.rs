@@ -3,11 +3,9 @@ use std::rc::Rc;
 use indexmap::IndexSet;
 
 use crate::errors::{NameError, RuntimeError, Warning, StackTrace, RuntimeWarning};
-use crate::parser::AST;
 use crate::utils::{SourceRange, NameID};
 use super::compiler::Compiler;
 use super::func::Func;
-use super::types::Type;
 use super::value::{Value, ValueMap};
 
 #[derive(Debug)]
@@ -44,12 +42,12 @@ impl ActiveFrame {
         InactiveFrame {f: self.f.clone()}
     }
     
-    fn get(&self, name_id: NameID, require_implicit: bool) -> Option<Value> {
+    pub fn get(&self, name_id: NameID, require_implicit: bool) -> Option<Value> {
         let f = self.f.as_ref().borrow();
         f.get(name_id, require_implicit)
     }
     
-    fn set(&self, name_id: NameID, value: Value, implicit: bool) -> bool {
+    pub fn set(&self, name_id: NameID, value: Value, implicit: bool) -> bool {
         let mut f = self.f.as_ref().borrow_mut();
         if implicit { f.implicit.insert(name_id); }
         f.set(name_id, value)
@@ -80,6 +78,8 @@ impl Frame {
         }
     }
     
+    /// Sets the value of a variable in this frame. Returns `true` if a variable
+    /// of that name was already present.
     fn set(&mut self, name_id: NameID, value: Value) -> bool {
         self.locals.insert(name_id, value).is_some()
     }
@@ -138,9 +138,9 @@ impl <'a> Compiler<'a> {
         }
     }
     
-    pub fn evaluate_in_frame(&mut self, frame: ActiveFrame, node: &AST, type_hint: &Type) -> Option<Value> {
+    pub fn evaluate_in_frame<T>(&mut self, frame: ActiveFrame, f: impl FnOnce(&mut Compiler) -> T) -> T {
         self.call_stack.push(frame);
-        let result = self.evaluate_node(node, type_hint);
+        let result = f(self);
         self.call_stack.pop();
         result
     }

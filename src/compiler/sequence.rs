@@ -29,14 +29,22 @@ impl <'a> Compiler<'a> {
                 comp.newline();
             } else {
                 let child_html = self.compile_node(child);
-                if require_inline && child_html.is_block() {
-                    self.type_error(TypeError::InlineBlockContent, child.range());
+                if require_inline {
+                    if let Some(block_tag_name) = child_html.block_kind() {
+                        let block_tag_name = self.get_name(block_tag_name).to_string();
+                        self.type_error(TypeError::TagNotAllowed(block_tag_name), child.range());
+                    }
                 }
                 comp.push(child_html);
             }
         }
         
-        comp.to_html()
+        let html = comp.to_html();
+        if matches!(content_kind, ContentKind::RequireEmpty) && !html.is_empty() {
+            let range = &sequence[0].range().to_end(sequence.last().unwrap().range().end);
+            self.type_error(TypeError::NoContentAllowed, range);
+        }
+        html
     }
 }
 
@@ -77,7 +85,7 @@ impl SequenceBuilder {
             ContentKind::RequireInline => {
                 self.push(HTML::tag(str_ids::BR, HTML::Empty));
             },
-            ContentKind::RequireInlineNoLineBreaks => {},
+            _ => {},
         }
     }
     
