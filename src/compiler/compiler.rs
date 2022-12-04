@@ -1,5 +1,5 @@
-use crate::errors::{ice_at, Warning};
-use crate::parser::{AST, text};
+use crate::errors;
+use crate::parser::AST;
 use crate::utils::taginfo;
 use super::context::Context;
 use super::frame::ActiveFrame;
@@ -38,38 +38,26 @@ impl <'a> Compiler<'a> {
     
     pub fn compile_node(&mut self, node: &AST) -> HTML {
         match node {
-            AST::FuncDef(def) => {
-                if def.name_id.is_anonymous() {
-                    self.warning(Warning::AnonymousFunctionInText, &def.range);
-                } else {
-                    let f = self.compile_func_def(def);
-                    self.set_var(def.name_id, Value::Func(f), false, node.range());
-                }
+            AST::FuncDef(def) if !def.name_id.is_anonymous() => {
+                let f = self.compile_func_def(def);
+                self.set_var(def.name_id, Value::Func(f), false, node.range());
                 HTML::Empty
             },
             
             AST::Group(group, ..) => self.compile_sequence(group, taginfo::ContentKind::ALLOW_P),
             AST::Tag(tag) => self.compile_tag(tag),
             
-            AST::FuncCall(..) |
-            AST::Match(..) |
-            AST::VarName(..) |
-            AST::Verbatim(..) |
-            AST::List(..) => {
-                self.evaluate_node(node, &Type::AnyHTML)
-                    .map_or(HTML::Empty, |v| self.compile_value(v))
-            },
-            
-            AST::LiteralValue(tok) => {
-                tok.text()
-                    .map(text::substitutions)
-                    .map_or(HTML::Empty, HTML::from)
-            },
             AST::Text(text, ..) => text.clone().into(),
             AST::Whitespace(..) => HTML::Whitespace,
             
-            AST::ParagraphBreak(range) => ice_at("paragraph break should be handled in SequenceCompiler", range),
-            AST::Template(.., range) => ice_at("template should not occur in non-value context", range),
+            AST::LiteralValue(tok) => errors::ice_at("literal value should not appear in non-value context", &tok.range),
+            AST::ParagraphBreak(range) => errors::ice_at("paragraph break should be handled in SequenceCompiler", range),
+            AST::Template(.., range) => errors::ice_at("template should not occur in non-value context", range),
+            
+            _ => {
+                self.evaluate_node(node, &Type::AnyHTML)
+                    .map_or(HTML::Empty, |v| self.compile_value(v))
+            },
         }
     }
 }

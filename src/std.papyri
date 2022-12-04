@@ -4,7 +4,7 @@
     $before?: html,
     $after?: html,
 ) $content: block -> {
-    @let(w=@match $web_root {"$w/" -> $w, _ -> $web_root}).
+    @let(w=@match $web_root {"$w/" -> $w, _ -> $web_root})...
     <!DOCTYPE html>
     <html>
     <head><title>$title</><link rel=`stylesheet` type=`text/css` href="$w/papyri.css"></>#

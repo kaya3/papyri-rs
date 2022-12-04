@@ -2,7 +2,6 @@
 /// Represents a warning which occurs during compilation of a Papyri source
 /// file.
 pub enum Warning {
-    AnonymousFunctionInText,
     NameAlreadyDeclared(String),
     NoMatchingBranch,
     PatternNameAlreadyBound(String),
@@ -24,7 +23,6 @@ pub enum RuntimeWarning {
 impl std::fmt::Display for Warning {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Warning::AnonymousFunctionInText => f.write_str("anonymous function not expected here"),
             Warning::NameAlreadyDeclared(name) => write!(f, "name '{name}' already declared"),
             Warning::NoMatchingBranch => f.write_str("no matching branch in @match"),
             Warning::PatternNameAlreadyBound(name) => write!(f, "name '{name}' already bound in this pattern"),

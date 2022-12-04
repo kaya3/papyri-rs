@@ -152,6 +152,22 @@ pub struct FuncDef {
 }
 
 #[derive(Debug)]
+/// A "let in" AST node.
+pub struct LetIn {
+    /// The source span of this "let in" expression.
+    pub range: SourceRange,
+    
+    /// If true, this expression is `@implicit`, otherwise it is `@let`.
+    pub is_implicit: bool,
+    
+    /// The variables declared in this "let in" expression.
+    pub vars: Box<[(NameID, AST)]>,
+    
+    /// The expression body.
+    pub child: AST,
+}
+
+#[derive(Debug)]
 /// An argument in an AST function call.
 pub struct Arg {
     /// The source span of this argument.
@@ -386,6 +402,9 @@ pub enum AST {
     /// A function definition, using the `@fn` keyword.
     FuncDef(Box<FuncDef>),
     
+    /// A "let in" expression.
+    LetIn(Box<LetIn>),
+    
     /// A `@match` expression.
     Match(Box<Match>),
     
@@ -420,6 +439,7 @@ impl AST {
         match self {
             AST::FuncCall(call) => &call.range,
             AST::FuncDef(def) => &def.range,
+            AST::LetIn(l) => &l.range,
             AST::Match(m) => &m.range,
             AST::Tag(tag) => &tag.range,
             

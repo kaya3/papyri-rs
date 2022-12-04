@@ -39,7 +39,7 @@ assert_matches! {
 
 assert_ok! {
     equals_value(
-        "@let(x=23, y=17). @match 17 {=$x -> {Failed (equals x)}, =$y -> OK, _ -> Failed}",
+        "@let(x=23, y=17) @match 17 {=$x -> {Failed (equals x)}, =$y -> OK, _ -> Failed}",
         "<p>OK</p>"
     );
     

@@ -48,6 +48,10 @@ pub enum SyntaxError {
     ArgSpreadNamed,
     ArgNamedUnderscore,
     
+    LetInMissingArgs,
+    LetInPositionalArg,
+    LetInLiteral,
+    
     PatternBareName,
     PatternMultipleSpreads,
     PatternNamedUnderscore,
@@ -99,6 +103,9 @@ impl std::fmt::Display for SyntaxError {
             SyntaxError::ArgPositionalAfterNamed => f.write_str("positional argument cannot occur after named argument"),
             SyntaxError::ArgSpreadNamed => f.write_str("named argument cannot be spread"),
             SyntaxError::ArgNamedUnderscore => f.write_str("named argument cannot begin with underscore"),
+            SyntaxError::LetInMissingArgs => f.write_str("missing variable declarations for let expression"),
+            SyntaxError::LetInPositionalArg => f.write_str("positional argument not allowed in let expression"),
+            SyntaxError::LetInLiteral => f.write_str("let expression with literal has no effect; did you mean '...'?"),
             SyntaxError::PatternBareName => f.write_str("bare name not allowed in match pattern; use $ for variable name or backticks for string literal"),
             SyntaxError::PatternMultipleSpreads => f.write_str("match pattern cannot have multiple spreads"),
             SyntaxError::PatternNamedUnderscore => f.write_str("named pattern cannot begin with underscore"),

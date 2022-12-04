@@ -57,22 +57,22 @@ assert_ok! {
     );
     
     var_attribute(
-        "@let(id=`foo`). <span id=$id>Foo</span>",
+        "@let(id=`foo`) <span id=$id>Foo</span>",
         r#"<p><span id="foo">Foo</span></p>"#,
     );
     
     var_tag_name(
-        "@let(t=`span`). <$t>Foo</>",
+        "@let(t=`span`) <$t>Foo</>",
         "<p><span>Foo</span></p>",
     );
     
     template_attribute(
-        r#"@let(c=`foo`). <span class="$c bar">Foo</span>"#,
+        r#"@let(c=`foo`) <span class="$c bar">Foo</span>"#,
         r#"<p><span class="foo bar">Foo</span></p>"#,
     );
     
     empty_attribute(
-        "@let(id=.). <span id?=$id>Foo</span>",
+        "@let(id=.) <span id?=$id>Foo</span>",
         "<p><span>Foo</span></p>",
     );
     
@@ -119,7 +119,7 @@ assert_err! {
     );
     
     invalid_tag_name(
-        "@let(t=`12345`). <$t>Foobar</>",
+        "@let(t=`12345`) <$t>Foobar</>",
         NameError::InvalidTag,
     );
     
@@ -129,7 +129,7 @@ assert_err! {
     );
     
     self_closing_with_content(
-        "@let(tag_name=`img`). <$tag_name>Foo</>",
+        "@let(tag_name=`img`) <$tag_name>Foo</>",
         TypeError::NoContentAllowed,
     );
 }

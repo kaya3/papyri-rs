@@ -64,6 +64,15 @@ impl <'a> Parser<'a> {
         Some((children, close))
     }
     
+    pub fn parse_value_or_ellipsis(&mut self) -> Option<AST> {
+        self.skip_whitespace();
+        if let Some(ellipsis) = self.poll_if_kind(TokenKind::Ellipsis) {
+            Some(self.parse_ellipsis_group(ellipsis))
+        } else {
+            self.parse_value()
+        }
+    }
+    
     pub fn parse_value(&mut self) -> Option<AST> {
         self.skip_whitespace();
         let tok = self.expect_poll()?;
@@ -137,6 +146,9 @@ impl <'a> Parser<'a> {
             "@fn" => self.parse_func_def(at)
                 .map(Box::new)
                 .map(AST::FuncDef),
+            "@implicit" | "@let" => self.parse_let_in(at)
+                .map(Box::new)
+                .map(AST::LetIn),
             "@match" => self.parse_match(at)
                 .map(Box::new)
                 .map(AST::Match),
@@ -197,5 +209,40 @@ impl <'a> Parser<'a> {
             children.into_boxed_slice(),
             open.range.to_end(close.range.end),
         ))
+    }
+    
+    fn parse_let_in(&mut self, at: Token) -> Option<LetIn> {
+        let Some(args) = self.parse_args() else {
+            self.diagnostics.syntax_error(SyntaxError::LetInMissingArgs, &at.range);
+            return None;
+        };
+        
+        let vars: Box<[_]> = args.into_iter()
+            .filter_map(|arg| {
+                if arg.is_spread() {
+                    self.diagnostics.syntax_error(SyntaxError::SpreadNotAllowed, &arg.range);
+                    None
+                } else if arg.is_positional() {
+                    self.diagnostics.syntax_error(SyntaxError::LetInPositionalArg, &arg.range);
+                    None
+                } else {
+                    Some((arg.name_id, arg.value))
+                }
+            })
+            .collect();
+        
+        let child = self.parse_value_or_ellipsis()?;
+        match &child {
+            AST::LiteralValue(tok) |
+            AST::Verbatim(tok) => self.diagnostics.syntax_error(SyntaxError::LetInLiteral, &tok.range),
+            _ => {},
+        }
+        
+        Some(LetIn {
+            range: at.range.to_end(child.range().end),
+            is_implicit: at.as_str() == "@implicit",
+            vars,
+            child,
+        })
     }
 }

@@ -12,7 +12,7 @@ assert_ok! {
     );
     
     variable(
-        "@let(x=5). $x $x",
+        "@let(x=5) {$x $x}",
         "<p>5 5</p>",
     );
     

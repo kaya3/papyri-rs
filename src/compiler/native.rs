@@ -17,11 +17,9 @@ pub enum NativeFunc {
     Code,
     Export,
     Filter,
-    Implicit,
     Import,
     Include,
     Join,
-    Let,
     ListFiles,
     Map,
     Raise,
@@ -30,14 +28,6 @@ pub enum NativeFunc {
 }
 
 pub fn get_natives_frame() -> ActiveFrame {
-    let args_dict = Rc::new(FuncSignature {
-        positional_params: Box::new([]),
-        spread_param: None,
-        named_params: IndexMap::new(),
-        spread_named_param: Some(FuncParam::new(str_ids::PARAM, Type::dict(Type::AnyValue))),
-        content_param: FuncParam::new(str_ids::ANONYMOUS, Type::Unit),
-    });
-    
     let content_str = Rc::new(FuncSignature {
         positional_params: Box::new([]),
         spread_param: None,
@@ -56,6 +46,14 @@ pub fn get_natives_frame() -> ActiveFrame {
         ]),
         spread_named_param: None,
         content_param: FuncParam::new(str_ids::PARAM, Type::Str),
+    });
+    
+    let export = Rc::new(FuncSignature {
+        positional_params: Box::new([]),
+        spread_param: None,
+        named_params: IndexMap::new(),
+        spread_named_param: Some(FuncParam::new(str_ids::PARAM, Type::dict(Type::AnyValue))),
+        content_param: FuncParam::new(str_ids::ANONYMOUS, Type::Unit),
     });
     
     let filter = Rc::new(FuncSignature {
@@ -108,13 +106,11 @@ pub fn get_natives_frame() -> ActiveFrame {
     
     let bindings: ValueMap = [
         (NativeFunc::Code, code),
-        (NativeFunc::Export, args_dict.clone()),
+        (NativeFunc::Export, export),
         (NativeFunc::Filter, filter),
-        (NativeFunc::Implicit, args_dict.clone()),
         (NativeFunc::Import, content_str.clone()),
         (NativeFunc::Include, content_str.clone()),
         (NativeFunc::Join, join),
-        (NativeFunc::Let, args_dict),
         (NativeFunc::ListFiles, content_str.clone()),
         (NativeFunc::Map, map),
         (NativeFunc::Raise, content_str),
@@ -133,11 +129,9 @@ impl NativeFunc {
             NativeFunc::Code => str_ids::CODE,
             NativeFunc::Export => str_ids::EXPORT,
             NativeFunc::Filter => str_ids::FILTER,
-            NativeFunc::Implicit => str_ids::IMPLICIT,
             NativeFunc::Import => str_ids::IMPORT,
             NativeFunc::Include => str_ids::INCLUDE,
             NativeFunc::Join => str_ids::JOIN,
-            NativeFunc::Let => str_ids::LET,
             NativeFunc::ListFiles => str_ids::LIST_FILES,
             NativeFunc::Map => str_ids::MAP,
             NativeFunc::Raise => str_ids::RAISE,
@@ -208,12 +202,13 @@ impl <'a> Compiler<'a> {
                 }
                 
                 if f == NativeFunc::ListFiles {
+                    let base_path = path_str.trim_end_matches('/');
                     let paths: Vec<_> = relpath::find_papyri_source_files_in_dir(
                             &path,
                             |p, e| self.module_error(p, ModuleError::IOError(e), call_range),
                         )?
                         .into_iter()
-                        .map(|p| p.to_string_lossy()
+                        .map(|p| format!("{base_path}/{}", p.to_string_lossy())
                             .strip_suffix(".papyri")
                             .unwrap_or_else(|| ice_at("Failed to strip .papyri extension", call_range))
                             .into()
@@ -269,13 +264,6 @@ impl <'a> Compiler<'a> {
                 };
                 
                 return Some(out.into());
-            },
-            
-            NativeFunc::Implicit | NativeFunc::Let => {
-                let Some(Value::Dict(args)) = take_val(bindings, str_ids::PARAM) else {
-                    ice_at("failed to unpack", call_range);
-                };
-                self.set_vars(args.as_ref(), f == NativeFunc::Implicit, call_range);
             },
             
             NativeFunc::Join => {

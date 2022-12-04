@@ -213,9 +213,16 @@ impl <'a> Compiler<'a> {
                 self.evaluate_literal(tok)?
             },
             
-            AST::Match(m) => return self.evaluate_match(m, type_hint),
             AST::FuncCall(call) => return self.evaluate_func_call(call, type_hint),
-            AST::FuncDef(def) => Value::Func(self.compile_func_def(def)),
+            AST::FuncDef(def) => {
+                if type_hint.is_html() {
+                    self.err_expected_type(type_hint, &Type::Function, &def.range);
+                    return None;
+                }
+                Value::Func(self.compile_func_def(def))
+            },
+            AST::LetIn(let_in) => return self.evaluate_let_in(let_in, type_hint),
+            AST::Match(m) => return self.evaluate_match(m, type_hint),
             AST::VarName(var) => return self.evaluate_var(var, type_hint),
             AST::Template(parts, ..) => self.evaluate_template(parts),
             
@@ -303,6 +310,17 @@ impl <'a> Compiler<'a> {
             
             _ => errors::ice_at("illegal token kind", &tok.range),
         }
+    }
+    
+    fn evaluate_let_in(&mut self, let_in: &ast::LetIn, type_hint: &Type) -> Option<Value> {
+        let frame = self.frame()
+            .to_inactive()
+            .new_child_frame(ValueMap::new(), None);
+        for &(name_id, ref value) in let_in.vars.iter() {
+            let value = self.evaluate_node(value, &Type::AnyValue)?;
+            frame.set(name_id, value, let_in.is_implicit);
+        }
+        self.evaluate_in_frame(frame, |_self| _self.evaluate_node(&let_in.child, type_hint))
     }
     
     fn evaluate_code_or_code_block(&mut self, tok: &Token, type_hint: &Type) -> Option<Value> {
