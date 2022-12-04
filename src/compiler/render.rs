@@ -81,7 +81,7 @@ impl <'a, T: io::Write> Renderer<'a, T> {
 }
 
 impl Context {
-    /// Renders 
+    /// Renders the given HTML content to the writer.
     pub fn render<T: io::Write>(&self, html: &HTML, as_html: bool, writer: &mut T) -> Result<(), io::Error> {
         Renderer::new(&self.string_pool, as_html, writer)
             .render(html)

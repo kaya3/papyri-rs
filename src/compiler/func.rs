@@ -255,11 +255,11 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
         }
         
         if let Some(param) = &self.sig.spread_param {
-            let v = self.compiler.coerce(Value::list(self.spread_pos), &param.type_, call_range)?;
+            let v = self.compiler.coerce(self.spread_pos.into(), &param.type_, call_range)?;
             self.map.insert(param.name_id, v);
         }
         if let Some(param) = &self.sig.spread_named_param {
-            let v = self.compiler.coerce(Value::dict(self.spread_named), &param.type_, call_range)?;
+            let v = self.compiler.coerce(self.spread_named.into(), &param.type_, call_range)?;
             self.map.insert(param.name_id, v);
         }
         if !self.map.contains_key(&self.sig.content_param.name_id) {

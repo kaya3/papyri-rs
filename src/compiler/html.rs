@@ -1,9 +1,7 @@
 use std::rc::Rc;
 
-use crate::parser;
-use crate::utils::{str_ids, StringPool, NameID, taginfo, text, equals};
+use crate::utils::{NameID, taginfo, text, equals};
 use super::tag::Tag;
-use super::value::Value;
 
 #[derive(Debug, Clone)]
 /// Some HTML content, possibly empty. HTML content is classified as either
@@ -44,42 +42,6 @@ impl <T: AsRef<str> + Into<Rc<str>>> From<T> for HTML {
 }
 
 impl HTML {
-    /// Converts a value to its HTML representation. Lists become `<ul>` tags,
-    /// dictionaries become tables, and functions will be represented as
-    /// `<code>(@fn name)</code>`.
-    pub fn from_value(value: Value, string_pool: &StringPool) -> HTML {
-        match value {
-            Value::Bool(b) => parser::Token::bool_to_string(b).into(),
-            Value::Int(t) => parser::text::substitutions(&t.to_string()).into(),
-            Value::Str(t) => t.into(),
-            Value::Dict(vs) => {
-                let rows: Vec<HTML> = vs.iter()
-                    .map(|(&k, v)| HTML::tag(str_ids::TR, HTML::seq([
-                        HTML::tag(str_ids::TH, HTML::text(string_pool.get(k))),
-                        HTML::tag(str_ids::TD, HTML::from_value(v.clone(), string_pool)),
-                    ])))
-                    .collect();
-                
-                Tag::new(str_ids::TABLE, HTML::seq(rows))
-                    .str_attr(str_ids::CLASS, "tabular-data")
-                    .into()
-            },
-            Value::List(vs) => {
-                let items: Vec<_> = vs.as_ref()
-                    .iter()
-                    .map(|child| HTML::tag(str_ids::LI, HTML::from_value(child.clone(), string_pool)))
-                    .collect();
-                HTML::tag(str_ids::UL, HTML::seq(items))
-            },
-            Value::HTML(html) => html,
-            
-            Value::Func(f) => {
-                let name = string_pool.get(f.name_id());
-                HTML::tag(str_ids::CODE, format!("(@fn {name})").into())
-            },
-        }
-    }
-    
     /// Converts a string to a normalised HTML item. Empty strings become
     /// `HTML::Empty`, single spaces become `HTML::Whitespace`, and newlines
     /// become `HTML::RawNewline`.
@@ -128,7 +90,7 @@ impl HTML {
     pub fn block_kind(&self) -> Option<NameID> {
         match self {
             HTML::Tag(tag) => taginfo::is_block(tag.name_id).then_some(tag.name_id),
-            HTML::Sequence(seq) => seq.iter().filter_map(HTML::block_kind).next(),
+            HTML::Sequence(seq) => seq.iter().find_map(HTML::block_kind),
             _ => None,
         }
     }

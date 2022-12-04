@@ -140,7 +140,7 @@ impl Context {
         
         compiler.compile_sequence(&root, taginfo::ContentKind::RequireEmpty);
         let exports = compiler.exports;
-        self.module_cache.stdlib = Some(InactiveFrame::from(compiler.call_stack.pop().unwrap()));
+        self.module_cache.stdlib = Some(compiler.call_stack.pop().unwrap().into());
         
         if !self.diagnostics.is_empty() {
             self.diagnostics.print();

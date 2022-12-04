@@ -40,6 +40,15 @@
     _: $t -> @raise "expected tag, was $t",
 }
 
+@fn trim $s: str -> {
+    @match $s {
+        " $s " -> $s,
+        " $s" -> $s,
+        "$s " -> $s,
+        _ -> $s,
+    }
+}
+
 @fn b $v: inline -> <b>$v</>
 @fn blockquote($cite?: str) $v: block -> <blockquote cite?=$cite>$v</>
 @fn bold $v: inline -> <strong>$v</>
@@ -57,21 +66,6 @@
 @fn strikethrough $v: inline -> <s>$v</>
 @fn underline $v: inline -> <u>$v</>
 
-@fn code_block($language?: implicit str, $first_line_no: int = 1) $v: str -> {
-    <pre class="panel listing">
-        @code(language=$language, code_block=True, first_line_no=$first_line_no) $v
-    </>
-}
-
-@fn trim $s: str -> {
-    @match $s {
-        " $s " -> $s,
-        " $s" -> $s,
-        "$s " -> $s,
-        _ -> $s,
-    }
-}
-
 @fn h1 $v: inline -> <h1>$v</>
 @fn h2 $v: inline -> <h2>$v</>
 @fn h3 $v: inline -> <h3>$v</>
@@ -79,8 +73,16 @@
 @fn h5 $v: inline -> <h5>$v</>
 @fn h6 $v: inline -> <h6>$v</>
 
-@fn numbered $items: html list -> {
-    <ol>@map(@fn $item -> <li>$item</>) $items</>
+@fn code_block($language?: implicit str, $first_line_no: int = 1) $v: str -> {
+    <pre class="panel listing">
+        @code(language=$language, code_block=True, first_line_no=$first_line_no) $v
+    </>
+}
+
+@fn numbered $v: html -> @match $v {
+    <ul **$d>$v</> -> <ol **$d>$v</>,
+    <$t **_>_</> -> @raise "expected <ul> tag, was <$t> tag",
+    _: $t -> @raise "expected <ul> tag, was $t",
 }
 
 @fn footnote $v: inline -> {

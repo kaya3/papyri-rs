@@ -16,9 +16,11 @@ use super::value::{Value, ValueMap};
 pub enum NativeFunc {
     Code,
     Export,
+    Filter,
     Implicit,
     Import,
     Include,
+    Join,
     Let,
     ListFiles,
     Map,
@@ -32,8 +34,8 @@ pub fn get_natives_frame() -> ActiveFrame {
         positional_params: Box::new([]),
         spread_param: None,
         named_params: IndexMap::new(),
-        spread_named_param: Some(FuncParam::new(str_ids::ARGS, Type::dict(Type::AnyValue))),
-        content_param: FuncParam::new(str_ids::CONTENT, Type::Unit),
+        spread_named_param: Some(FuncParam::new(str_ids::PARAM, Type::dict(Type::AnyValue))),
+        content_param: FuncParam::new(str_ids::ANONYMOUS, Type::Unit),
     });
     
     let content_str = Rc::new(FuncSignature {
@@ -41,7 +43,7 @@ pub fn get_natives_frame() -> ActiveFrame {
         spread_param: None,
         named_params: IndexMap::new(),
         spread_named_param: None,
-        content_param: FuncParam::new(str_ids::CONTENT, Type::Str),
+        content_param: FuncParam::new(str_ids::PARAM, Type::Str),
     });
     
     let code = Rc::new(FuncSignature {
@@ -53,7 +55,25 @@ pub fn get_natives_frame() -> ActiveFrame {
             (str_ids::FIRST_LINE_NO, FuncParam::new(str_ids::FIRST_LINE_NO, Type::Int).with_default(Value::Int(1))),
         ]),
         spread_named_param: None,
-        content_param: FuncParam::new(str_ids::CONTENT, Type::Str),
+        content_param: FuncParam::new(str_ids::PARAM, Type::Str),
+    });
+    
+    let filter = Rc::new(FuncSignature {
+        positional_params: Box::new([
+            FuncParam::new(str_ids::_0, Type::optional(Type::Function)).with_default(Value::UNIT),
+        ]),
+        spread_param: None,
+        named_params: IndexMap::new(),
+        spread_named_param: None,
+        content_param: FuncParam::new(str_ids::PARAM, Type::list(Type::AnyValue)),
+    });
+    
+    let join = Rc::new(FuncSignature {
+        positional_params: Box::new([]),
+        spread_param: None,
+        named_params: IndexMap::new(),
+        spread_named_param: None,
+        content_param: FuncParam::new(str_ids::PARAM, Type::list(Type::AnyHTML)),
     });
     
     let map = Rc::new(FuncSignature {
@@ -63,7 +83,7 @@ pub fn get_natives_frame() -> ActiveFrame {
         spread_param: None,
         named_params: IndexMap::new(),
         spread_named_param: None,
-        content_param: FuncParam::new(str_ids::CONTENT, Type::list(Type::AnyValue)),
+        content_param: FuncParam::new(str_ids::PARAM, Type::list(Type::AnyValue)),
     });
     
     let unique_id = Rc::new(FuncSignature {
@@ -73,7 +93,7 @@ pub fn get_natives_frame() -> ActiveFrame {
             (str_ids::MAX_LENGTH, FuncParam::new(str_ids::MAX_LENGTH, Type::Int).with_default(Value::Int(128))),
         ]),
         spread_named_param: None,
-        content_param: FuncParam::new(str_ids::CONTENT, Type::Str),
+        content_param: FuncParam::new(str_ids::PARAM, Type::Str),
     });
     
     let write_file = Rc::new(FuncSignature {
@@ -83,15 +103,17 @@ pub fn get_natives_frame() -> ActiveFrame {
         spread_param: None,
         named_params: IndexMap::new(),
         spread_named_param: None,
-        content_param: FuncParam::new(str_ids::CONTENT, Type::AnyHTML),
+        content_param: FuncParam::new(str_ids::PARAM, Type::AnyHTML),
     });
     
     let bindings: ValueMap = [
         (NativeFunc::Code, code),
         (NativeFunc::Export, args_dict.clone()),
+        (NativeFunc::Filter, filter),
         (NativeFunc::Implicit, args_dict.clone()),
         (NativeFunc::Import, content_str.clone()),
         (NativeFunc::Include, content_str.clone()),
+        (NativeFunc::Join, join),
         (NativeFunc::Let, args_dict),
         (NativeFunc::ListFiles, content_str.clone()),
         (NativeFunc::Map, map),
@@ -110,9 +132,11 @@ impl NativeFunc {
         match self {
             NativeFunc::Code => str_ids::CODE,
             NativeFunc::Export => str_ids::EXPORT,
+            NativeFunc::Filter => str_ids::FILTER,
             NativeFunc::Implicit => str_ids::IMPLICIT,
             NativeFunc::Import => str_ids::IMPORT,
             NativeFunc::Include => str_ids::INCLUDE,
+            NativeFunc::Join => str_ids::JOIN,
             NativeFunc::Let => str_ids::LET,
             NativeFunc::ListFiles => str_ids::LIST_FILES,
             NativeFunc::Map => str_ids::MAP,
@@ -137,7 +161,7 @@ impl <'a> Compiler<'a> {
                     take_val(bindings, str_ids::LANGUAGE),
                     take_val(bindings, str_ids::CODE_BLOCK),
                     take_val(bindings, str_ids::FIRST_LINE_NO),
-                    take_val(bindings, str_ids::CONTENT),
+                    take_val(bindings, str_ids::PARAM),
                 ) else {
                     ice_at("failed to unpack", call_range);
                 };
@@ -157,7 +181,7 @@ impl <'a> Compiler<'a> {
             },
             
             NativeFunc::Export => {
-                let Some(Value::Dict(args)) = take_val(bindings, str_ids::ARGS) else {
+                let Some(Value::Dict(args)) = take_val(bindings, str_ids::PARAM) else {
                     ice_at("failed to unpack", call_range);
                 };
                 
@@ -170,7 +194,7 @@ impl <'a> Compiler<'a> {
             },
             
             NativeFunc::Import | NativeFunc::Include | NativeFunc::ListFiles => {
-                let Some(Value::Str(path_str)) = take_val(bindings, str_ids::CONTENT) else {
+                let Some(Value::Str(path_str)) = take_val(bindings, str_ids::PARAM) else {
                     ice_at("failed to unpack", call_range);
                 };
                 
@@ -184,18 +208,19 @@ impl <'a> Compiler<'a> {
                 }
                 
                 if f == NativeFunc::ListFiles {
-                    let paths = relpath::find_papyri_source_files_in_dir(
+                    let paths: Vec<_> = relpath::find_papyri_source_files_in_dir(
                             &path,
                             |p, e| self.module_error(p, ModuleError::IOError(e), call_range),
                         )?
                         .into_iter()
-                        .map(|p| Value::from(p.to_string_lossy()
+                        .map(|p| p.to_string_lossy()
                             .strip_suffix(".papyri")
                             .unwrap_or_else(|| ice_at("Failed to strip .papyri extension", call_range))
-                        ))
+                            .into()
+                        )
                         .collect();
                     
-                    return Some(Value::list(paths));
+                    return Some(paths.into());
                 }
                 
                 let (module_out, module_exports) = self.ctx.load_cached(&path)
@@ -206,41 +231,82 @@ impl <'a> Compiler<'a> {
                     Value::Dict(module_exports)
                 } else {
                     self.set_vars(module_exports.as_ref(), false, call_range);
-                    Value::from(&module_out)
+                    module_out.into()
                 });
             },
             
+            NativeFunc::Filter => {
+                let (Some(callback), Some(Value::List(content))) = (
+                    take_val(bindings, str_ids::_0),
+                    take_val(bindings, str_ids::PARAM),
+                ) else {
+                    ice_at("failed to unpack", call_range);
+                };
+                
+                let out = match callback {
+                    Value::Func(f) => {
+                        let mut out = Vec::new();
+                        for v in content.as_ref() {
+                            match self.eval_callback(&f, v.clone(), call_range)? {
+                                Value::Bool(true) => out.push(v.clone()),
+                                Value::Bool(false) => {},
+                                _ => {
+                                    self.err_expected_type(&Type::Bool, &v.get_type(), call_range);
+                                    return None;
+                                },
+                            }
+                        }
+                        out
+                    },
+                    _ => {
+                        // callback is none
+                        content.as_ref()
+                            .iter()
+                            .filter(|v| !v.is_unit())
+                            .cloned()
+                            .collect()
+                    },
+                };
+                
+                return Some(out.into());
+            },
+            
             NativeFunc::Implicit | NativeFunc::Let => {
-                let Some(Value::Dict(args)) = take_val(bindings, str_ids::ARGS) else {
+                let Some(Value::Dict(args)) = take_val(bindings, str_ids::PARAM) else {
                     ice_at("failed to unpack", call_range);
                 };
                 self.set_vars(args.as_ref(), f == NativeFunc::Implicit, call_range);
             },
             
+            NativeFunc::Join => {
+                let Some(Value::List(content)) = take_val(bindings, str_ids::PARAM) else {
+                    ice_at("failed to unpack", call_range);
+                };
+                let content = content.as_ref()
+                    .iter()
+                    .cloned()
+                    .map(|v| self.compile_value(v));
+                return Some(HTML::seq(content).into())
+            },
+            
             NativeFunc::Map => {
                 let (Some(Value::Func(callback)), Some(Value::List(content))) = (
                     take_val(bindings, str_ids::_0),
-                    take_val(bindings, str_ids::CONTENT),
+                    take_val(bindings, str_ids::PARAM),
                 ) else {
                     ice_at("failed to unpack", call_range);
                 };
                 
                 let mut out = Vec::new();
                 for v in content.as_ref() {
-                    let bindings = callback.signature().bind_synthetic_call(self, false, v.clone(), call_range)?;
-                    let r = self.evaluate_func_call_with_bindings(
-                        callback.clone(),
-                        bindings,
-                        &Type::AnyValue,
-                        call_range,
-                    )?;
-                    out.push(self.compile_value(r));
+                    let r = self.eval_callback(&callback, v.clone(), call_range)?;
+                    out.push(r);
                 }
-                return Some(HTML::seq(out).into());
+                return Some(out.into());
             },
             
             NativeFunc::Raise => {
-                let Some(Value::Str(content)) = take_val(bindings, str_ids::CONTENT) else {
+                let Some(Value::Str(content)) = take_val(bindings, str_ids::PARAM) else {
                     ice_at("failed to unpack", call_range);
                 };
                 
@@ -251,7 +317,7 @@ impl <'a> Compiler<'a> {
             NativeFunc::UniqueID => {
                 let (Some(Value::Int(max_len)), Some(Value::Str(id_base))) = (
                     take_val(bindings, str_ids::MAX_LENGTH),
-                    take_val(bindings, str_ids::CONTENT),
+                    take_val(bindings, str_ids::PARAM),
                 ) else {
                     ice_at("failed to unpack", call_range);
                 };
@@ -269,7 +335,7 @@ impl <'a> Compiler<'a> {
             NativeFunc::WriteFile => {
                 let (Some(Value::Str(path)), Some(Value::HTML(content))) = (
                     take_val(bindings, str_ids::_0),
-                    take_val(bindings, str_ids::CONTENT),
+                    take_val(bindings, str_ids::PARAM),
                 ) else {
                     ice_at("failed to unpack", call_range);
                 };
@@ -323,6 +389,17 @@ impl <'a> Compiler<'a> {
         };
         
         Some(tag.into())
+    }
+    
+    fn eval_callback(&mut self, callback: &Func, arg: Value, call_range: &SourceRange) -> Option<Value> {
+        let bindings = callback.signature()
+            .bind_synthetic_call(self, false, arg, call_range)?;
+        self.evaluate_func_call_with_bindings(
+            callback.clone(),
+            bindings,
+            &Type::AnyValue,
+            call_range,
+        )
     }
 }
 

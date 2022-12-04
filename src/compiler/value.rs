@@ -1,12 +1,13 @@
 use std::rc::Rc;
 use indexmap::IndexMap;
 
-use crate::errors::{ice_at, SyntaxError};
+use crate::errors;
 use crate::parser::{ast, AST, Token, TokenKind, text};
 use crate::utils::{NameID, str_ids, SliceRef, SourceRange, equals};
 use super::compiler::Compiler;
 use super::func::Func;
 use super::html::HTML;
+use super::tag::Tag;
 use super::types::Type;
 
 #[derive(Debug, Clone)]
@@ -56,6 +57,18 @@ impl From<Option<Rc<str>>> for Value {
     }
 }
 
+impl From<Vec<Value>> for Value {
+    fn from(vs: Vec<Value>) -> Self {
+        Value::List(vs.into())
+    }
+}
+
+impl From<ValueMap> for Value {
+    fn from(vs: ValueMap) -> Self {
+        Value::Dict(Rc::new(vs))
+    }
+}
+
 impl From<HTML> for Value {
     fn from(html: HTML) -> Self {
         Value::HTML(html)
@@ -72,16 +85,6 @@ impl Value {
     /// The unit value, of type `none`.
     pub const UNIT: Value = Value::HTML(HTML::Empty);
     
-    /// Wraps a hash-map into a dictionary value.
-    pub fn dict(vs: ValueMap) -> Value {
-        Value::Dict(Rc::new(vs))
-    }
-    
-    /// Wraps a vector into a list value.
-    pub fn list(vs: Vec<Value>) -> Value {
-        Value::List(SliceRef::from(vs))
-    }
-    
     /// Indicates whether this value is the unit value, `Value::UNIT`.
     pub fn is_unit(&self) -> bool {
         matches!(self, Value::HTML(HTML::Empty))
@@ -94,7 +97,7 @@ impl Value {
         match self {
             Value::Str(s) => Some(s.clone()),
             v if v.is_unit() => None,
-            _ => ice_at("failed to coerce", range),
+            _ => errors::ice_at("failed to coerce", range),
         }
     }
     
@@ -149,9 +152,42 @@ impl Value {
 }
 
 impl <'a> Compiler<'a> {
-    /// Compiles a value to HTML.
+    /// Converts a value to its HTML representation. Lists become `<ul>` tags,
+    /// dictionaries become tables, and functions will be represented as
+    /// `<code>(@fn name)</code>`.
     pub fn compile_value(&mut self, value: Value) -> HTML {
-        HTML::from_value(value, self.string_pool_mut())
+        use crate::parser;
+        
+        match value {
+            Value::Bool(b) => parser::Token::bool_to_string(b).into(),
+            Value::Int(t) => parser::text::substitutions(&t.to_string()).into(),
+            Value::Str(t) => t.into(),
+            Value::Dict(vs) => {
+                let rows: Vec<HTML> = vs.iter()
+                    .map(|(&k, v)| HTML::tag(str_ids::TR, HTML::seq([
+                        HTML::tag(str_ids::TH, self.get_name(k).into()),
+                        HTML::tag(str_ids::TD, self.compile_value(v.clone())),
+                    ])))
+                    .collect();
+                
+                Tag::new(str_ids::TABLE, HTML::seq(rows))
+                    .str_attr(str_ids::CLASS, "tabular-data")
+                    .into()
+            },
+            Value::List(vs) => {
+                let items: Vec<_> = vs.as_ref()
+                    .iter()
+                    .map(|child| HTML::tag(str_ids::LI, self.compile_value(child.clone())))
+                    .collect();
+                HTML::tag(str_ids::UL, HTML::seq(items))
+            },
+            Value::HTML(html) => html,
+            
+            Value::Func(f) => {
+                let name = self.get_name(f.name_id());
+                HTML::tag(str_ids::CODE, format!("(@fn {name})").into())
+            },
+        }
     }
     
     /// Evaluates an AST node to a value. Returns `None` if a compilation error
@@ -164,7 +200,7 @@ impl <'a> Compiler<'a> {
                 // This is a shortcut, to avoid parsing ints and bools and then
                 // converting back to text. It also avoids the possibility of a
                 // parse error if an integer is not in the signed 64-bit range.
-                HTML::from(text::substitutions(tok.text().unwrap())).into()
+                text::substitutions(tok.text().unwrap()).into()
             } else {
                 self.evaluate_literal(tok)?
             },
@@ -181,12 +217,12 @@ impl <'a> Compiler<'a> {
             AST::FuncCall(call) => return self.evaluate_func_call(call, type_hint),
             AST::FuncDef(def) => Value::Func(self.compile_func_def(def)),
             AST::VarName(var) => return self.evaluate_var(var, type_hint),
-            AST::List(list, range) => self.evaluate_list(list, type_hint, range)?,
             AST::Template(parts, ..) => self.evaluate_template(parts),
             
             AST::Group(..) | AST::Tag(..) => self.compile_node(node).into(),
+            AST::List(list, range) => self.evaluate_list(list, type_hint, range)?,
             
-            _ => ice_at("invalid AST value", node.range()),
+            _ => errors::ice_at("invalid AST value", node.range()),
         };
         self.coerce(v, type_hint, node.range())
     }
@@ -210,17 +246,17 @@ impl <'a> Compiler<'a> {
         };
         
         let mut children = Vec::new();
-        for (child, is_spread) in list.iter() {
-            if *is_spread {
+        for &(ref child, is_spread) in list.iter() {
+            if is_spread {
                 let Value::List(grandchildren) = self.evaluate_node(child, &Type::list(child_type_hint.clone()))? else {
-                    ice_at("failed to coerce", child.range());
+                    errors::ice_at("failed to coerce", child.range());
                 };
                 children.extend(grandchildren.as_ref().iter().cloned());
             } else if let Some(child) = self.evaluate_node(child, child_type_hint) {
                 children.push(child);
             }
         }
-        Some(Value::list(children))
+        Some(children.into())
     }
     
     fn evaluate_template(&mut self, parts: &[ast::TemplatePart]) -> Value {
@@ -245,7 +281,7 @@ impl <'a> Compiler<'a> {
                 },
             }
         }
-        Value::from(out)
+        out.into()
     }
     
     /// Evaluates a literal token to a value, or returns `None` if a parse
@@ -260,12 +296,12 @@ impl <'a> Compiler<'a> {
             TokenKind::Number => match i64::from_str_radix(tok.as_str(), 10) {
                 Ok(value) => Some(Value::Int(value)),
                 Err(err) => {
-                    self.ctx.diagnostics.syntax_error(SyntaxError::TokenInvalidNumber(err), &tok.range);
+                    self.ctx.diagnostics.syntax_error(errors::SyntaxError::TokenInvalidNumber(err), &tok.range);
                     None
                 },
             },
             
-            _ => ice_at("illegal token kind", &tok.range),
+            _ => errors::ice_at("illegal token kind", &tok.range),
         }
     }
     
@@ -273,10 +309,10 @@ impl <'a> Compiler<'a> {
         let f_name = if tok.is_multiline_verbatim() { str_ids::CODE_BLOCK } else { str_ids::CODE };
         let func = self.get_var(f_name, &tok.range)?;
         let Value::Func(f) = self.coerce(func, &Type::Function, &tok.range)? else {
-            ice_at("failed to coerce", &tok.range);
+            errors::ice_at("failed to coerce", &tok.range);
         };
         
-        let content = Value::from(tok.get_verbatim_text());
+        let content = tok.get_verbatim_text().into();
         let bindings = f.signature().bind_synthetic_call(self, true, content, &tok.range)?;
         self.evaluate_func_call_with_bindings(f, bindings, type_hint, &tok.range)
     }

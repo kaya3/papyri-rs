@@ -201,7 +201,7 @@ impl <'a> Compiler<'a> {
             (Type::Str, Value::Int(i)) => return Some(i.to_string().into()),
             (Type::Str, Value::HTML(html)) => {
                 if let Some(s) = html.to_string() {
-                    return Some(Value::from(s));
+                    return Some(s.into());
                 }
             },
             
@@ -216,7 +216,7 @@ impl <'a> Compiler<'a> {
                         break;
                     }
                 }
-                if !any_errors { return Some(Value::dict(coerced_vs)); }
+                if !any_errors { return Some(coerced_vs.into()); }
             },
             (Type::List(t), Value::List(vs)) => {
                 let vs = vs.as_ref();
@@ -230,7 +230,7 @@ impl <'a> Compiler<'a> {
                         break;
                     }
                 }
-                if !any_errors { return Some(Value::list(coerced_vs)); }
+                if !any_errors { return Some(coerced_vs.into()); }
             },
             
             (_, Value::Func(..)) |
@@ -242,7 +242,7 @@ impl <'a> Compiler<'a> {
                 if r.is_inline() {
                     r = HTML::tag(str_ids::P, r);
                 }
-                return Some(Value::HTML(r));
+                return Some(r.into());
             },
             (Type::Inline, _) => {
                 let v = self.compile_value(value);
@@ -252,7 +252,7 @@ impl <'a> Compiler<'a> {
                     }
                     None
                 } else {
-                    Some(Value::HTML(v))
+                    Some(v.into())
                 }
             },
             

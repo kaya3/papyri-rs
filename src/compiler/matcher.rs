@@ -59,7 +59,9 @@ impl <'a> Compiler<'a> {
                 }
             },
             ast::MatchPattern::TypeOf(_, child, t_var) => {
-                let t = Value::from(value.get_type().to_string());
+                let t = value.get_type()
+                    .to_string()
+                    .into();
                 self.bind_one(t_var, t);
                 self.bind_pattern(child, value)
             },
@@ -74,10 +76,11 @@ impl <'a> Compiler<'a> {
                     HTML::Empty => child_patterns.is_empty(),
                     HTML::Sequence(seq) => {
                         if child_patterns.len() != seq.len() { return false; }
-                        let child_values = seq.iter().map(Value::from);
+                        let child_values = seq.iter()
+                            .map(Value::from);
                         self.bind_all(child_patterns, child_values)
                     },
-                    _ => child_patterns.len() == 1 && self.bind_pattern(&child_patterns[0], Value::from(html)),
+                    _ => child_patterns.len() == 1 && self.bind_pattern(&child_patterns[0], html.into()),
                 }
             },
             ast::MatchPattern::SpreadList(_, child_patterns, spread_index) => {
@@ -109,7 +112,7 @@ impl <'a> Compiler<'a> {
                     child_patterns,
                     *spread_index,
                     html_slice.len(),
-                    |i| Value::from(&html_slice[i]),
+                    |i| html_slice[i].clone().into(),
                     |a, b| HTML::seq(html_slice[a..b].iter().cloned()).into(),
                 )
             },
@@ -128,7 +131,7 @@ impl <'a> Compiler<'a> {
                             .filter(|(&k, _)| !dict_pattern.attrs.contains_key(&k))
                             .map(|(&k, v)| (k, v.clone()))
                             .collect();
-                        if !self.bind_pattern(spread_pattern, Value::dict(remaining)) { return false; }
+                        if !self.bind_pattern(spread_pattern, remaining.into()) { return false; }
                     }
                 }
                 true
@@ -137,7 +140,7 @@ impl <'a> Compiler<'a> {
                 let Value::HTML(HTML::Tag(tag_value)) = value else { return false; };
                 
                 let tag_name = self.get_name(tag_value.name_id);
-                if !self.bind_pattern(&tag_pattern.name, Value::from(tag_name)) { return false; }
+                if !self.bind_pattern(&tag_pattern.name, tag_name.into()) { return false; }
                 
                 let vs: ValueMap = tag_value.attributes
                     .iter()
@@ -147,8 +150,8 @@ impl <'a> Compiler<'a> {
                     ))
                     .collect();
                 
-                self.bind_pattern(&tag_pattern.attrs, Value::dict(vs))
-                    && self.bind_pattern(&tag_pattern.content, Value::from(&tag_value.content))
+                self.bind_pattern(&tag_pattern.attrs, vs.into())
+                    && self.bind_pattern(&tag_pattern.content, tag_value.content.clone().into())
             },
             ast::MatchPattern::Regex(pattern_range, regex, name_ids) => {
                 let Value::Str(value_str) = value else { return false; };

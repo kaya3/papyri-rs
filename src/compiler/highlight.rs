@@ -80,8 +80,8 @@ impl <'a> LineHighlighter<'a> {
                 self.push_with_paren_no(range, kind, self.paren_count);
             },
             TokenKind::ParenRight => match self.paren_stack.last() {
-                Some((rpar, paren_no)) if *rpar == s => {
-                    self.push_with_paren_no(range, kind, *paren_no);
+                Some(&(rpar, paren_no)) if rpar == s => {
+                    self.push_with_paren_no(range, kind, paren_no);
                     self.paren_stack.pop();
                 },
                 _ => {
@@ -170,14 +170,14 @@ impl <'a> LineHighlighter<'a> {
         if paren_no > 0 {
             tag = tag.str_attr(str_ids::DATA_PAREN_NO, &paren_no.to_string());
         }
-        HTML::from(tag)
+        tag.into()
     }
     
     fn make_link_token(s: &str, is_comment: bool) -> HTML {
         let mut tag = Tag::new(str_ids::A, HTML::text(s))
             .str_attr(str_ids::HREF, s);
         if is_comment { tag = tag.str_attr(str_ids::CLASS, "comment"); }
-        HTML::from(tag)
+        tag.into()
     }
 }
 
@@ -187,7 +187,7 @@ pub fn enumerate_lines(lines: Vec<HTML>, start: i64) -> HTML {
         let tag = Tag::new(str_ids::SPAN, line)
             .str_attr(str_ids::CLASS, "line")
             .str_attr(str_ids::DATA_LINE_NO, &(i as i64 + start).to_string());
-        out.push(HTML::from(tag));
+        out.push(tag.into());
         out.push(HTML::RawNewline);
     }
     HTML::seq(out)

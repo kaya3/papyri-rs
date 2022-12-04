@@ -11,14 +11,9 @@ pub struct SliceRef<T> {
     b: usize,
 }
 
-impl <T> From<Vec<T>> for SliceRef<T> {
-    fn from(original: Vec<T>) -> SliceRef<T> {
-        SliceRef::from(Rc::from(original))
-    }
-}
-
-impl <T> From<Rc<[T]>> for SliceRef<T> {
-    fn from(original: Rc<[T]>) -> SliceRef<T> {
+impl <S, T> From<S> for SliceRef<T> where S: Into<Rc<[T]>> {
+    fn from(original: S) -> SliceRef<T> {
+        let original = original.into();
         let b = original.len();
         SliceRef {original, a: 0, b}
     }
@@ -36,6 +31,11 @@ impl <T> SliceRef<T> {
         &self.original[self.a + i]
     }
     
+    /// Returns the length of this slice.
+    pub fn len(&self) -> usize {
+        self.b - self.a
+    }
+    
     /// Creates a new reference-counted pointer to a sub-slice of this slice,
     /// without copying.
     pub fn slice(&self, a: usize, b: usize) -> SliceRef<T> {
@@ -46,10 +46,5 @@ impl <T> SliceRef<T> {
             a: self.a + a,
             b: self.a + b,
         }
-    }
-    
-    /// Returns the length of this slice.
-    pub fn len(&self) -> usize {
-        self.b - self.a
     }
 }

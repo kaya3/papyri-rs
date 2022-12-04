@@ -78,11 +78,15 @@ impl <'a> Compiler<'a> {
         self.type_error(errors::TypeError::ExpectedWas(expected.clone(), was.clone()), range);
     }
     
+    pub fn string_pool(&self) -> &StringPool {
+        &self.ctx.string_pool
+    }
+    
     pub fn string_pool_mut(&mut self) -> &mut StringPool {
         &mut self.ctx.string_pool
     }
     
     pub fn get_name(&self, name_id: NameID) -> &str {
-        self.ctx.string_pool.get(name_id)
+        self.string_pool().get(name_id)
     }
 }

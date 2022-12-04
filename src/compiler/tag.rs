@@ -27,7 +27,7 @@ impl Tag {
         Tag {name_id, attributes, content}
     }
     
-    pub fn str_attr(mut self, k: NameID, v: &str) -> Self {
+    pub fn str_attr(mut self, k: NameID, v: &str) -> Tag {
         let v = Some(Rc::from(v));
         if self.attributes.insert(k, v).is_some() {
             ice("duplicate attribute");
@@ -61,7 +61,8 @@ impl <'a> Compiler<'a> {
             ast::TagName::Variable(ref var) => match self.evaluate_var(var, &Type::Str) {
                 Some(Value::Str(name)) => {
                     if text::is_identifier(&name) {
-                        self.string_pool_mut().insert(&name.to_ascii_lowercase())
+                        self.string_pool_mut()
+                            .insert(&name.to_ascii_lowercase())
                     } else if name.eq_ignore_ascii_case("!DOCTYPE") {
                         str_ids::_DOCTYPE
                     } else {
