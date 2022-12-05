@@ -21,7 +21,3 @@ assert_ok! {
         "<p><code>some_code</code></p>",
     );
 }
-
-assert_err! {
-    raise("@raise `foobar`", RuntimeError::Raised);
-}

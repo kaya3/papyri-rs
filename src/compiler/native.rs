@@ -1,7 +1,7 @@
 use std::rc::Rc;
 use indexmap::IndexMap;
 
-use crate::errors::{ice_at, RuntimeError, Warning, RuntimeWarning, ModuleError};
+use crate::errors::{ice_at, RuntimeError, Warning, RuntimeWarning, ModuleError, TypeError};
 use crate::utils::{str_ids, text, NameID, SourceRange, relpath};
 use super::frame::ActiveFrame;
 use super::func::{FuncSignature, FuncParam, Func};
@@ -23,6 +23,7 @@ pub enum NativeFunc {
     ListFiles,
     Map,
     Raise,
+    Sorted,
     UniqueID,
     WriteFile,
 }
@@ -67,7 +68,9 @@ pub fn get_natives_frame() -> ActiveFrame {
     });
     
     let join = Rc::new(FuncSignature {
-        positional_params: Box::new([]),
+        positional_params: Box::new([
+            FuncParam::new(str_ids::_0, Type::AnyValue).with_default(Value::UNIT),
+        ]),
         spread_param: None,
         named_params: IndexMap::new(),
         spread_named_param: None,
@@ -80,6 +83,17 @@ pub fn get_natives_frame() -> ActiveFrame {
         ]),
         spread_param: None,
         named_params: IndexMap::new(),
+        spread_named_param: None,
+        content_param: FuncParam::new(str_ids::PARAM, Type::list(Type::AnyValue)),
+    });
+    
+    let sorted = Rc::new(FuncSignature {
+        positional_params: Box::new([]),
+        spread_param: None,
+        named_params: IndexMap::from([
+            (str_ids::KEY, FuncParam::new(str_ids::KEY, Type::optional(Type::Function)).with_default(Value::UNIT)),
+            (str_ids::REVERSE, FuncParam::new(str_ids::REVERSE, Type::Bool).with_default(Value::Bool(false))),
+        ]),
         spread_named_param: None,
         content_param: FuncParam::new(str_ids::PARAM, Type::list(Type::AnyValue)),
     });
@@ -114,6 +128,7 @@ pub fn get_natives_frame() -> ActiveFrame {
         (NativeFunc::ListFiles, content_str.clone()),
         (NativeFunc::Map, map),
         (NativeFunc::Raise, content_str),
+        (NativeFunc::Sorted, sorted),
         (NativeFunc::UniqueID, unique_id),
         (NativeFunc::WriteFile, write_file),
     ].into_iter().map(|(f, sig)| {
@@ -135,6 +150,7 @@ impl NativeFunc {
             NativeFunc::ListFiles => str_ids::LIST_FILES,
             NativeFunc::Map => str_ids::MAP,
             NativeFunc::Raise => str_ids::RAISE,
+            NativeFunc::Sorted => str_ids::SORTED,
             NativeFunc::UniqueID => str_ids::UNIQUE_ID,
             NativeFunc::WriteFile => str_ids::WRITE_FILE,
         }
@@ -267,14 +283,21 @@ impl <'a> Compiler<'a> {
             },
             
             NativeFunc::Join => {
-                let Some(Value::List(content)) = take_val(bindings, str_ids::PARAM) else {
+                let (Some(sep), Some(Value::List(content))) = (
+                    take_val(bindings, str_ids::_0),
+                    take_val(bindings, str_ids::PARAM),
+                ) else {
                     ice_at("failed to unpack", call_range);
                 };
-                let content = content.as_ref()
-                    .iter()
-                    .cloned()
-                    .map(|v| self.compile_value(v));
-                return Some(HTML::seq(content).into())
+                
+                let sep = self.compile_value(sep);
+                
+                let mut out = Vec::new();
+                for (i, v) in content.as_ref().iter().cloned().enumerate() {
+                    if i > 0 && !sep.is_empty() { out.push(sep.clone()); }
+                    out.push(self.compile_value(v));
+                }
+                return Some(HTML::seq(out).into())
             },
             
             NativeFunc::Map => {
@@ -300,6 +323,66 @@ impl <'a> Compiler<'a> {
                 
                 self.runtime_error(RuntimeError::Raised(content), call_range);
                 return None;
+            },
+            
+            NativeFunc::Sorted => {
+                let (Some(key_func), Some(Value::Bool(reverse)), Some(Value::List(content))) = (
+                    take_val(bindings, str_ids::KEY),
+                    take_val(bindings, str_ids::REVERSE),
+                    take_val(bindings, str_ids::PARAM),
+                ) else {
+                    ice_at("failed to unpack", call_range);
+                };
+                
+                if content.len() == 0 {
+                    return Some(Value::List(content));
+                }
+                
+                let key_func = match key_func {
+                    Value::Func(f) => Some(f),
+                    _ => None,
+                };
+                
+                let mut decorated = Vec::new();
+                let mut key_type = Type::Unit;
+                for v in content.as_ref().iter().cloned() {
+                    let k = key_func.as_ref()
+                        .map_or_else(
+                            || Some(v.clone()),
+                            |f| self.eval_callback(f, v.clone(), call_range),
+                        )?;
+                    
+                    if !matches!(k, Value::Int(_) | Value::Str(_)) {
+                        self.type_error(TypeError::SortKeyInvalid(k.get_type()), call_range);
+                        return None;
+                    } else if matches!((&key_type, &k), (Type::Int, Value::Str(_)) | (Type::Str, Value::Int(_))) {
+                        self.type_error(TypeError::SortKeyHeterogeneous, call_range);
+                        return None;
+                    } else if matches!(key_type, Type::Unit) {
+                        key_type = k.get_type();
+                    }
+                    
+                    decorated.push((k, v));
+                }
+                
+                match decorated.first().unwrap().0 {
+                    Value::Int(_) => decorated.sort_by_key(|p| match p.0 {
+                        Value::Int(k) => k,
+                        _ => ice_at("failed to unwrap int sort key", call_range),
+                    }),
+                    Value::Str(_) => decorated.sort_by_key(|p| match p.0.clone() {
+                        Value::Str(k) => k,
+                        _ => ice_at("failed to unwrap str sort key", call_range),
+                    }),
+                    _ => ice_at("failed to unwrap sort key", call_range),
+                }
+                
+                let mut undecorated: Vec<Value> = decorated.into_iter()
+                    .map(|p| p.1)
+                    .collect();
+                
+                if reverse { undecorated.reverse(); }
+                return Some(undecorated.into());
             },
             
             NativeFunc::UniqueID => {

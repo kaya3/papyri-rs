@@ -40,14 +40,4 @@ assert_ok! {
         "<span>@b ... Hello, world!</span> Oh.",
         "<p><span><b>Hello, world!</b></span> Oh.</p>",
     );
-    
-    unique_id(
-        "@unique_id `foo` @unique_id `foo` @unique_id `bar` @unique_id `foo`",
-        "<p>foo foo_2 bar foo_3</p>"
-    );
-    
-    unique_id_transliterate_unicode(
-        "@unique_id `l'Hôpital's rule`",
-        "<p>l_hopital_s_rule</p>",
-    );
 }

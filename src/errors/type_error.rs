@@ -10,6 +10,8 @@ pub enum TypeError {
     TagNotAllowed(String),
     InlineParagraphBreak,
     NoContentAllowed,
+    SortKeyInvalid(Type),
+    SortKeyHeterogeneous,
 }
 
 impl std::fmt::Display for TypeError {
@@ -21,6 +23,8 @@ impl std::fmt::Display for TypeError {
             TypeError::TagNotAllowed(tag_name) => write!(f, "'{tag_name}' tag not allowed here"),
             TypeError::InlineParagraphBreak => f.write_str("paragraph break not allowed in inline content"),
             TypeError::NoContentAllowed => f.write_str("non-content content not allowed here"),
+            TypeError::SortKeyInvalid(was) => write!(f, "sort key must be str or int, was {was}"),
+            TypeError::SortKeyHeterogeneous => f.write_str("sort key must be homogeneous, not a mix of str and int"),
         }
     }
 }
