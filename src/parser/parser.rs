@@ -146,7 +146,7 @@ impl <'a> Parser<'a> {
             let range = name.range().to_end(attr_name.range.end);
             name = Name::AttrName(Box::new(AttrName {
                 subject: name,
-                is_coalesce: tok.as_str().starts_with("?"),
+                is_coalescing: tok.as_str().starts_with("?"),
                 attr_name_id: self.string_pool.insert(attr_name.as_str()),
                 range,
             }));

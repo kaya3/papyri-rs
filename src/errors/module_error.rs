@@ -1,3 +1,4 @@
+#[derive(Debug)]
 #[allow(missing_docs)]
 /// Represents an error which occurs when loading a module.
 pub enum ModuleError {

@@ -392,6 +392,18 @@ impl Name {
             Name::AttrName(attr) => &attr.range,
         }
     }
+    
+    /// Indicates whether any attribute access in this name expression is
+    /// coalescing, i.e. whether a missing attribute may resolve to the unit
+    /// value rather than raising an error.
+    pub fn is_coalescing(&self) -> bool {
+        let mut name = self;
+        while let Name::AttrName(attr) = name {
+            if attr.is_coalescing { return true; }
+            name = &attr.subject;
+        }
+        false
+    }
 }
 
 impl AttrName {
@@ -423,9 +435,8 @@ pub struct AttrName {
     /// The left-hand-side of this attribute access expression.
     pub subject: Name,
     
-    /// If `true`, this expression coalesces a "null"/"empty" value on the
-    /// left-hand-side.
-    pub is_coalesce: bool,
+    /// If `true`, this expression coalesces a unit value on the left-hand-side.
+    pub is_coalescing: bool,
     
     /// The attribute name.
     pub attr_name_id: NameID,

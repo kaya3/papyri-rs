@@ -1,5 +1,6 @@
 use crate::compiler::Type;
 
+#[derive(Debug)]
 #[allow(missing_docs)]
 /// Represents a type error which occurs during compilation of a Papyri source
 /// file.

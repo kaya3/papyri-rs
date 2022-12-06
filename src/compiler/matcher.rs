@@ -36,7 +36,6 @@ impl <'a> Compiler<'a> {
                     (v, o) if o.is_unit() => v.is_unit(),
                     (Value::Bool(a), Value::Bool(b)) => a == b,
                     (Value::Int(i), Value::Int(j)) => i == j,
-                    (Value::Int(i), Value::Str(s)) => i.to_string() == *s,
                     (Value::Str(s), Value::Str(t)) => s == t,
                     _ => false,
                 }
@@ -50,13 +49,11 @@ impl <'a> Compiler<'a> {
             },
             ast::MatchPattern::EqualsValue(_, child) => {
                 self.evaluate_node(child, &Type::AnyValue)
-                    .map_or(false, |other| value.equals(&other))
+                    .map_or(false, |other| value == other)
             },
             ast::MatchPattern::Typed(_, child, type_) => {
-                match self.try_coerce(value, &Type::compile(type_)) {
-                    Some(value) => self.bind_pattern(child, value),
-                    None => false,
-                }
+                Type::compile(type_).check_value(value.clone())
+                    && self.bind_pattern(child, value)
             },
             ast::MatchPattern::TypeOf(_, child, t_var) => {
                 let t = value.get_type()

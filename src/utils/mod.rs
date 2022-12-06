@@ -2,7 +2,6 @@
 //! used in multiple other modules.
 
 mod const_strs;
-pub mod equals;
 mod outfiles;
 mod range;
 pub mod relpath;

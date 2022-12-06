@@ -1,6 +1,7 @@
 use std::rc::Rc;
 
-use crate::utils::{NameID, taginfo, text, equals};
+use crate::errors;
+use crate::utils::{NameID, taginfo, text};
 use super::tag::Tag;
 
 #[derive(Debug, Clone)]
@@ -111,47 +112,6 @@ impl HTML {
         }
     }
     
-    /// Determines whether two HTML values are equal. Sequences and tags are
-    /// compared deeply.
-    pub fn equals(&self, other: &HTML) -> bool {
-        match (self, other) {
-            (HTML::Empty, HTML::Empty) |
-            (HTML::Whitespace, HTML::Whitespace) |
-            (HTML::RawNewline, HTML::RawNewline) => true,
-            
-            (HTML::Tag(t1), HTML::Tag(t2)) => t1.equals(t2),
-            (HTML::Text(t1), HTML::Text(t2)) => t1.as_ref() == t2.as_ref(),
-            
-            (HTML::Sequence(s1), HTML::Sequence(s2)) => equals::equal_lists(s1, s2, HTML::equals),
-            
-            _ => false,
-        }
-    }
-    
-    /// Attempts to convert this HTML content into a string. The conversion
-    /// fails if the content contains any tags.
-    pub fn to_string(&self) -> Option<String> {
-        let mut s = "".to_string();
-        self._write_string(&mut s)
-            .then_some(s)
-    }
-    
-    fn _write_string(&self, s: &mut String) -> bool {
-        match self {
-            HTML::Sequence(seq) => {
-                return seq.iter()
-                    .all(|child| child._write_string(s));
-            },
-            
-            HTML::Empty => {},
-            HTML::Text(t) => *s += t,
-            HTML::Whitespace => *s += " ",
-            HTML::RawNewline => *s += "\n",
-            HTML::Tag(_) => return false,
-        }
-        true
-    }
-    
     /// Indicates whether this HTML item is whitespace, including a literal
     /// newline or `HTML::Empty`.
     pub fn is_whitespace(&self) -> bool {
@@ -178,6 +138,26 @@ impl HTML {
         }
     }
 }
+
+impl PartialEq for HTML {
+    /// Determines whether two HTML values are equal. Sequences and tags are
+    /// compared deeply.
+    fn eq(&self, other: &HTML) -> bool {
+        match (self, other) {
+            (HTML::Empty, HTML::Empty) |
+            (HTML::Whitespace, HTML::Whitespace) |
+            (HTML::RawNewline, HTML::RawNewline) => true,
+            
+            (HTML::Tag(t1), HTML::Tag(t2)) => t1 == t2,
+            (HTML::Text(t1), HTML::Text(t2)) => t1 == t2,
+            
+            (HTML::Sequence(s1), HTML::Sequence(s2)) => s1 == s2,
+            
+            _ => false,
+        }
+    }
+}
+impl Eq for HTML {}
 
 struct HTMLSeqBuilder {
     children: Vec<HTML>,
@@ -215,7 +195,12 @@ impl HTMLSeqBuilder {
         if nodes.len() >= 2 {
             let mut s = "".to_string();
             for node in nodes.into_iter() {
-                node._write_string(&mut s);
+                match node {
+                    HTML::Text(t) => s += t.as_ref(),
+                    HTML::Whitespace => s += " ",
+                    HTML::RawNewline => s += "\n",
+                    _ => errors::ice("not a text node"),
+                }
             }
             self.children.push(s.into());
         } else if let Some(node) = nodes.pop() {

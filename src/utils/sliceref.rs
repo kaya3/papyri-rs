@@ -48,3 +48,10 @@ impl <T> SliceRef<T> {
         }
     }
 }
+
+impl <T: PartialEq> PartialEq for SliceRef<T> {
+    fn eq(&self, other: &SliceRef<T>) -> bool {
+        self.as_ref() == other.as_ref()
+    }
+}
+impl <T: Eq> Eq for SliceRef<T> {}

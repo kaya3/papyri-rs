@@ -6,11 +6,6 @@ assert_ok! {
         "<p><b>Something</b></p>",
     );
     
-    attr_function_name(
-        "@let(foo=@dict(bar=@fn $_ -> 23).) @foo::bar.",
-        "<p>23</p>"
-    );
-    
     positional_argument(
         "@href(`foo.html`) Foo",
         r#"<p><a href="foo.html">Foo</a></p>"#,
@@ -44,5 +39,17 @@ assert_ok! {
     ellipsis_in_tag(
         "<span>@b ... Hello, world!</span> Oh.",
         "<p><span><b>Hello, world!</b></span> Oh.</p>",
+    );
+}
+
+assert_matches! {
+    attr_function_name(
+        "@let(foo=@dict(bar=@fn $_ -> 23).) @foo::bar.",
+        "23"
+    );
+    
+    call_if_not_unit(
+        "@let(foo=.) @foo?::bar.",
+        ".",
     );
 }

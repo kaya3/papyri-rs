@@ -404,21 +404,17 @@ impl <'a> Compiler<'a> {
             },
             
             NativeFunc::WriteFile => {
-                let (Some(Value::Str(path)), Some(Value::HTML(content))) = (
+                let (Some(Value::Str(path)), Some(content)) = (
                     take_val(bindings, str_ids::_0),
                     take_val(bindings, str_ids::PARAM),
                 ) else {
                     ice_at("failed to unpack", call_range);
                 };
                 
-                let Some(sink) = self.ctx.out_files.as_mut() else {
-                    self.runtime_error(RuntimeError::WriteFileNotAllowed, call_range);
-                    return None;
-                };
-                if !sink.try_push(path.as_ref(), content) {
-                    self.runtime_error(RuntimeError::PathNotInOutDir(path), call_range);
-                    return None;
-                }
+                let content = self.compile_value(content);
+                self.ctx.push_out_file(path, content)
+                    .map_err(|e| self.runtime_error(e, call_range))
+                    .ok()?
             },
         }
         
@@ -476,5 +472,5 @@ impl <'a> Compiler<'a> {
 
 fn take_val(bindings: &mut ValueMap, key: NameID) -> Option<Value> {
     bindings.get_mut(&key)
-        .map(|v_mut_ref| std::mem::replace(v_mut_ref, Value::UNIT))
+        .map(std::mem::take)
 }

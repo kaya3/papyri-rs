@@ -38,6 +38,20 @@ impl Context {
         ctx
     }
     
+    /// Adds an output file to this context's collector. The operation may fail
+    /// if this context has no output file collector, or if the path is not
+    /// within the output directory.
+    pub fn push_out_file(&mut self, path: std::rc::Rc<str>, content: HTML) -> Result<(), errors::RuntimeError> {
+        let Some(sink) = self.out_files.as_mut() else {
+            return Err(errors::RuntimeError::WriteFileNotAllowed);
+        };
+        if sink.try_push(path.as_ref(), content) {
+            Ok(())
+        } else {
+            Err(errors::RuntimeError::PathNotInOutDir(path))
+        }
+    }
+    
     /// Clears any state from the previous compile job. Any `out_files` must
     /// already have been handled before calling this method.
     pub fn reset(&mut self) {

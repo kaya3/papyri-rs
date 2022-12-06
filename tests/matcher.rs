@@ -25,6 +25,7 @@ assert_matches! {
     
     spread_list("[1, 2, 3]", "[1, *[2, 3]]");
     spread_dict("@dict(x=1, y=2, z=3).", "(x=1, **(y=2, z=3))");
+    equals_dict("@dict(x=1, y=2, z=3).", "=@dict(z=3, y=2, x=1).");
     
     tag_simple("<span>Foo</span>", "<span> _ </span>");
     tag_empty("<span/>", "<span/>");

@@ -3,7 +3,7 @@ use indexmap::IndexMap;
 
 use crate::errors;
 use crate::parser::{ast, AST, Token, TokenKind, text};
-use crate::utils::{NameID, str_ids, SliceRef, SourceRange, equals};
+use crate::utils::{NameID, str_ids, SliceRef, SourceRange};
 use super::compiler::Compiler;
 use super::func::Func;
 use super::html::HTML;
@@ -29,7 +29,8 @@ pub enum Value {
     /// valid identifiers not beginning with underscores.
     Dict(Rc<ValueMap>),
     
-    /// Some HTML content, represented as a value.
+    /// Some HTML content, represented as a value. HTML text content is instead
+    /// represented as `Value::Str`.
     HTML(HTML),
     
     /// A function, either defined in a Papyri source file, or with a native
@@ -70,14 +71,19 @@ impl From<ValueMap> for Value {
 }
 
 impl From<HTML> for Value {
-    fn from(html: HTML) -> Self {
-        Value::HTML(html)
+    fn from(html: HTML) -> Value {
+        match html {
+            HTML::Text(t) => Value::Str(t),
+            HTML::Whitespace => " ".into(),
+            HTML::RawNewline => "\n".into(),
+            _ => Value::HTML(html.clone())
+        }
     }
 }
 
 impl From<&HTML> for Value {
-    fn from(html: &HTML) -> Self {
-        Value::HTML(html.clone())
+    fn from(html: &HTML) -> Value {
+        html.clone().into()
     }
 }
 
@@ -109,21 +115,11 @@ impl Value {
             Value::Int(..) => Type::Int,
             Value::Str(..) => Type::Str,
             Value::Dict(vs) => {
-                if vs.is_empty() { return Type::dict(Type::Unit); }
-                let mut vs = vs.values();
-                let mut t = vs.next().unwrap().get_type();
-                for v in vs {
-                    t = t.least_upper_bound(&v.get_type());
-                }
+                let t = Value::common_type_of(vs.values());
                 Type::dict(t)
             },
             Value::List(vs) => {
-                let vs = vs.as_ref();
-                if vs.is_empty() { return Type::list(Type::Unit); }
-                let mut t = vs[0].get_type();
-                for v in &vs[1..] {
-                    t = t.least_upper_bound(&v.get_type());
-                }
+                let t = Value::common_type_of(vs.as_ref().iter());
                 Type::list(t)
             },
             Value::HTML(html) => if html.is_empty() { Type::Unit } else if html.is_block() { Type::Block } else { Type::Inline },
@@ -131,23 +127,36 @@ impl Value {
         }
     }
     
+    /// Returns the strongest type assignable from all values in the given
+    /// iterator.
+    pub fn common_type_of<'a, T: Iterator<Item=&'a Value>>(vs: T) -> Type {
+        vs.map(Value::get_type)
+            .reduce(Type::least_upper_bound)
+            .unwrap_or(Type::Unit)
+    }
+}
+
+impl PartialEq for Value {
     /// Determines whether two values are equal; lists and dictionaries are
     /// compared deeply. Functions are never equal, not even to themselves.
-    pub fn equals(&self, other: &Value) -> bool {
+    fn eq(&self, other: &Value) -> bool {
         match (self, other) {
             (Value::Bool(b1), Value::Bool(b2)) => b1 == b2,
             (Value::Int(i1), Value::Int(i2)) => i1 == i2,
             (Value::Str(s1), Value::Str(s2)) => s1 == s2,
-            (Value::HTML(h1), Value::HTML(h2)) => h1.equals(h2),
-            
-            (Value::List(v1), Value::List(v2)) => equals::equal_lists(v1.as_ref(), v2.as_ref(), Value::equals),
-            (Value::Dict(v1), Value::Dict(v2)) => equals::equal_maps(v1.as_ref(), v2.as_ref(), Value::equals),
-            
-            (Value::Str(s1), Value::HTML(h)) |
-            (Value::HTML(h), Value::Str(s1)) => h.to_string().map_or(false, |s2| s1.as_ref() == s2.as_str()),
+            (Value::HTML(h1), Value::HTML(h2)) => h1 == h2,
+            (Value::List(v1), Value::List(v2)) => v1 == v2,
+            (Value::Dict(v1), Value::Dict(v2)) => v1 == v2,
             
             _ => false,
         }
+    }
+}
+impl Eq for Value {}
+
+impl Default for Value {
+    fn default() -> Value {
+        Value::UNIT
     }
 }
 
@@ -155,7 +164,7 @@ impl <'a> Compiler<'a> {
     /// Converts a value to its HTML representation. Lists become `<ul>` tags,
     /// dictionaries become tables, and functions will be represented as
     /// `<code>(@fn name)</code>`.
-    pub fn compile_value(&mut self, value: Value) -> HTML {
+    pub fn compile_value(&self, value: Value) -> HTML {
         use crate::parser;
         
         match value {
@@ -215,11 +224,12 @@ impl <'a> Compiler<'a> {
             
             AST::FuncCall(call) => return self.evaluate_func_call(call, type_hint),
             AST::FuncDef(def) => {
+                let v = Value::Func(self.compile_func_def(def));
                 if type_hint.is_html() {
-                    self.err_expected_type(type_hint, &Type::Function, &def.range);
+                    self.err_expected_type(type_hint, &v.get_type(), &def.range);
                     return None;
                 }
-                Value::Func(self.compile_func_def(def))
+                v
             },
             AST::LetIn(let_in) => return self.evaluate_let_in(let_in, type_hint),
             AST::Match(m) => return self.evaluate_match(m, type_hint),
@@ -243,7 +253,7 @@ impl <'a> Compiler<'a> {
             },
             ast::Name::AttrName(attr) => {
                 let mut subject_type = Type::dict(Type::AnyValue);
-                if attr.is_coalesce { subject_type = Type::optional(subject_type); }
+                if attr.is_coalescing { subject_type = Type::optional(subject_type); }
                 let subject = self.evaluate_name(&attr.subject, &subject_type)?;
                 let Value::Dict(subject) = subject else { return Some(Value::UNIT); };
                 let Some(v) = subject.get(&attr.attr_name_id) else {
@@ -258,16 +268,7 @@ impl <'a> Compiler<'a> {
     }
     
     fn evaluate_list(&mut self, list: &[(AST, bool)], type_hint: &Type, range: &SourceRange) -> Option<Value> {
-        let child_type_hint = match type_hint {
-            Type::AnyValue => type_hint,
-            Type::List(t) => t,
-            t if t.is_html() => &Type::AnyHTML,
-            t => {
-                self.err_expected_type(t, &Type::list(Type::AnyValue), range);
-                return None;
-            },
-        };
-        
+        let child_type_hint = type_hint.component_type();
         let mut children = Vec::new();
         for &(ref child, is_spread) in list.iter() {
             if is_spread {
@@ -279,7 +280,7 @@ impl <'a> Compiler<'a> {
                 children.push(child);
             }
         }
-        Some(children.into())
+        self.coerce(children.into(), type_hint, range)
     }
     
     fn evaluate_template(&mut self, parts: &[ast::TemplatePart]) -> Value {
@@ -332,11 +333,13 @@ impl <'a> Compiler<'a> {
         let frame = self.frame()
             .to_inactive()
             .new_child_frame(ValueMap::new(), None);
-        for &(name_id, ref value) in let_in.vars.iter() {
-            let value = self.evaluate_node(value, &Type::AnyValue)?;
-            frame.set(name_id, value, let_in.is_implicit);
-        }
-        self.evaluate_in_frame(frame, |_self| _self.evaluate_node(&let_in.child, type_hint))
+        self.evaluate_in_frame(frame, |_self| {
+            for &(name_id, ref value) in let_in.vars.iter() {
+                let v = _self.evaluate_node(value, &Type::AnyValue)?;
+                _self.set_var(name_id, v, let_in.is_implicit, value.range());
+            }
+            _self.evaluate_node(&let_in.child, type_hint)
+        })
     }
     
     fn evaluate_code_or_code_block(&mut self, tok: &Token, type_hint: &Type) -> Option<Value> {

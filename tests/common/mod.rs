@@ -40,7 +40,7 @@ macro_rules! assert_matches {
             fn $name() -> $crate::common::TestResult {
                 let val = $val;
                 let pattern = $pattern;
-                let src = format!("@match {val} {{ {pattern} -> OK, _ -> Failed }}");
+                let src = format!("@match {val} {{ {pattern} -> OK, $val -> {{Failed: was $val}} }}");
                 assert_eq!("<p>OK</p>", papyri_lang::compile_str(&src)?);
                 Ok(())
             }

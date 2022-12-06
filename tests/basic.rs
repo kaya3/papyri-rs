@@ -23,6 +23,11 @@ assert_ok! {
 }
 
 assert_matches! {
+    let_multiple(
+        "@let(x=5, y=$x) $y",
+        "5",
+    );
+    
     attr_access(
         "@let(foo=@dict(x=23).) $foo::x",
         "23",
