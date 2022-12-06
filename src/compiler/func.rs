@@ -341,8 +341,8 @@ impl <'a> Compiler<'a> {
     }
     
     pub fn evaluate_func_call(&mut self, call: &ast::FuncCall, type_hint: &Type) -> Option<Value> {
-        let Value::Func(f) = self.evaluate_var(&call.func, &Type::Function)? else {
-            ice_at("failed to coerce", &call.func.range);
+        let Value::Func(f) = self.evaluate_name(&call.func, &Type::Function)? else {
+            ice_at("failed to coerce", call.func.range());
         };
         let bindings = f.signature().bind_call(self, call)?;
         self.evaluate_func_call_with_bindings(f, bindings, type_hint, &call.range)

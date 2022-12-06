@@ -58,20 +58,20 @@ impl <'a> Compiler<'a> {
     pub fn compile_tag(&mut self, tag: &ast::Tag) -> HTML {
         let tag_name_id = match tag.name {
             ast::TagName::Literal(name_id) => name_id,
-            ast::TagName::Variable(ref var) => match self.evaluate_var(var, &Type::Str) {
-                Some(Value::Str(name)) => {
-                    if text::is_identifier(&name) {
+            ast::TagName::Name(ref name) => match self.evaluate_name(name, &Type::Str) {
+                Some(Value::Str(name_str)) => {
+                    if text::is_identifier(&name_str) {
                         self.string_pool_mut()
-                            .insert(&name.to_ascii_lowercase())
-                    } else if name.eq_ignore_ascii_case("!DOCTYPE") {
+                            .insert(&name_str.to_ascii_lowercase())
+                    } else if name_str.eq_ignore_ascii_case("!DOCTYPE") {
                         str_ids::_DOCTYPE
                     } else {
-                        self.name_error(NameError::InvalidTag(name), &var.range);
+                        self.name_error(NameError::InvalidTag(name_str), name.range());
                         str_ids::ANONYMOUS
                     }
                 },
                 None => str_ids::ANONYMOUS,
-                Some(_) => ice_at("failed to coerce", &var.range),
+                Some(_) => ice_at("failed to coerce", name.range()),
             },
         };
         

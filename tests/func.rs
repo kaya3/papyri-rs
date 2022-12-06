@@ -6,6 +6,11 @@ assert_ok! {
         "<p><b>Something</b></p>",
     );
     
+    attr_function_name(
+        "@let(foo=@dict(bar=@fn $_ -> 23).) @foo::bar.",
+        "<p>23</p>"
+    );
+    
     positional_argument(
         "@href(`foo.html`) Foo",
         r#"<p><a href="foo.html">Foo</a></p>"#,

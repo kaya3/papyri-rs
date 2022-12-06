@@ -199,7 +199,7 @@ impl <'a> Compiler<'a> {
             .all(|(p, v)| self.bind_pattern(p, v))
     }
     
-    fn bind_one(&mut self, var: &ast::VarName, value: Value) {
+    fn bind_one(&mut self, var: &ast::SimpleName, value: Value) {
         if self.frame().set(var.name_id, value, false) {
             let name = self.get_name(var.name_id).to_string();
             self.warning(Warning::PatternNameAlreadyBound(name), &var.range);

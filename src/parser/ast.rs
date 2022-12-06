@@ -41,7 +41,7 @@ pub enum TagName {
     Literal(NameID),
     
     /// A variable tag name, e.g. `<$t>`.
-    Variable(VarName),
+    Name(Name),
 }
 
 #[derive(Debug)]
@@ -212,7 +212,7 @@ pub struct FuncCall {
     pub range: SourceRange,
     
     /// The function name which this node represents a call to.
-    pub func: VarName,
+    pub func: Name,
     
     /// The arguments of this function call.
     pub args: Box<[Arg]>,
@@ -230,8 +230,8 @@ pub enum TemplatePart {
     /// A literal text part, represented by a string.
     LiteralStr(Box<str>),
     
-    /// A variable name.
-    VarName(VarName),
+    /// A name expression.
+    Name(Name),
     
     /// Any sequence of consecutive whitespace characters.
     Whitespace,
@@ -267,7 +267,7 @@ pub enum MatchPattern {
     LiteralName(SourceRange, NameID),
     
     /// A pattern which matches unconditionally, and binds it to a variable.
-    VarName(VarName),
+    VarName(SimpleName),
     
     /// A pattern which matches if the value is equal to the value of an
     /// expression.
@@ -276,7 +276,7 @@ pub enum MatchPattern {
     /// A pattern which matches a string according to a regular expression,
     /// binding its capturing groups to variables. Any capturing groups which
     /// do not match will be bound to a unit value.
-    Regex(SourceRange, regex::Regex, Box<[VarName]>),
+    Regex(SourceRange, regex::Regex, Box<[SimpleName]>),
     
     /// A pattern which matches if the child pattern matches and the value has
     /// the correct type. The value may be coerced in order to match.
@@ -284,7 +284,7 @@ pub enum MatchPattern {
     
     /// A pattern which matches if the child pattern matches, and also binds
     /// the value's type (as a string) to a variable.
-    TypeOf(SourceRange, Box<MatchPattern>, VarName),
+    TypeOf(SourceRange, Box<MatchPattern>, SimpleName),
     
     /// A pattern which matches a list, if the list's length equals the number
     /// of child patterns and each list element matches the corresponding child
@@ -354,7 +354,7 @@ impl MatchPattern {
             MatchPattern::LiteralNone(range) |
             MatchPattern::LiteralName(range, ..) |
             MatchPattern::Literal(Token {range, ..}) |
-            MatchPattern::VarName(VarName {range, ..}) => range,
+            MatchPattern::VarName(SimpleName {range, ..}) => range,
         }
     }
     
@@ -377,12 +377,60 @@ impl MatchPattern {
 }
 
 #[derive(Debug)]
-/// An occurrence of a variable name in a Papyri source file.
-pub struct VarName {
+#[allow(missing_docs)]
+/// A name expression, which is either a simple name or an attribute access.
+pub enum Name {
+    SimpleName(SimpleName),
+    AttrName(Box<AttrName>),
+}
+
+impl Name {
+    /// Returns the source span of this name expression.
+    pub fn range(&self) -> &SourceRange {
+        match self {
+            Name::SimpleName(name) => &name.range,
+            Name::AttrName(attr) => &attr.range,
+        }
+    }
+}
+
+impl AttrName {
+    /// Returns the simple name at the root of this name expression.
+    pub fn get_root(self) -> SimpleName {
+        let mut attr = self;
+        loop {
+            match attr.subject {
+                Name::SimpleName(name) => break name,
+                Name::AttrName(a) => attr = *a,
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+/// An occurrence of a simple variable name in a Papyri source file.
+pub struct SimpleName {
     /// The ID of the interned variable name.
     pub name_id: NameID,
     
     /// The source span at which this variable name occurs.
+    pub range: SourceRange,
+}
+
+#[derive(Debug)]
+/// An attribute access expression, e.g. `$foo::bar`.
+pub struct AttrName {
+    /// The left-hand-side of this attribute access expression.
+    pub subject: Name,
+    
+    /// If `true`, this expression coalesces a "null"/"empty" value on the
+    /// left-hand-side.
+    pub is_coalesce: bool,
+    
+    /// The attribute name.
+    pub attr_name_id: NameID,
+    
+    /// The source span of this attribute access expression.
     pub range: SourceRange,
 }
 
@@ -420,8 +468,8 @@ pub enum AST {
     /// An HTML tag.
     Tag(Box<Tag>),
     
-    /// A variable.
-    VarName(VarName),
+    /// A name expression.
+    Name(Name),
     
     /// Literal text. Text substitutions have already been applied.
     Text(Rc<str>, SourceRange),
@@ -442,10 +490,10 @@ impl AST {
             AST::LetIn(l) => &l.range,
             AST::Match(m) => &m.range,
             AST::Tag(tag) => &tag.range,
+            AST::Name(name) => name.range(),
             
             AST::LiteralValue(Token {range, ..}) |
             AST::Verbatim(Token {range, ..}) |
-            AST::VarName(VarName {range, ..}) |
             AST::Group(.., range) |
             AST::List(.., range) |
             AST::Template(.., range) |

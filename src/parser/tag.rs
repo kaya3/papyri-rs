@@ -15,8 +15,8 @@ impl <'a> Parser<'a> {
                 (TagName::Literal(self.string_pool.insert(&lc_name)), Some(lc_name))
             },
             TokenKind::VarName => {
-                let var_name = self.parse_var_name(name_tok);
-                (TagName::Variable(var_name), None)
+                let var_name = self.parse_name(name_tok)?;
+                (TagName::Name(var_name), None)
             },
             TokenKind::ExclamationMark => {
                 let doctype = self.expect_poll()?;

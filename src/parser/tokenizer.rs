@@ -8,7 +8,7 @@ use super::token::{Token, TokenKind, QuoteDir, QuoteKind};
 // Later patterns take priority
 static LEXER: Lazy<regex_lexer::Lexer<Option<TokenKind>>> = Lazy::new(
     || regex_lexer::LexerBuilder::new()
-        .token(r"<!--|-->|/>|->|\.\.\.|\*\*|.", None)
+        .token(r"<!--|-->|/>|->|\.\.\.|\*\*|\??::|.", None)
         .token(r"\s+", Some(TokenKind::Whitespace)) // or Newline
         .token(r"[a-zA-Z_][a-zA-Z0-9_]*", Some(TokenKind::Name))
         .token(r"-?[0-9]+", Some(TokenKind::Number))
@@ -103,6 +103,7 @@ pub fn tokenize(src: Rc<SourceFile>, strip_comments: bool, diagnostics: &mut Dia
                     "," => TokenKind::Comma,
                     "=" => TokenKind::Equals,
                     ":" => TokenKind::Colon,
+                    "::" | "?::" => TokenKind::DoubleColon,
                     "|" => TokenKind::Bar,
                     "!" => TokenKind::ExclamationMark,
                     "?" => TokenKind::QuestionMark,

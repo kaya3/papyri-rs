@@ -11,13 +11,30 @@ assert_ok! {
         "<p>Paragraph 1</p><p>Paragraph 2</p>",
     );
     
+    code_inline(
+        "`some_code`",
+        "<p><code>some_code</code></p>",
+    );
+    
     variable(
         "@let(x=5) {$x $x}",
         "<p>5 5</p>",
     );
+}
+
+assert_matches! {
+    attr_access(
+        "@let(foo=@dict(x=23).) $foo::x",
+        "23",
+    );
     
-    code_inline(
-        "`some_code`",
-        "<p><code>some_code</code></p>",
+    attr_access_nested(
+        "@let(foo=@dict(bar=@dict(x=23).).) $foo::bar::x",
+        "23",
+    );
+    
+    attr_access_coalesce(
+        "@let(foo=.) $foo?::x",
+        ".",
     );
 }

@@ -64,8 +64,8 @@ impl <'a> Parser<'a> {
                 self.parse_optional_typed_pattern(p)
             },
             TokenKind::VarName => {
-                let p = MatchPattern::VarName(self.parse_var_name(tok));
-                self.parse_optional_typed_pattern(p)
+                let p = self.parse_name_pattern(tok)?;
+                self.parse_optional_typed_pattern(MatchPattern::VarName(p))
             },
             
             TokenKind::Dot => Some(MatchPattern::LiteralNone(tok.range)),
@@ -220,7 +220,8 @@ impl <'a> Parser<'a> {
                 }
             },
             TokenKind::VarName => {
-                (MatchPattern::VarName(self.parse_var_name(name_tok)), None)
+                let name = self.parse_name_pattern(name_tok)?;
+                (MatchPattern::VarName(name), None)
             },
             _ => {
                 self.diagnostics.err_unexpected_token(&name_tok);
@@ -276,9 +277,12 @@ impl <'a> Parser<'a> {
                 TemplatePart::LiteralStr(s) => {
                     regex_str += &regex::escape(&s);
                 },
-                TemplatePart::VarName(var) => {
+                TemplatePart::Name(Name::SimpleName(var)) => {
                     regex_str += "(.+?)";
                     vars.push(var);
+                },
+                TemplatePart::Name(Name::AttrName(attr)) => {
+                    self.diagnostics.syntax_error(SyntaxError::PatternAttrAccess, &attr.range);
                 },
                 TemplatePart::Whitespace => {
                     regex_str += r"\s+";
@@ -290,6 +294,17 @@ impl <'a> Parser<'a> {
         match regex::Regex::new(&regex_str) {
             Ok(r) => Some(MatchPattern::Regex(range, r, vars.into_boxed_slice())),
             Err(e) => ice_at(&format!("regex {regex_str} failed to parse: {e}"), &range),
+        }
+    }
+    
+    fn parse_name_pattern(&mut self, token: Token) -> Option<SimpleName> {
+        match self.parse_name(token)? {
+            Name::SimpleName(name) => Some(name),
+            Name::AttrName(attr) => {
+                self.diagnostics.syntax_error(SyntaxError::PatternAttrAccess, &attr.range);
+                // try to recover from the error
+                Some(attr.get_root())
+            },
         }
     }
     
@@ -335,10 +350,11 @@ impl <'a> Parser<'a> {
         self.skip_whitespace();
         if let Some(var) = self.poll_if_kind(TokenKind::VarName) {
             let range = pattern.range().to_end(var.range.end);
+            let var = self.parse_name_pattern(var)?;
             Some(MatchPattern::TypeOf(
                 range,
                 Box::new(pattern),
-                self.parse_var_name(var),
+                var,
             ))
         } else {
             let type_ = self.parse_type()?;

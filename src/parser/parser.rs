@@ -84,7 +84,7 @@ impl <'a> Parser<'a> {
             TokenKind::Number => Some(AST::LiteralValue(tok)),
             
             TokenKind::Verbatim => Some(AST::Verbatim(tok)),
-            TokenKind::VarName => Some(AST::VarName(self.parse_var_name(tok))),
+            TokenKind::VarName => self.parse_name(tok).map(AST::Name),
             TokenKind::FuncName => self.parse_func(tok),
             TokenKind::LBrace => Some(self.parse_group(tok)),
             TokenKind::LSqb => self.parse_list(tok),
@@ -104,7 +104,7 @@ impl <'a> Parser<'a> {
     fn parse_node(&mut self, tok: Token) -> Option<AST> {
         match tok.kind {
             TokenKind::Verbatim => Some(AST::Verbatim(tok)),
-            TokenKind::VarName => Some(AST::VarName(self.parse_var_name(tok))),
+            TokenKind::VarName => self.parse_name(tok).map(AST::Name),
             TokenKind::FuncName => self.parse_func(tok),
             
             TokenKind::LBrace => Some(self.parse_group(tok)),
@@ -136,9 +136,22 @@ impl <'a> Parser<'a> {
         }
     }
     
-    pub fn parse_var_name(&mut self, token: Token) -> VarName {
-        let name_id = self.string_pool.insert(token.get_var_name());
-        VarName {name_id, range: token.range}
+    pub fn parse_name(&mut self, token: Token) -> Option<Name> {
+        let mut name = Name::SimpleName(SimpleName {
+            name_id: self.string_pool.insert(token.get_var_name()),
+            range: token.range,
+        });
+        while let Some(tok) = self.poll_if_kind(TokenKind::DoubleColon) {
+            let attr_name = self.expect_poll_kind(TokenKind::Name)?;
+            let range = name.range().to_end(attr_name.range.end);
+            name = Name::AttrName(Box::new(AttrName {
+                subject: name,
+                is_coalesce: tok.as_str().starts_with("?"),
+                attr_name_id: self.string_pool.insert(attr_name.as_str()),
+                range,
+            }));
+        }
+        Some(name)
     }
     
     fn parse_func(&mut self, at: Token) -> Option<AST> {

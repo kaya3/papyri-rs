@@ -59,6 +59,7 @@ pub enum SyntaxError {
     PatternDuplicateName(String),
     PatternIncorrectCloseTag,
     PatternCannotMatchHTML,
+    PatternAttrAccess,
 }
 
 impl std::fmt::Display for SyntaxError {
@@ -112,7 +113,8 @@ impl std::fmt::Display for SyntaxError {
             SyntaxError::PatternNamedAfterSpread => f.write_str("named pattern cannot occur after spread"),
             SyntaxError::PatternDuplicateName(name) => write!(f, "duplicate named pattern '{name}'"),
             SyntaxError::PatternIncorrectCloseTag => f.write_str("incorrect closing tag in match pattern; use </> for unnamed tag"),
-            SyntaxError::PatternCannotMatchHTML => f.write_str("this pattern cannot match HTML content")
+            SyntaxError::PatternCannotMatchHTML => f.write_str("this pattern cannot match HTML content"),
+            SyntaxError::PatternAttrAccess => f.write_str("variable pattern must be a simple name, not attribute access"),
         }
     }
 }

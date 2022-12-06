@@ -35,6 +35,7 @@ pub enum TokenKind {
     Comma,
     Equals,
     Colon,
+    DoubleColon,
     Arrow,
     Bar,
     Asterisk,
@@ -79,9 +80,10 @@ impl std::fmt::Display for TokenKind {
             TokenKind::RAngle => "'>' or '/>'",
             TokenKind::Dot => "'.'",
             TokenKind::Ellipsis => "ellipsis",
-            TokenKind::Comma => "comma",
+            TokenKind::Comma => "','",
             TokenKind::Equals => "'='",
             TokenKind::Colon => "':'",
+            TokenKind::DoubleColon => "'::'",
             TokenKind::Arrow => "'->'",
             TokenKind::Bar => "'|'",
             TokenKind::Asterisk => "'*' or '**'",
@@ -111,7 +113,8 @@ impl std::fmt::Display for Token {
         // helpful for describing an actual token
         match self.kind {
             TokenKind::RAngle |
-            TokenKind::Asterisk => write!(f, "'{}'", self.as_str()),
+            TokenKind::Asterisk |
+            TokenKind::DoubleColon => write!(f, "'{}'", self.as_str()),
             _ => std::fmt::Display::fmt(&self.kind, f),
         }
     }
@@ -160,17 +163,9 @@ impl Token {
         if b { "True" } else { "False" }
     }
     
-    /// Returns the function name from this FuncName token.
-    pub fn get_func_name(&self) -> &str {
-        match self.kind {
-            TokenKind::FuncName => &self.as_str()[1..],
-            _ => ice_at("token is not FuncName", &self.range),
-        }
-    }
-    
-    /// Returns the variable name from this VarName token.
+    /// Returns the name from this VarName or FuncName token.
     pub fn get_var_name(&self) -> &str {
-        if self.kind != TokenKind::VarName { ice_at("token is not VarName", &self.range); }
+        if !matches!(self.kind, TokenKind::VarName | TokenKind::FuncName) { ice_at("token is not VarName or FuncName", &self.range); }
         &self.as_str()[1..]
     }
     
@@ -200,6 +195,7 @@ impl Token {
             TokenKind::Comma |
             TokenKind::Equals |
             TokenKind::Colon |
+            TokenKind::DoubleColon |
             TokenKind::Asterisk |
             TokenKind::ExclamationMark |
             TokenKind::QuestionMark |

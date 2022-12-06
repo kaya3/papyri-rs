@@ -4,6 +4,7 @@
 pub enum NameError {
     NoSuchVariable(String),
     NoSuchParameter(String),
+    NoSuchAttribute(String),
     
     InvalidTag(std::rc::Rc<str>),
 }
@@ -29,6 +30,7 @@ impl std::fmt::Display for NameError {
         match self {
             NameError::NoSuchVariable(name) => write!(f, "no such variable '{name}'"),
             NameError::NoSuchParameter(name) => write!(f, "no such parameter '{name}'"),
+            NameError::NoSuchAttribute(name) => write!(f, "no such attribute '{name}'"),
             NameError::InvalidTag(name) => write!(f, "invalid tag name '{name}'"),
         }
     }

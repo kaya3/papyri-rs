@@ -28,12 +28,12 @@ impl <'a> Parser<'a> {
     }
     
     pub fn parse_func_call(&mut self, at: Token) -> Option<FuncCall> {
-        let name_id = self.string_pool.insert(at.get_func_name());
+        let func = self.parse_name(at)?;
         let args = self.parse_args()?.into_boxed_slice();
         let content = self.parse_value_or_ellipsis()?;
         Some(FuncCall {
-            range: at.range.to_end(content.range().end),
-            func: VarName {name_id, range: at.range},
+            range: func.range().to_end(content.range().end),
+            func,
             args,
             content,
         })

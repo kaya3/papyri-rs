@@ -223,7 +223,7 @@ impl <'a> Compiler<'a> {
             },
             AST::LetIn(let_in) => return self.evaluate_let_in(let_in, type_hint),
             AST::Match(m) => return self.evaluate_match(m, type_hint),
-            AST::VarName(var) => return self.evaluate_var(var, type_hint),
+            AST::Name(name) => return self.evaluate_name(name, type_hint),
             AST::Template(parts, ..) => self.evaluate_template(parts),
             
             AST::Group(..) | AST::Tag(..) => self.compile_node(node).into(),
@@ -236,9 +236,25 @@ impl <'a> Compiler<'a> {
     
     /// Returns the value of the given variable, coerced to the given type, or
     /// `None` if a compilation error occurs.
-    pub fn evaluate_var(&mut self, var: &ast::VarName, type_hint: &Type) -> Option<Value> {
-        let value = self.get_var(var.name_id, &var.range)?;
-        self.coerce(value, type_hint, &var.range)
+    pub fn evaluate_name(&mut self, name: &ast::Name, type_hint: &Type) -> Option<Value> {
+        let value = match name {
+            ast::Name::SimpleName(name) => {
+                self.get_var(name.name_id, &name.range)?
+            },
+            ast::Name::AttrName(attr) => {
+                let mut subject_type = Type::dict(Type::AnyValue);
+                if attr.is_coalesce { subject_type = Type::optional(subject_type); }
+                let subject = self.evaluate_name(&attr.subject, &subject_type)?;
+                let Value::Dict(subject) = subject else { return Some(Value::UNIT); };
+                let Some(v) = subject.get(&attr.attr_name_id) else {
+                    let name = self.get_name(attr.attr_name_id).to_string();
+                    self.name_error(errors::NameError::NoSuchAttribute(name), &attr.range);
+                    return None;
+                };
+                v.clone()
+            },
+        };
+        self.coerce(value, type_hint, name.range())
     }
     
     fn evaluate_list(&mut self, list: &[(AST, bool)], type_hint: &Type, range: &SourceRange) -> Option<Value> {
@@ -276,9 +292,9 @@ impl <'a> Compiler<'a> {
                 ast::TemplatePart::LiteralStr(s) => {
                     out += s;
                 },
-                ast::TemplatePart::VarName(var) => {
-                    if let Some(v) = self.evaluate_var(var, &Type::optional(Type::Str)) {
-                        if let Some(s) = v.to_optional_rc_str(&var.range) {
+                ast::TemplatePart::Name(name) => {
+                    if let Some(v) = self.evaluate_name(name, &Type::optional(Type::Str)) {
+                        if let Some(s) = v.to_optional_rc_str(name.range()) {
                             out += s.as_ref();
                         }
                     }

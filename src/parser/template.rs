@@ -38,7 +38,11 @@ impl <'a> Parser<'a> {
                     }
                 },
                 
-                TokenKind::VarName => parts.push(TemplatePart::VarName(self.parse_var_name(tok))),
+                TokenKind::VarName => {
+                    if let Some(name) = self.parse_name(tok) {
+                        parts.push(TemplatePart::Name(name));
+                    }
+                },
                 TokenKind::Escape => {
                     let s = text::unescape_char(&tok.range, self.diagnostics)
                         .into_boxed_str();
