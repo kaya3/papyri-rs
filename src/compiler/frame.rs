@@ -47,6 +47,8 @@ impl ActiveFrame {
         f.get(name_id, require_implicit)
     }
     
+    /// Sets the value of a variable in this frame. Returns `true` if a variable
+    /// of that name was already present.
     pub fn set(&self, name_id: NameID, value: Value, implicit: bool) -> bool {
         let mut f = self.f.as_ref().borrow_mut();
         if implicit { f.implicit.insert(name_id); }

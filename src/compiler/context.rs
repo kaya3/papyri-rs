@@ -88,8 +88,8 @@ impl <'a> Compiler<'a> {
         self.ctx.diagnostics.module_error(path, e, range);
     }
     
-    pub fn err_expected_type(&mut self, expected: &Type, was: &Type, range: &SourceRange) {
-        self.type_error(errors::TypeError::ExpectedWas(expected.clone(), was.clone()), range);
+    pub fn err_expected_type(&mut self, expected: Type, was: Type, range: &SourceRange) {
+        self.type_error(errors::TypeError::ExpectedWas(expected, was), range);
     }
     
     pub fn string_pool(&self) -> &StringPool {

@@ -1,8 +1,8 @@
 use std::rc::Rc;
 use indexmap::IndexMap;
 
-use crate::errors::{ice_at, RuntimeError, Warning, RuntimeWarning, ModuleError, TypeError};
-use crate::utils::{str_ids, text, NameID, SourceRange, relpath};
+use crate::errors::{ice, ice_at, RuntimeError, Warning, RuntimeWarning, ModuleError, TypeError};
+use crate::utils::{str_ids, text, NameID, SourceRange, relpath, SliceRef};
 use super::frame::ActiveFrame;
 use super::func::{FuncSignature, FuncParam, Func};
 use super::highlight::{syntax_highlight, enumerate_lines, no_highlighting};
@@ -158,42 +158,29 @@ impl NativeFunc {
 }
 
 impl <'a> Compiler<'a> {
-    pub fn evaluate_native_func(&mut self, f: NativeFunc, mut bindings: ValueMap, call_range: &SourceRange) -> Option<Value> {
-        let bindings = &mut bindings;
+    pub fn evaluate_native_func(&mut self, f: NativeFunc, bindings: ValueMap, call_range: &SourceRange) -> Option<Value> {
+        let mut bindings = Bindings(bindings);
         match f {
             NativeFunc::Code => {
-                let (
-                    Some(language),
-                    Some(Value::Bool(is_block)),
-                    Some(Value::Int(first_line_no)),
-                    Some(Value::Str(src)),
-                ) = (
-                    take_val(bindings, str_ids::LANGUAGE),
-                    take_val(bindings, str_ids::CODE_BLOCK),
-                    take_val(bindings, str_ids::FIRST_LINE_NO),
-                    take_val(bindings, str_ids::PARAM),
-                ) else {
-                    ice_at("failed to unpack", call_range);
-                };
+                let language = bindings.take_str_option(str_ids::LANGUAGE);
+                let is_block = bindings.take_bool(str_ids::CODE_BLOCK);
+                let first_line_no = bindings.take_int(str_ids::FIRST_LINE_NO);
+                let src = bindings.take_str(str_ids::PARAM);
                 
                 let with_hint = is_block.then(|| text::get_source_language_hint(src.as_ref()))
                     .flatten();
                 
                 let (language, src) = if let Some((l, s)) = with_hint {
                     (Some(l), s)
-                } else if let Value::Str(ref language) = language {
-                    (Some(language.as_ref()), src.as_ref())
                 } else {
-                    (None, src.as_ref())
+                    (language.as_ref().map(|l| l.as_ref()), src.as_ref())
                 };
                 
-                return self.native_code_impl(language, is_block, first_line_no, src, call_range);
+                self.native_code_impl(language, is_block, first_line_no, src, call_range)
             },
             
             NativeFunc::Export => {
-                let Some(Value::Dict(args)) = take_val(bindings, str_ids::PARAM) else {
-                    ice_at("failed to unpack", call_range);
-                };
+                let args = bindings.take_dict(str_ids::PARAM);
                 
                 for (&k, v) in args.iter() {
                     if self.exports.insert(k, v.clone()).is_some() {
@@ -201,12 +188,11 @@ impl <'a> Compiler<'a> {
                         self.warning(Warning::NameAlreadyExported(name), call_range);
                     }
                 }
+                Some(Value::UNIT)
             },
             
             NativeFunc::Import | NativeFunc::Include | NativeFunc::ListFiles => {
-                let Some(Value::Str(path_str)) = take_val(bindings, str_ids::PARAM) else {
-                    ice_at("failed to unpack", call_range);
-                };
+                let path_str = bindings.take_str(str_ids::PARAM);
                 
                 // compute path relative to current source file
                 let mut path = call_range.src.path.to_path_buf();
@@ -238,39 +224,34 @@ impl <'a> Compiler<'a> {
                     .map_err(|e| self.module_error(&path, e, call_range))
                     .ok()?;
                 
-                return Some(if f == NativeFunc::Import {
+                Some(if f == NativeFunc::Import {
                     Value::Dict(module_exports)
                 } else {
                     self.set_vars(module_exports.as_ref(), false, call_range);
                     module_out.into()
-                });
+                })
             },
             
             NativeFunc::Filter => {
-                let (Some(callback), Some(Value::List(content))) = (
-                    take_val(bindings, str_ids::_0),
-                    take_val(bindings, str_ids::PARAM),
-                ) else {
-                    ice_at("failed to unpack", call_range);
-                };
+                let callback = bindings.take_function_option(str_ids::_0);
+                let content = bindings.take_list(str_ids::PARAM);
                 
                 let out = match callback {
-                    Value::Func(f) => {
+                    Some(f) => {
                         let mut out = Vec::new();
                         for v in content.as_ref() {
-                            match self.eval_callback(&f, v.clone(), call_range)? {
+                            match self.eval_callback(f.clone(), v.clone(), call_range)? {
                                 Value::Bool(true) => out.push(v.clone()),
                                 Value::Bool(false) => {},
                                 _ => {
-                                    self.err_expected_type(&Type::Bool, &v.get_type(), call_range);
+                                    self.err_expected_type(Type::Bool, v.get_type(), call_range);
                                     return None;
                                 },
                             }
                         }
                         out
                     },
-                    _ => {
-                        // callback is none
+                    None => {
                         content.as_ref()
                             .iter()
                             .filter(|v| !v.is_unit())
@@ -279,74 +260,52 @@ impl <'a> Compiler<'a> {
                     },
                 };
                 
-                return Some(out.into());
+                Some(out.into())
             },
             
             NativeFunc::Join => {
-                let (Some(sep), Some(Value::List(content))) = (
-                    take_val(bindings, str_ids::_0),
-                    take_val(bindings, str_ids::PARAM),
-                ) else {
-                    ice_at("failed to unpack", call_range);
-                };
-                
-                let sep = self.compile_value(sep);
+                let sep = self.compile_value(bindings.take(str_ids::_0));
+                let content = bindings.take_list(str_ids::PARAM);
                 
                 let mut out = Vec::new();
                 for (i, v) in content.as_ref().iter().cloned().enumerate() {
                     if i > 0 && !sep.is_empty() { out.push(sep.clone()); }
                     out.push(self.compile_value(v));
                 }
-                return Some(HTML::seq(out).into())
+                Some(HTML::seq(out).into())
             },
             
             NativeFunc::Map => {
-                let (Some(Value::Func(callback)), Some(Value::List(content))) = (
-                    take_val(bindings, str_ids::_0),
-                    take_val(bindings, str_ids::PARAM),
-                ) else {
-                    ice_at("failed to unpack", call_range);
-                };
+                let callback = bindings.take_function(str_ids::_0);
+                let content = bindings.take_list(str_ids::PARAM);
                 
                 let mut out = Vec::new();
                 for v in content.as_ref() {
-                    let r = self.eval_callback(&callback, v.clone(), call_range)?;
+                    let r = self.eval_callback(callback.clone(), v.clone(), call_range)?;
                     out.push(r);
                 }
-                return Some(out.into());
+                Some(out.into())
             },
             
             NativeFunc::Raise => {
-                let Some(Value::Str(content)) = take_val(bindings, str_ids::PARAM) else {
-                    ice_at("failed to unpack", call_range);
-                };
-                
-                self.runtime_error(RuntimeError::Raised(content), call_range);
-                return None;
+                let msg = bindings.take_str(str_ids::PARAM);
+                self.runtime_error(RuntimeError::Raised(msg), call_range);
+                None
             },
             
             NativeFunc::Sorted => {
-                let (Some(key_func), Some(Value::Bool(reverse)), Some(Value::List(content))) = (
-                    take_val(bindings, str_ids::KEY),
-                    take_val(bindings, str_ids::REVERSE),
-                    take_val(bindings, str_ids::PARAM),
-                ) else {
-                    ice_at("failed to unpack", call_range);
-                };
+                let key_func = bindings.take_function_option(str_ids::KEY);
+                let reverse = bindings.take_bool(str_ids::REVERSE);
+                let content = bindings.take_list(str_ids::PARAM);
                 
                 if content.len() == 0 {
                     return Some(Value::List(content));
                 }
                 
-                let key_func = match key_func {
-                    Value::Func(f) => Some(f),
-                    _ => None,
-                };
-                
                 let mut decorated = Vec::new();
                 let mut key_type = Type::Unit;
                 for v in content.as_ref().iter().cloned() {
-                    let k = key_func.as_ref()
+                    let k = key_func.clone()
                         .map_or_else(
                             || Some(v.clone()),
                             |f| self.eval_callback(f, v.clone(), call_range),
@@ -382,16 +341,12 @@ impl <'a> Compiler<'a> {
                     .collect();
                 
                 if reverse { undecorated.reverse(); }
-                return Some(undecorated.into());
+                Some(undecorated.into())
             },
             
             NativeFunc::UniqueID => {
-                let (Some(Value::Int(max_len)), Some(Value::Str(id_base))) = (
-                    take_val(bindings, str_ids::MAX_LENGTH),
-                    take_val(bindings, str_ids::PARAM),
-                ) else {
-                    ice_at("failed to unpack", call_range);
-                };
+                let max_len = bindings.take_int(str_ids::MAX_LENGTH);
+                let id_base = bindings.take_str(str_ids::PARAM);
                 
                 if max_len <= 0 {
                     let e = RuntimeError::ParamMustBePositive(self.get_name(str_ids::MAX_LENGTH).to_string(), max_len);
@@ -400,25 +355,20 @@ impl <'a> Compiler<'a> {
                 }
                 
                 let id = self.ctx.unique_ids.get_unique_id(id_base.as_ref(), max_len as usize);
-                return Some(Value::Str(id));
+                Some(Value::Str(id))
             },
             
             NativeFunc::WriteFile => {
-                let (Some(Value::Str(path)), Some(content)) = (
-                    take_val(bindings, str_ids::_0),
-                    take_val(bindings, str_ids::PARAM),
-                ) else {
-                    ice_at("failed to unpack", call_range);
-                };
+                let path = bindings.take_str(str_ids::_0);
+                let content = self.compile_value(bindings.take(str_ids::PARAM));
                 
-                let content = self.compile_value(content);
                 self.ctx.push_out_file(path, content)
                     .map_err(|e| self.runtime_error(e, call_range))
-                    .ok()?
+                    .ok()?;
+                
+                Some(Value::UNIT)
             },
         }
-        
-        Some(Value::UNIT)
     }
     
     fn native_code_impl(&mut self, language: Option<&str>, is_block: bool, first_line_no: i64, src: &str, call_range: &SourceRange) -> Option<Value> {
@@ -458,11 +408,11 @@ impl <'a> Compiler<'a> {
         Some(tag.into())
     }
     
-    fn eval_callback(&mut self, callback: &Func, arg: Value, call_range: &SourceRange) -> Option<Value> {
+    fn eval_callback(&mut self, callback: Func, arg: Value, call_range: &SourceRange) -> Option<Value> {
         let bindings = callback.signature()
             .bind_synthetic_call(self, false, arg, call_range)?;
         self.evaluate_func_call_with_bindings(
-            callback.clone(),
+            callback,
             bindings,
             &Type::AnyValue,
             call_range,
@@ -470,7 +420,70 @@ impl <'a> Compiler<'a> {
     }
 }
 
-fn take_val(bindings: &mut ValueMap, key: NameID) -> Option<Value> {
-    bindings.get_mut(&key)
-        .map(std::mem::take)
+struct Bindings(ValueMap);
+
+impl Bindings {
+    fn take(&mut self, key: NameID) -> Value {
+        self.0.get_mut(&key)
+            .map(std::mem::take)
+            .unwrap_or_else(|| ice("failed to unpack"))
+    }
+    
+    fn take_bool(&mut self, key: NameID) -> bool {
+        match self.take(key) {
+            Value::Bool(b) => b,
+            _ => ice("failed to unpack"),
+        }
+    }
+    
+    fn take_int(&mut self, key: NameID) -> i64 {
+        match self.take(key) {
+            Value::Int(i) => i,
+            _ => ice("failed to unpack"),
+        }
+    }
+    
+    fn take_str(&mut self, key: NameID) -> Rc<str> {
+        match self.take(key) {
+            Value::Str(s) => s,
+            _ => ice("failed to unpack"),
+        }
+    }
+    
+    fn take_list(&mut self, key: NameID) -> SliceRef<Value> {
+        match self.take(key) {
+            Value::List(l) => l,
+            _ => ice("failed to unpack"),
+        }
+    }
+    
+    fn take_dict(&mut self, key: NameID) -> Rc<ValueMap> {
+        match self.take(key) {
+            Value::Dict(d) => d,
+            _ => ice("failed to unpack"),
+        }
+    }
+    
+    fn take_function(&mut self, key: NameID) -> Func {
+        match self.take(key) {
+            Value::Func(f) => f,
+            _ => ice("failed to unpack"),
+        }
+    }
+    
+    fn take_str_option(&mut self, key: NameID) -> Option<Rc<str>> {
+        match self.take(key) {
+            Value::Str(s) => Some(s),
+            v if v.is_unit() => None,
+            _ => ice("failed to unpack"),
+        }
+    }
+    
+    fn take_function_option(&mut self, key: NameID) -> Option<Func> {
+        match self.take(key) {
+            Value::Func(f) => Some(f),
+            v if v.is_unit() => None,
+            _ => ice("failed to unpack"),
+        }
+    }
 }

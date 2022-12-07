@@ -226,7 +226,7 @@ impl <'a> Compiler<'a> {
             AST::FuncDef(def) => {
                 let v = Value::Func(self.compile_func_def(def));
                 if type_hint.is_html() {
-                    self.err_expected_type(type_hint, &v.get_type(), &def.range);
+                    self.err_expected_type(type_hint.clone(), v.get_type(), &def.range);
                     return None;
                 }
                 v

@@ -55,6 +55,7 @@ impl <'a> Compiler<'a> {
                 Type::compile(type_).check_value(value.clone())
                     && self.bind_pattern(child, value)
             },
+            
             ast::MatchPattern::TypeOf(_, child, t_var) => {
                 let t = value.get_type()
                     .to_string()
@@ -62,11 +63,13 @@ impl <'a> Compiler<'a> {
                 self.bind_one(t_var, t);
                 self.bind_pattern(child, value)
             },
+            
             ast::MatchPattern::ExactList(_, child_patterns) => {
                 let Value::List(child_values) = value else { return false; };
                 child_patterns.len() == child_values.len()
                     && self.bind_all(child_patterns, child_values.as_ref().iter().cloned())
             },
+            
             ast::MatchPattern::ExactHTMLSeq(_, child_patterns) => {
                 let Value::HTML(html) = value else { return false; };
                 match html {
@@ -80,6 +83,7 @@ impl <'a> Compiler<'a> {
                     _ => child_patterns.len() == 1 && self.bind_pattern(&child_patterns[0], html.into()),
                 }
             },
+            
             ast::MatchPattern::SpreadList(_, child_patterns, spread_index) => {
                 let Value::List(child_values) = value else { return false; };
                 self.bind_all_with_spread(
@@ -90,6 +94,7 @@ impl <'a> Compiler<'a> {
                     |a, b| Value::List(child_values.slice(a, b)),
                 )
             },
+            
             ast::MatchPattern::SpreadHTMLSeq(_, child_patterns, spread_index) => {
                 let Value::HTML(html) = value else { return false; };
                 
@@ -113,6 +118,7 @@ impl <'a> Compiler<'a> {
                     |a, b| HTML::seq(html_slice[a..b].iter().cloned()).into(),
                 )
             },
+            
             ast::MatchPattern::Dict(_, dict_pattern) => {
                 let Value::Dict(dict_value) = value else { return false; };
                 if dict_pattern.spread.is_none() && dict_value.len() != dict_pattern.attrs.len() { return false; }
@@ -133,6 +139,7 @@ impl <'a> Compiler<'a> {
                 }
                 true
             },
+            
             ast::MatchPattern::Tag(_, tag_pattern) => {
                 let Value::HTML(HTML::Tag(tag_value)) = value else { return false; };
                 
@@ -150,6 +157,7 @@ impl <'a> Compiler<'a> {
                 self.bind_pattern(&tag_pattern.attrs, vs.into())
                     && self.bind_pattern(&tag_pattern.content, tag_value.content.clone().into())
             },
+            
             ast::MatchPattern::Regex(pattern_range, regex, name_ids) => {
                 let Value::Str(value_str) = value else { return false; };
                 let Some(match_) = regex.captures(value_str.as_ref()) else { return false; };

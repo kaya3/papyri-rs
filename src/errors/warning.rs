@@ -25,7 +25,7 @@ impl std::fmt::Display for Warning {
         match self {
             Warning::NameAlreadyDeclared(name) => write!(f, "name '{name}' already declared"),
             Warning::NoMatchingBranch => f.write_str("no matching branch in @match"),
-            Warning::PatternNameAlreadyBound(name) => write!(f, "name '{name}' already bound in this pattern"),
+            Warning::PatternNameAlreadyBound(name) => write!(f, "name '{name}' already bound in this pattern; did you mean '=${name}'?"),
             Warning::NameAlreadyExported(name) => write!(f, "name '{name}' already exported"),
         }
     }
