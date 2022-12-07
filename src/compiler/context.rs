@@ -3,6 +3,7 @@ use crate::utils::{OutFiles, SourceRange, NameID, StringPool, text};
 use super::compiler::Compiler;
 use super::html::HTML;
 use super::module_loader::ModuleCache;
+use super::native::NativeDefs;
 use super::types::Type;
 
 /// Holds the context for a compilation job.
@@ -12,6 +13,9 @@ pub struct Context {
     
     /// The module cache for this compiler context.
     pub module_cache: ModuleCache,
+    
+    /// A cache containing the native functions.
+    pub natives: NativeDefs,
     
     /// The pool of interned names for this compiler context.
     pub string_pool: StringPool,
@@ -31,6 +35,7 @@ impl Context {
             string_pool: StringPool::new(),
             diagnostics: errors::Diagnostics::new(reporting_level),
             module_cache: ModuleCache::new(),
+            natives: NativeDefs::build(),
             unique_ids: text::UniqueIDGenerator::new(),
             out_files: out_dir.map(OutFiles::new),
         };

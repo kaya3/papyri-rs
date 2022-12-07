@@ -1,3 +1,5 @@
+use crate::compiler::Type;
+
 #[derive(Debug)]
 #[allow(missing_docs)]
 /// Represents an error which occurs at runtime due to an undefined or invalid
@@ -5,7 +7,7 @@
 pub enum NameError {
     NoSuchVariable(String),
     NoSuchParameter(String),
-    NoSuchAttribute(String),
+    NoSuchAttribute(Type, String),
     
     InvalidTag(std::rc::Rc<str>),
 }
@@ -32,7 +34,7 @@ impl std::fmt::Display for NameError {
         match self {
             NameError::NoSuchVariable(name) => write!(f, "no such variable '{name}'"),
             NameError::NoSuchParameter(name) => write!(f, "no such parameter '{name}'"),
-            NameError::NoSuchAttribute(name) => write!(f, "no such attribute '{name}'"),
+            NameError::NoSuchAttribute(type_, name) => write!(f, "value of type '{type_}' has no such attribute '{name}'"),
             NameError::InvalidTag(name) => write!(f, "invalid tag name '{name}'"),
         }
     }

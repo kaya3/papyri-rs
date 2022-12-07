@@ -1,19 +1,20 @@
 use std::rc::Rc;
-use indexmap::IndexMap;
 
 use crate::errors::{ice, ice_at, RuntimeError, Warning, RuntimeWarning, ModuleError, TypeError};
 use crate::utils::{str_ids, text, NameID, SourceRange, relpath, SliceRef};
-use super::frame::ActiveFrame;
-use super::func::{FuncSignature, FuncParam, Func};
-use super::highlight::{syntax_highlight, enumerate_lines, no_highlighting};
-use super::html::HTML;
 use super::compiler::Compiler;
+use super::frame::ActiveFrame;
+use super::func::Func;
+use super::html::HTML;
+use super::signature::{FuncParam, FuncSignature};
 use super::tag::Tag;
 use super::types::Type;
 use super::value::{Value, ValueMap};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NativeFunc {
+    Add,
+    Bind,
     Code,
     Export,
     Filter,
@@ -28,119 +29,130 @@ pub enum NativeFunc {
     WriteFile,
 }
 
-pub fn get_natives_frame() -> ActiveFrame {
-    let content_str = Rc::new(FuncSignature {
-        positional_params: Box::new([]),
-        spread_param: None,
-        named_params: IndexMap::new(),
-        spread_named_param: None,
-        content_param: FuncParam::new(str_ids::PARAM, Type::Str),
-    });
+pub struct NativeDefs {
+    pub add: Func,
+    pub bind: Func,
+    pub code: Func,
+    pub export: Func,
+    pub filter: Func,
+    pub import: Func,
+    pub include: Func,
+    pub join: Func,
+    pub list_files: Func,
+    pub map: Func,
+    pub raise: Func,
+    pub sorted: Func,
+    pub unique_id: Func,
+    pub write_file: Func,
+}
+
+impl NativeDefs {
+    pub fn build() -> NativeDefs {
+        let add = FuncSignature::new()
+            .pos_spread(FuncParam::new(str_ids::_ARGS, Type::list(Type::Int)))
+            .build();
+        
+        let bind = FuncSignature::new()
+            .positional(FuncParam::new(str_ids::_0, Type::Function))
+            .pos_spread(FuncParam::new(str_ids::_ARGS, Type::list(Type::AnyValue)))
+            .named_spread(FuncParam::new(str_ids::KWARGS, Type::dict(Type::AnyValue)))
+            .content(FuncParam::new(str_ids::PARAM, Type::AnyValue))
+            .build();
+        
+        let content_str = FuncSignature::new()
+            .content(FuncParam::new(str_ids::PARAM, Type::Str))
+            .build();
+        
+        let code = FuncSignature::new()
+            .named(FuncParam::new(str_ids::LANGUAGE, Type::optional(Type::Str)).implicit().unit_default())
+            .named(FuncParam::new(str_ids::CODE_BLOCK, Type::Bool).with_default(false))
+            .named(FuncParam::new(str_ids::FIRST_LINE_NO, Type::Int).with_default(1))
+            .content(FuncParam::new(str_ids::PARAM, Type::Str))
+            .build();
+        
+        let export = FuncSignature::new()
+            .named_spread(FuncParam::new(str_ids::KWARGS, Type::dict(Type::AnyValue)))
+            .build();
+        
+        let filter = FuncSignature::new()
+            .positional(FuncParam::new(str_ids::_0, Type::optional(Type::Function)).unit_default())
+            .content(FuncParam::new(str_ids::PARAM, Type::list(Type::AnyValue)))
+            .build();
+        
+        let join = FuncSignature::new()
+            .positional(FuncParam::new(str_ids::_0, Type::AnyValue).unit_default())
+            .content(FuncParam::new(str_ids::PARAM, Type::list(Type::AnyHTML)))
+            .build();
+        
+        let map = FuncSignature::new()
+            .positional(FuncParam::new(str_ids::_0, Type::Function))
+            .content(FuncParam::new(str_ids::PARAM, Type::list(Type::AnyValue)))
+            .build();
+        
+        let sorted = FuncSignature::new()
+            .named(FuncParam::new(str_ids::KEY, Type::optional(Type::Function)).unit_default())
+            .named(FuncParam::new(str_ids::REVERSE, Type::Bool).with_default(false))
+            .content(FuncParam::new(str_ids::PARAM, Type::list(Type::AnyValue)))
+            .build();
+        
+        let unique_id = FuncSignature::new()
+            .named(FuncParam::new(str_ids::MAX_LENGTH, Type::Int).with_default(128))
+            .content(FuncParam::new(str_ids::PARAM, Type::Str))
+            .build();
+        
+        let write_file = FuncSignature::new()
+            .positional(FuncParam::new(str_ids::_0, Type::Str))
+            .content(FuncParam::new(str_ids::PARAM, Type::AnyHTML))
+            .build();
+        
+        NativeDefs {
+            add: Func::Native(NativeFunc::Add, add),
+            bind: Func::Native(NativeFunc::Bind, bind),
+            code: Func::Native(NativeFunc::Code, code),
+            export: Func::Native(NativeFunc::Export, export),
+            filter: Func::Native(NativeFunc::Filter, filter),
+            import: Func::Native(NativeFunc::Import, content_str.clone()),
+            include: Func::Native(NativeFunc::Include, content_str.clone()),
+            join: Func::Native(NativeFunc::Join, join),
+            list_files: Func::Native(NativeFunc::ListFiles, content_str.clone()),
+            map: Func::Native(NativeFunc::Map, map),
+            raise: Func::Native(NativeFunc::Raise, content_str),
+            sorted: Func::Native(NativeFunc::Sorted, sorted),
+            unique_id: Func::Native(NativeFunc::UniqueID, unique_id),
+            write_file: Func::Native(NativeFunc::WriteFile, write_file),
+        }
+    }
     
-    let code = Rc::new(FuncSignature {
-        positional_params: Box::new([]),
-        spread_param: None,
-        named_params: IndexMap::from([
-            (str_ids::LANGUAGE, FuncParam::new(str_ids::LANGUAGE, Type::optional(Type::Str)).implicit().with_default(Value::UNIT)),
-            (str_ids::CODE_BLOCK, FuncParam::new(str_ids::CODE_BLOCK, Type::Bool).with_default(Value::Bool(false))),
-            (str_ids::FIRST_LINE_NO, FuncParam::new(str_ids::FIRST_LINE_NO, Type::Int).with_default(Value::Int(1))),
-        ]),
-        spread_named_param: None,
-        content_param: FuncParam::new(str_ids::PARAM, Type::Str),
-    });
-    
-    let export = Rc::new(FuncSignature {
-        positional_params: Box::new([]),
-        spread_param: None,
-        named_params: IndexMap::new(),
-        spread_named_param: Some(FuncParam::new(str_ids::PARAM, Type::dict(Type::AnyValue))),
-        content_param: FuncParam::new(str_ids::ANONYMOUS, Type::Unit),
-    });
-    
-    let filter = Rc::new(FuncSignature {
-        positional_params: Box::new([
-            FuncParam::new(str_ids::_0, Type::optional(Type::Function)).with_default(Value::UNIT),
-        ]),
-        spread_param: None,
-        named_params: IndexMap::new(),
-        spread_named_param: None,
-        content_param: FuncParam::new(str_ids::PARAM, Type::list(Type::AnyValue)),
-    });
-    
-    let join = Rc::new(FuncSignature {
-        positional_params: Box::new([
-            FuncParam::new(str_ids::_0, Type::AnyValue).with_default(Value::UNIT),
-        ]),
-        spread_param: None,
-        named_params: IndexMap::new(),
-        spread_named_param: None,
-        content_param: FuncParam::new(str_ids::PARAM, Type::list(Type::AnyHTML)),
-    });
-    
-    let map = Rc::new(FuncSignature {
-        positional_params: Box::new([
-            FuncParam::new(str_ids::_0, Type::Function),
-        ]),
-        spread_param: None,
-        named_params: IndexMap::new(),
-        spread_named_param: None,
-        content_param: FuncParam::new(str_ids::PARAM, Type::list(Type::AnyValue)),
-    });
-    
-    let sorted = Rc::new(FuncSignature {
-        positional_params: Box::new([]),
-        spread_param: None,
-        named_params: IndexMap::from([
-            (str_ids::KEY, FuncParam::new(str_ids::KEY, Type::optional(Type::Function)).with_default(Value::UNIT)),
-            (str_ids::REVERSE, FuncParam::new(str_ids::REVERSE, Type::Bool).with_default(Value::Bool(false))),
-        ]),
-        spread_named_param: None,
-        content_param: FuncParam::new(str_ids::PARAM, Type::list(Type::AnyValue)),
-    });
-    
-    let unique_id = Rc::new(FuncSignature {
-        positional_params: Box::new([]),
-        spread_param: None,
-        named_params: IndexMap::from([
-            (str_ids::MAX_LENGTH, FuncParam::new(str_ids::MAX_LENGTH, Type::Int).with_default(Value::Int(128))),
-        ]),
-        spread_named_param: None,
-        content_param: FuncParam::new(str_ids::PARAM, Type::Str),
-    });
-    
-    let write_file = Rc::new(FuncSignature {
-        positional_params: Box::new([
-            FuncParam::new(str_ids::_0, Type::Str),
-        ]),
-        spread_param: None,
-        named_params: IndexMap::new(),
-        spread_named_param: None,
-        content_param: FuncParam::new(str_ids::PARAM, Type::AnyHTML),
-    });
-    
-    let bindings: ValueMap = [
-        (NativeFunc::Code, code),
-        (NativeFunc::Export, export),
-        (NativeFunc::Filter, filter),
-        (NativeFunc::Import, content_str.clone()),
-        (NativeFunc::Include, content_str.clone()),
-        (NativeFunc::Join, join),
-        (NativeFunc::ListFiles, content_str.clone()),
-        (NativeFunc::Map, map),
-        (NativeFunc::Raise, content_str),
-        (NativeFunc::Sorted, sorted),
-        (NativeFunc::UniqueID, unique_id),
-        (NativeFunc::WriteFile, write_file),
-    ].into_iter().map(|(f, sig)| {
-        (f.name_id(), Value::Func(Func::Native(f, sig)))
-    }).collect();
-    
-    ActiveFrame::new(None, bindings, None)
+    pub fn to_frame(&self) -> ActiveFrame {
+        let bindings = [
+            &self.add,
+            &self.bind,
+            &self.code,
+            &self.export,
+            &self.filter,
+            &self.import,
+            &self.include,
+            &self.join,
+            &self.list_files,
+            &self.map,
+            &self.raise,
+            &self.sorted,
+            &self.unique_id,
+            &self.write_file,
+        ].into_iter()
+            .cloned()
+            .map(|f| (f.name_id(), Value::Func(f)))
+            .collect();
+        
+        ActiveFrame::new(None, bindings, None)
+    }
 }
 
 impl NativeFunc {
     pub fn name_id(&self) -> NameID {
         match self {
+            NativeFunc::Add => str_ids::ADD,
+            NativeFunc::Bind => str_ids::BIND,
             NativeFunc::Code => str_ids::CODE,
             NativeFunc::Export => str_ids::EXPORT,
             NativeFunc::Filter => str_ids::FILTER,
@@ -161,6 +173,29 @@ impl <'a> Compiler<'a> {
     pub fn evaluate_native_func(&mut self, f: NativeFunc, bindings: ValueMap, call_range: &SourceRange) -> Option<Value> {
         let mut bindings = Bindings(bindings);
         match f {
+            NativeFunc::Add => {
+                let args = bindings.take_list(str_ids::_ARGS);
+                
+                let mut total = 0;
+                for arg in args.as_ref().iter() {
+                    match arg {
+                        Value::Int(i) => total += i,
+                        _ => ice_at("failed to coerce", call_range),
+                    }
+                }
+                Some(total.into())
+            },
+            
+            NativeFunc::Bind => {
+                let f = bindings.take_function(str_ids::_0);
+                let pos_args = bindings.take_list(str_ids::_ARGS);
+                let named_args = bindings.take_dict(str_ids::KWARGS);
+                let content_arg = bindings.take(str_ids::PARAM);
+                
+                f.bind_partial(self, pos_args.as_ref(), named_args.as_ref(), content_arg, call_range)
+                    .map(Value::from)
+            },
+            
             NativeFunc::Code => {
                 let language = bindings.take_str_option(str_ids::LANGUAGE);
                 let is_block = bindings.take_bool(str_ids::CODE_BLOCK);
@@ -180,7 +215,7 @@ impl <'a> Compiler<'a> {
             },
             
             NativeFunc::Export => {
-                let args = bindings.take_dict(str_ids::PARAM);
+                let args = bindings.take_dict(str_ids::KWARGS);
                 
                 for (&k, v) in args.iter() {
                     if self.exports.insert(k, v.clone()).is_some() {
@@ -217,19 +252,20 @@ impl <'a> Compiler<'a> {
                         )
                         .collect();
                     
-                    return Some(paths.into());
-                }
-                
-                let (module_out, module_exports) = self.ctx.load_cached(&path)
-                    .map_err(|e| self.module_error(&path, e, call_range))
-                    .ok()?;
-                
-                Some(if f == NativeFunc::Import {
-                    Value::Dict(module_exports)
+                    Some(paths.into())
                 } else {
-                    self.set_vars(module_exports.as_ref(), false, call_range);
-                    module_out.into()
-                })
+                    // import or include
+                    let (module_out, module_exports) = self.ctx.load_cached(&path)
+                        .map_err(|e| self.module_error(&path, e, call_range))
+                        .ok()?;
+                    
+                    Some(if f == NativeFunc::Import {
+                        Value::Dict(module_exports)
+                    } else {
+                        self.set_vars(module_exports.as_ref(), false, call_range);
+                        module_out.into()
+                    })
+                }
             },
             
             NativeFunc::Filter => {
@@ -372,6 +408,8 @@ impl <'a> Compiler<'a> {
     }
     
     fn native_code_impl(&mut self, language: Option<&str>, is_block: bool, first_line_no: i64, src: &str, call_range: &SourceRange) -> Option<Value> {
+        use super::highlight::{syntax_highlight, enumerate_lines, no_highlighting};
+        
         let mut tag = Tag::new(str_ids::CODE, HTML::Empty);
         
         let src = text::fix_indentation(src);
@@ -409,8 +447,7 @@ impl <'a> Compiler<'a> {
     }
     
     fn eval_callback(&mut self, callback: Func, arg: Value, call_range: &SourceRange) -> Option<Value> {
-        let bindings = callback.signature()
-            .bind_synthetic_call(self, false, arg, call_range)?;
+        let bindings = callback.bind_synthetic_call(self, false, arg, call_range)?;
         self.evaluate_func_call_with_bindings(
             callback,
             bindings,

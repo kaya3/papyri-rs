@@ -11,6 +11,7 @@ pub enum TypeError {
     TagNotAllowed(String),
     InlineParagraphBreak,
     NoContentAllowed,
+    ContentAlreadyBound,
     SortKeyInvalid(Type),
     SortKeyHeterogeneous,
 }
@@ -23,7 +24,8 @@ impl std::fmt::Display for TypeError {
             TypeError::NotEnoughPositionalArgs(expected, was) => write!(f, "not enough positional arguments (expected {expected}, was {was})"),
             TypeError::TagNotAllowed(tag_name) => write!(f, "'{tag_name}' tag not allowed here"),
             TypeError::InlineParagraphBreak => f.write_str("paragraph break not allowed in inline content"),
-            TypeError::NoContentAllowed => f.write_str("non-content content not allowed here"),
+            TypeError::NoContentAllowed => f.write_str("non-empty content not allowed here"),
+            TypeError::ContentAlreadyBound => f.write_str("this function's contents have already been bound (expected none)"),
             TypeError::SortKeyInvalid(was) => write!(f, "sort key must be str or int, was {was}"),
             TypeError::SortKeyHeterogeneous => f.write_str("sort key must be homogeneous, not a mix of str and int"),
         }

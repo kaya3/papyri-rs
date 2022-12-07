@@ -9,7 +9,6 @@ use super::compiler::{Compiler, CompileResult};
 use super::context::Context;
 use super::frame::{InactiveFrame, ActiveFrame};
 use super::html::HTML;
-use super::native::get_natives_frame;
 use super::value::ValueMap;
 
 /// A module cache is used to compile a set of Papyri source files, including
@@ -45,16 +44,6 @@ impl ModuleCache {
         }
     }
     
-    /// Creates and returns a new stack frame in which a Papyri module can be
-    /// compiled. The new stack frame normally contains all native functions
-    /// and the standard library.
-    pub fn get_initial_frame(&self) -> ActiveFrame {
-        self.stdlib.as_ref().map_or_else(
-            get_natives_frame,
-            |stdlib| stdlib.new_child_frame(ValueMap::new(), None),
-        )
-    }
-    
     fn get(&mut self, path: &path::Path) -> ModuleState {
         self.cache.get(path)
             .map_or(ModuleState::NotLoaded, ModuleState::clone)
@@ -72,6 +61,18 @@ impl ModuleCache {
 }
 
 impl Context {
+    /// Creates and returns a new stack frame in which a Papyri module can be
+    /// compiled. The new stack frame normally contains all native functions
+    /// and the standard library.
+    pub fn get_initial_frame(&self, ) -> ActiveFrame {
+        self.module_cache.stdlib
+            .as_ref()
+            .map_or_else(
+                || self.natives.to_frame(),
+                |stdlib| stdlib.new_child_frame(ValueMap::new(), None),
+            )
+    }
+    
     /// Compiles a Papyri source file.
     pub fn compile(&mut self, src: Rc<SourceFile>) -> CompileResult {
         let root = parser::parse(src, &mut self.diagnostics, &mut self.string_pool);

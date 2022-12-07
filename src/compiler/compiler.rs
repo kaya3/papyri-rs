@@ -28,7 +28,7 @@ pub struct Compiler<'a> {
 
 impl <'a> Compiler<'a> {
     pub fn new(ctx: &'a mut Context) -> Compiler<'a> {
-        let frame = ctx.module_cache.get_initial_frame();
+        let frame = ctx.get_initial_frame();
         Compiler {
             ctx,
             call_stack: vec![frame],

@@ -27,19 +27,4 @@ assert_matches! {
         "@let(x=5, y=$x) $y",
         "5",
     );
-    
-    attr_access(
-        "@let(foo=@dict(x=23).) $foo::x",
-        "23",
-    );
-    
-    attr_access_nested(
-        "@let(foo=@dict(bar=@dict(x=23).).) $foo::bar::x",
-        "23",
-    );
-    
-    attr_access_coalesce(
-        "@let(foo=.) $foo?::x",
-        ".",
-    );
 }

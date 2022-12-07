@@ -40,16 +40,66 @@ assert_ok! {
         "<span>@b ... Hello, world!</span> Oh.",
         "<p><span><b>Hello, world!</b></span> Oh.</p>",
     );
+    
+    pos_spread(
+        "@fn foo(*$_v) $_ -> $_v\n@foo(1, 2, 3).",
+        "<ul><li>1</li><li>2</li><li>3</li></ul>",
+    );
+    
+    add_as_method(
+        "@let(x=1) @x::add(1).",
+        "<p>2</p>",
+    );
+    
+    join_as_method(
+        "@let(foo=[1, 2, 3]) @foo::join(`, `).",
+        "<p>1, 2, 3</p>"
+    );
+    
+    call_attr_function(
+        "@let(foo=@dict(bar=@fn $_ -> 23).) @foo::bar.",
+        "<p>23</p>",
+    );
 }
 
 assert_matches! {
-    attr_function_name(
-        "@let(foo=@dict(bar=@fn $_ -> 23).) @foo::bar.",
-        "23"
-    );
-    
     call_if_not_unit(
         "@let(foo=.) @foo?::bar.",
         ".",
+    );
+    
+    bind_none(
+        "@let(foo=@bind(@fn $_ -> 4).) @foo.",
+        "4",
+    );
+    
+    bind_pos(
+        "@let(foo=@bind(@fn($_x, $_y) $_ -> [$_x, $_y], 1).) @foo(2).",
+        "=[1, 2]",
+    );
+    
+    bind_named(
+        "@let(foo=@bind(@fn($x, $y) $_ -> [$x, $y], x=1).) @foo(y=2).",
+        "=[1, 2]",
+    );
+    
+    bind_pos_spread(
+        "@let(foo=@bind(@fn(*$_v) $_ -> $_v, 1, 2).) @foo(3, 4).",
+        "=[1, 2, 3, 4]",
+    );
+    
+    bind_named_spread(
+        "@let(foo=@bind(@fn(**$kw) $_ -> $kw, x=1, y=2).) @foo(z=3).",
+        "(x=1, y=2, z=3)",
+    );
+    
+    bind_content(
+        "@let(foo=@bind(@fn $v: int -> $v) 23) @foo.",
+        "23",
+    );
+    
+    bind_as_method(
+        "@let(foo=@fn($x, $y) $_ -> [$x, $y], foo_bound=@foo::bind(x=1).) @foo_bound(y=2).",
+        "=[1, 2]",
     );
 }

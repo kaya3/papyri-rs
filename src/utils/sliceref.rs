@@ -31,6 +31,11 @@ impl <T> SliceRef<T> {
         &self.original[self.a + i]
     }
     
+    /// Indicates whether this slice is empty.
+    pub fn is_empty(&self) -> bool {
+        self.a == self.b
+    }
+    
     /// Returns the length of this slice.
     pub fn len(&self) -> usize {
         self.b - self.a

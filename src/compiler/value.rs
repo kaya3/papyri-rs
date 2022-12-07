@@ -40,32 +40,50 @@ pub enum Value {
 
 pub type ValueMap = IndexMap<NameID, Value>;
 
+impl From<bool> for Value {
+    fn from(b: bool) -> Value {
+        Value::Bool(b)
+    }
+}
+
+impl From<i64> for Value {
+    fn from(i: i64) -> Value {
+        Value::Int(i)
+    }
+}
+
+impl From<Func> for Value {
+    fn from(f: Func) -> Value {
+        Value::Func(f)
+    }
+}
+
 impl From<&str> for Value {
-    fn from(s: &str) -> Self {
+    fn from(s: &str) -> Value {
         Value::Str(Rc::from(s))
     }
 }
 
 impl From<String> for Value {
-    fn from(s: String) -> Self {
+    fn from(s: String) -> Value {
         Value::Str(Rc::from(s))
     }
 }
 
 impl From<Option<Rc<str>>> for Value {
-    fn from(s: Option<Rc<str>>) -> Self {
+    fn from(s: Option<Rc<str>>) -> Value {
         s.map_or(Value::UNIT, Value::Str)
     }
 }
 
 impl From<Vec<Value>> for Value {
-    fn from(vs: Vec<Value>) -> Self {
+    fn from(vs: Vec<Value>) -> Value {
         Value::List(vs.into())
     }
 }
 
 impl From<ValueMap> for Value {
-    fn from(vs: ValueMap) -> Self {
+    fn from(vs: ValueMap) -> Value {
         Value::Dict(Rc::new(vs))
     }
 }
@@ -244,29 +262,6 @@ impl <'a> Compiler<'a> {
         self.coerce(v, type_hint, node.range())
     }
     
-    /// Returns the value of the given variable, coerced to the given type, or
-    /// `None` if a compilation error occurs.
-    pub fn evaluate_name(&mut self, name: &ast::Name, type_hint: &Type) -> Option<Value> {
-        let value = match name {
-            ast::Name::SimpleName(name) => {
-                self.get_var(name.name_id, &name.range)?
-            },
-            ast::Name::AttrName(attr) => {
-                let mut subject_type = Type::dict(Type::AnyValue);
-                if attr.is_coalescing { subject_type = Type::optional(subject_type); }
-                let subject = self.evaluate_name(&attr.subject, &subject_type)?;
-                let Value::Dict(subject) = subject else { return Some(Value::UNIT); };
-                let Some(v) = subject.get(&attr.attr_name_id) else {
-                    let name = self.get_name(attr.attr_name_id).to_string();
-                    self.name_error(errors::NameError::NoSuchAttribute(name), &attr.range);
-                    return None;
-                };
-                v.clone()
-            },
-        };
-        self.coerce(value, type_hint, name.range())
-    }
-    
     fn evaluate_list(&mut self, list: &[(AST, bool)], type_hint: &Type, range: &SourceRange) -> Option<Value> {
         let child_type_hint = type_hint.component_type();
         let mut children = Vec::new();
@@ -350,7 +345,7 @@ impl <'a> Compiler<'a> {
         };
         
         let content = tok.get_verbatim_text().into();
-        let bindings = f.signature().bind_synthetic_call(self, true, content, &tok.range)?;
+        let bindings = f.bind_synthetic_call(self, true, content, &tok.range)?;
         self.evaluate_func_call_with_bindings(f, bindings, type_hint, &tok.range)
     }
 }

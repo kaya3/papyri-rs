@@ -18,6 +18,11 @@ assert_ok! {
 }
 
 assert_matches! {
+    add(
+        "@add(1, 1).",
+        "2",
+    );
+    
     filter_none(
         "@filter [1, 2, ., 3, ., 4]",
         "=[1, 2, 3, 4]",
