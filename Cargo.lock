@@ -212,7 +212,6 @@ dependencies = [
  "normalize-path",
  "once_cell",
  "regex",
- "regex-lexer",
  "syntect",
  "walkdir",
 ]
@@ -250,15 +249,6 @@ dependencies = [
  "aho-corasick",
  "memchr",
  "regex-syntax",
-]
-
-[[package]]
-name = "regex-lexer"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8021102edb4210b3c3867aff05465d5a79c1d25d48859885fca7dcfc8c69f623"
-dependencies = [
- "regex",
 ]
 
 [[package]]

@@ -38,12 +38,9 @@ fn matching_paren(s: &str) -> &'static str {
     }
 }
 
-static URL_MATCHER: Lazy<regex_lexer::Lexer<bool>> = Lazy::new(|| {
-    regex_lexer::LexerBuilder::new()
-        .token(".", false)
-        .token("https?://[^\\s'\"`]+", true)
-        .build()
-        .expect("Failed to build regex_lexer")
+static URL_REGEX: Lazy<regex::Regex> = Lazy::new(|| {
+    regex::Regex::new("https?://[^\\s'\"`]+")
+        .expect("Failed to compile URL regex")
 });
 
 pub struct LineHighlighter<'a> {
@@ -96,15 +93,19 @@ impl <'a> LineHighlighter<'a> {
     
     fn push_with_possible_urls(&mut self, range: Range<usize>, kind: TokenKind, url_kind: TokenKind) {
         let s = &self.src[range.clone()];
-        for t in URL_MATCHER.tokens(s) {
-            let span = (range.start + t.span.start)..(range.start + t.span.end);
-            if t.kind {
-                self.push_other(span, url_kind);
-                self.close_part();
-            } else {
-                self.push_other(span, kind);
-            }
+        
+        let mut cur = range.start;
+        for m in URL_REGEX.find_iter(s) {
+            let m_start = range.start + m.start();
+            let m_end = range.start + m.end();
+            
+            self.push_other(cur..m_start, kind);
+            self.push_other(m_start..m_end, url_kind);
+            self.close_part();
+            
+            cur = m_end;
         }
+        self.push_other(cur..range.end, kind);
     }
     
     fn push_with_paren_no(&mut self, range: Range<usize>, kind: TokenKind, paren_no: u32) {
