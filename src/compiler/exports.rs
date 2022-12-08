@@ -32,7 +32,9 @@ impl <'a> Compiler<'a> {
                 if name_id.is_anonymous() {
                     self.warning(errors::Warning::AnonymousFunctionNotExpected, range);
                 } else {
-                    self.export(name_id, f.into(), range);
+                    let f = Value::from(f);
+                    self.export(name_id, f.clone(), range);
+                    self.set_var(name_id, f, false, range);
                 }
             },
         }
