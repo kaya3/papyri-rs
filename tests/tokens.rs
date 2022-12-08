@@ -1,21 +1,23 @@
 mod common;
 
-assert_ok! {
+assert_matches! {
     verbatim_with_backslash(
-        r"@str `\`",
-        r"<p>\</p>",
+        r"`\`",
+        r"='\\'",
     );
     
     verbatim_with_line_comment(
-        "@str `#`",
-        "<p>#</p>",
+        r"`#`",
+        r"='\#'",
     );
     
     verbatim_with_html_comment(
-        "@str `<!--`",
-        "<p>&lt;!--</p>",
+        r"`<!--`",
+        r"='\<!--'",
     );
-    
+}
+
+assert_ok! {
     line_comment(
         "# Nothing\nSomething",
         "<p>Something</p>",

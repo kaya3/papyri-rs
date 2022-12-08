@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use crate::errors::{ice, ice_at, RuntimeError, Warning, RuntimeWarning, ModuleError, TypeError};
+use crate::errors::{ice, ice_at, RuntimeError, RuntimeWarning, ModuleError, TypeError};
 use crate::utils::{str_ids, text, NameID, SourceRange, relpath, SliceRef};
 use super::compiler::Compiler;
 use super::frame::ActiveFrame;
@@ -16,7 +16,6 @@ pub enum NativeFunc {
     Add,
     Bind,
     Code,
-    Export,
     Filter,
     Import,
     Include,
@@ -34,7 +33,6 @@ pub struct NativeDefs {
     pub add: Func,
     pub bind: Func,
     pub code: Func,
-    pub export: Func,
     pub filter: Func,
     pub import: Func,
     pub include: Func,
@@ -70,10 +68,6 @@ impl NativeDefs {
             .named(FuncParam::new(str_ids::CODE_BLOCK, Type::Bool).with_default(false))
             .named(FuncParam::new(str_ids::FIRST_LINE_NO, Type::Int).with_default(1))
             .content(FuncParam::new(str_ids::PARAM, Type::Str))
-            .build();
-        
-        let export = FuncSignature::new()
-            .named_spread(FuncParam::new(str_ids::KWARGS, Type::dict(Type::AnyValue)))
             .build();
         
         let filter = FuncSignature::new()
@@ -117,7 +111,6 @@ impl NativeDefs {
             add: Func::Native(NativeFunc::Add, add),
             bind: Func::Native(NativeFunc::Bind, bind),
             code: Func::Native(NativeFunc::Code, code),
-            export: Func::Native(NativeFunc::Export, export),
             filter: Func::Native(NativeFunc::Filter, filter),
             import: Func::Native(NativeFunc::Import, content_str.clone()),
             include: Func::Native(NativeFunc::Include, content_str.clone()),
@@ -133,26 +126,45 @@ impl NativeDefs {
     }
     
     pub fn to_frame(&self) -> ActiveFrame {
-        let bindings = [
-            &self.add,
-            &self.bind,
-            &self.code,
-            &self.export,
-            &self.filter,
-            &self.import,
-            &self.include,
-            &self.join,
-            &self.list_files,
-            &self.map,
-            &self.raise,
-            &self.slice,
-            &self.sorted,
-            &self.unique_id,
-            &self.write_file,
-        ].into_iter()
-            .cloned()
-            .map(|f| (f.name_id(), Value::Func(f)))
-            .collect();
+        impl Func {
+            fn entry(&self) -> (NameID, Value) {
+                (self.name_id(), self.clone().into())
+            }
+        }
+        
+        fn dict_entry<T>(name_id: NameID, map: T) -> (NameID, Value)
+        where ValueMap: From<T> {
+            (name_id, ValueMap::from(map).into())
+        }
+        
+        let bindings = ValueMap::from([
+            dict_entry(str_ids::INT, [
+                self.add.entry(),
+            ]),
+            
+            dict_entry(str_ids::STR, [
+                self.unique_id.entry(),
+            ]),
+            
+            dict_entry(str_ids::LIST, [
+                self.filter.entry(),
+                self.join.entry(),
+                self.map.entry(),
+                self.slice.entry(),
+                self.sorted.entry(),
+            ]),
+            
+            dict_entry(str_ids::FUNCTION, [
+                self.bind.entry(),
+            ]),
+            
+            self.code.entry(),
+            self.import.entry(),
+            self.include.entry(),
+            self.list_files.entry(),
+            self.raise.entry(),
+            self.write_file.entry(),
+        ]);
         
         ActiveFrame::new(None, bindings, None)
     }
@@ -164,7 +176,6 @@ impl NativeFunc {
             NativeFunc::Add => str_ids::ADD,
             NativeFunc::Bind => str_ids::BIND,
             NativeFunc::Code => str_ids::CODE,
-            NativeFunc::Export => str_ids::EXPORT,
             NativeFunc::Filter => str_ids::FILTER,
             NativeFunc::Import => str_ids::IMPORT,
             NativeFunc::Include => str_ids::INCLUDE,
@@ -223,18 +234,6 @@ impl <'a> Compiler<'a> {
                 };
                 
                 self.native_code_impl(language, is_block, first_line_no, src, call_range)
-            },
-            
-            NativeFunc::Export => {
-                let args = bindings.take_dict(str_ids::KWARGS);
-                
-                for (&k, v) in args.iter() {
-                    if self.exports.insert(k, v.clone()).is_some() {
-                        let name = self.get_name(k).to_string();
-                        self.warning(Warning::NameAlreadyExported(name), call_range);
-                    }
-                }
-                Some(Value::UNIT)
             },
             
             NativeFunc::Import | NativeFunc::Include | NativeFunc::ListFiles => {

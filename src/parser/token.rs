@@ -131,6 +131,12 @@ impl Token {
         self.kind == TokenKind::Whitespace || self.kind == TokenKind::Newline
     }
     
+    /// Indicates whether this token is a keyword function name.
+    pub fn is_keyword_func(&self) -> bool {
+        matches!(self.kind, TokenKind::FuncName)
+            && matches!(self.as_str(), "@export" | "@fn" | "@implicit" | "@let" | "@match")
+    }
+    
     /// Indicates whether this token is a primitive type name.
     pub fn is_primitive_type(&self) -> bool {
         matches!(self.kind, TokenKind::Name)

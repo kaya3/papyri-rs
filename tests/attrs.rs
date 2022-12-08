@@ -2,12 +2,12 @@ mod common;
 
 assert_matches! {
     attr_access(
-        "@let(foo=@dict(x=23).) $foo::x",
+        "@let(foo=@dict::new(x=23).) $foo::x",
         "23",
     );
     
     attr_access_nested(
-        "@let(foo=@dict(bar=@dict(x=23).).) $foo::bar::x",
+        "@let(foo=@dict::new(bar=@dict::new(x=23).).) $foo::bar::x",
         "23",
     );
     

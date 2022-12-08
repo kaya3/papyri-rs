@@ -11,7 +11,7 @@ impl <'a> Compiler<'a> {
         for (pattern, handler) in match_.branches.iter() {
             let frame = self.frame()
                 .to_inactive()
-                .new_child_frame(ValueMap::new(), None);
+                .new_empty_child_frame();
             let r = self.evaluate_in_frame(frame, |_self| {
                 if _self.bind_pattern(pattern, value.clone()) {
                     Ok(_self.evaluate_node(handler, type_hint))

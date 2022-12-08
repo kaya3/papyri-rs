@@ -37,12 +37,12 @@ assert_ok! {
     );
     
     typeof_int_dict(
-        "@typeof @dict(x=1, y=2).",
+        "@typeof @dict::new(x=1, y=2).",
         "<p>int dict</p>",
     );
     
     typeof_str_dict(
-        "@typeof @dict(x=`foo`, y=`bar`).",
+        "@typeof @dict::new(x=`foo`, y=`bar`).",
         "<p>str dict</p>",
     );
     

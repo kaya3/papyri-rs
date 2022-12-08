@@ -168,6 +168,29 @@ pub struct LetIn {
 }
 
 #[derive(Debug)]
+/// An `@export` declaration.
+pub enum Export {
+    /// An `@export(name1=..., name2=...).` declaration.
+    Names(SourceRange, Box<[(NameID, AST)]>),
+    
+    /// An `@export @let ...` declaration.
+    LetIn(SourceRange, LetIn),
+    
+    /// An `@export @fn ...` declaration.
+    FuncDef(SourceRange, FuncDef),
+}
+
+impl Export {
+    fn range(&self) -> &SourceRange {
+        match self {
+            Export::Names(range, ..) |
+            Export::LetIn(range, ..) |
+            Export::FuncDef(range, ..) => range,
+        }
+    }
+}
+
+#[derive(Debug)]
 /// An argument in an AST function call.
 pub struct Arg {
     /// The source span of this argument.
@@ -454,6 +477,9 @@ pub enum AST {
     /// A string literal.
     Verbatim(Token),
     
+    /// An `@export` declaration.
+    Export(Box<Export>),
+    
     /// A function call, not including `@fn` or `@match` (which are keywords, not
     /// functions).
     FuncCall(Box<FuncCall>),
@@ -501,6 +527,7 @@ impl AST {
             AST::LetIn(l) => &l.range,
             AST::Match(m) => &m.range,
             AST::Tag(tag) => &tag.range,
+            AST::Export(e) => e.range(),
             AST::Name(name) => name.range(),
             
             AST::LiteralValue(Token {range, ..}) |

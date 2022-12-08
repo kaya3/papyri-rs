@@ -77,12 +77,12 @@ assert_ok! {
     );
     
     spread_attribute(
-        "<span **@dict(id=`foo`).>Foo</span>",
+        "<span **@dict::new(id=`foo`).>Foo</span>",
         r#"<p><span id="foo">Foo</span></p>"#,
     );
     
     empty_spread_attribute(
-        "<span **@dict(hidden=.).>Foo</span>",
+        "<span **@dict::new(hidden=.).>Foo</span>",
         r#"<p><span hidden>Foo</span></p>"#,
     );
 }
@@ -124,7 +124,7 @@ assert_err! {
     );
     
     duplicate_attribute_var(
-        "<span id=`foo` **@dict(id=`bar`).>Foobar</span>",
+        "<span id=`foo` **@dict::new(id=`bar`).>Foobar</span>",
         RuntimeError::AttrMultipleValues,
     );
     

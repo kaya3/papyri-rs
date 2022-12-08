@@ -57,7 +57,7 @@ assert_ok! {
     );
     
     call_attr_function(
-        "@let(foo=@dict(bar=@fn $_ -> 23).) @foo::bar.",
+        "@let(foo=@dict::new(bar=@fn $_ -> 23).) @foo::bar.",
         "<p>23</p>",
     );
 }
@@ -69,32 +69,32 @@ assert_matches! {
     );
     
     bind_none(
-        "@let(foo=@bind(@fn $_ -> 4).) @foo.",
+        "@let(foo=@function::bind(@fn $_ -> 4).) @foo.",
         "4",
     );
     
     bind_pos(
-        "@let(foo=@bind(@fn($_x, $_y) $_ -> [$_x, $_y], 1).) @foo(2).",
+        "@let(foo=@function::bind(@fn($_x, $_y) $_ -> [$_x, $_y], 1).) @foo(2).",
         "=[1, 2]",
     );
     
     bind_named(
-        "@let(foo=@bind(@fn($x, $y) $_ -> [$x, $y], x=1).) @foo(y=2).",
+        "@let(foo=@function::bind(@fn($x, $y) $_ -> [$x, $y], x=1).) @foo(y=2).",
         "=[1, 2]",
     );
     
     bind_pos_spread(
-        "@let(foo=@bind(@fn(*$_v) $_ -> $_v, 1, 2).) @foo(3, 4).",
+        "@let(foo=@function::bind(@fn(*$_v) $_ -> $_v, 1, 2).) @foo(3, 4).",
         "=[1, 2, 3, 4]",
     );
     
     bind_named_spread(
-        "@let(foo=@bind(@fn(**$kw) $_ -> $kw, x=1, y=2).) @foo(z=3).",
+        "@let(foo=@function::bind(@fn(**$kw) $_ -> $kw, x=1, y=2).) @foo(z=3).",
         "(x=1, y=2, z=3)",
     );
     
     bind_content(
-        "@let(foo=@bind(@fn $v: int -> $v) 23) @foo.",
+        "@let(foo=@function::bind(@fn $v: int -> $v) 23) @foo.",
         "23",
     );
     

@@ -64,24 +64,16 @@ impl Context {
     /// Creates and returns a new stack frame in which a Papyri module can be
     /// compiled. The new stack frame normally contains all native functions
     /// and the standard library.
-    pub fn get_initial_frame(&self, ) -> ActiveFrame {
+    pub fn get_initial_frame(&self) -> ActiveFrame {
         self.module_cache.stdlib
             .as_ref()
-            .map_or_else(
-                || self.natives.to_frame(),
-                |stdlib| stdlib.new_child_frame(ValueMap::new(), None),
-            )
+            .unwrap_or(&self.natives_frame)
+            .new_empty_child_frame()
     }
     
     /// Compiles a Papyri source file.
     pub fn compile(&mut self, src: Rc<SourceFile>) -> CompileResult {
-        let root = parser::parse(src, &mut self.diagnostics, &mut self.string_pool);
-        let mut compiler = Compiler::new(self);
-        let out = compiler.compile_sequence(&root, taginfo::ContentKind::REQUIRE_P);
-        CompileResult {
-            out,
-            exports: compiler.exports,
-        }
+        self._compile(src, taginfo::ContentKind::REQUIRE_P)
     }
     
     /// Loads a Papyri source file from the filesystem and compiles it. This
@@ -118,7 +110,7 @@ impl Context {
                 self.out_files = old_out_files;
                 
                 let state = result.as_ref()
-                    .map(CachedCompileResult::clone)
+                    .cloned()
                     .map_or(ModuleState::Error, ModuleState::Loaded);
                 
                 self.module_cache.set_by_index(index, state);
@@ -135,19 +127,28 @@ impl Context {
     pub fn compile_stdlib(&mut self) {
         use crate::errors;
         
-        let stdlib_src = SourceFile::synthetic("stdlib", include_str!("../std.papyri"));
-        let root = parser::parse(stdlib_src, &mut self.diagnostics, &mut self.string_pool);
-        let mut compiler = Compiler::new(self);
-        
-        compiler.compile_sequence(&root, taginfo::ContentKind::RequireEmpty);
-        let exports = compiler.exports;
-        self.module_cache.stdlib = Some(compiler.call_stack.pop().unwrap().into());
+        let src = SourceFile::synthetic("stdlib", include_str!("../std.papyri"));
+        let result = self._compile(src, taginfo::ContentKind::RequireEmpty);
+        let frame = ActiveFrame::new(
+            Some(self.natives_frame.clone()),
+            result.exports,
+            None,
+        );
+        self.module_cache.stdlib = Some(frame.to_inactive());
         
         if !self.diagnostics.is_empty() {
             self.diagnostics.print();
             errors::ice("Standard library had errors or warnings");
-        } else if !exports.is_empty() {
-            errors::ice("Standard library had exports");
+        }
+    }
+    
+    fn _compile(&mut self, src: Rc<SourceFile>, content_kind: taginfo::ContentKind) -> CompileResult {
+        let root = parser::parse(src, &mut self.diagnostics, &mut self.string_pool);
+        let mut compiler = Compiler::new(self);
+        let out = compiler.compile_sequence(&root, content_kind);
+        CompileResult {
+            out,
+            exports: compiler.exports,
         }
     }
 }

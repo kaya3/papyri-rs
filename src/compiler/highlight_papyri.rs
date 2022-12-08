@@ -41,10 +41,11 @@ pub fn syntax_highlight_papyri(src: &str) -> Vec<HTML> {
                 TokenKind::Plain
             },
             
-            parser::TokenKind::FuncName => match tok.as_str() {
-                "@fn" => { next_is_def = true; TokenKind::Keyword },
-                "@implicit" | "@let" | "@match" => TokenKind::Keyword,
-                _ => TokenKind::Decorator,
+            parser::TokenKind::FuncName => if tok.is_keyword_func() {
+                next_is_def = tok.as_str() == "@fn";
+                TokenKind::Keyword
+            } else {
+                TokenKind::Decorator
             },
             
             parser::TokenKind::LPar |

@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use crate::errors::{Diagnostics, ice_at, SyntaxError};
-use crate::utils::{SourceFile, StringPool, SourceRange};
+use crate::utils::{SourceFile, StringPool, SourceRange, NameID};
 use super::ast::*;
 use super::queue::Parser;
 use super::text;
@@ -85,7 +85,15 @@ impl <'a> Parser<'a> {
             
             TokenKind::Verbatim => Some(AST::Verbatim(tok)),
             TokenKind::VarName => self.parse_name(tok).map(AST::Name),
-            TokenKind::FuncName => self.parse_func(tok),
+            TokenKind::FuncName => {
+                let f = self.parse_func(tok)?;
+                if matches!(f, AST::Export(..)) {
+                    self.diagnostics.syntax_error(SyntaxError::ExportNotAllowed, f.range());
+                    None
+                } else {
+                    Some(f)
+                }
+            },
             TokenKind::LBrace => Some(self.parse_group(tok)),
             TokenKind::LSqb => self.parse_list(tok),
             TokenKind::LAngle if self.has_next(|t| matches!(t.kind, TokenKind::Name | TokenKind::VarName)) => self.parse_tag(tok),
@@ -156,6 +164,9 @@ impl <'a> Parser<'a> {
     
     fn parse_func(&mut self, at: Token) -> Option<AST> {
         match at.as_str() {
+            "@export" => self.parse_export(at)
+                .map(Box::new)
+                .map(AST::Export),
             "@fn" => self.parse_func_def(at)
                 .map(Box::new)
                 .map(AST::FuncDef),
@@ -224,27 +235,32 @@ impl <'a> Parser<'a> {
         ))
     }
     
+    fn parse_export(&mut self, at: Token) -> Option<Export> {
+        self.skip_whitespace();
+        if let Some(fn_tok) = self.poll_if(|t| t.as_str() == "@fn") {
+            // @export @fn ...
+            let f = self.parse_func_def(fn_tok)?;
+            let range = at.range.to_end(f.range.end);
+            Some(Export::FuncDef(range, f))
+        } else if let Some(let_tok) = self.poll_if(|t| t.as_str() == "@let") {
+            // @export @let ...
+            let let_in = self.parse_let_in(let_tok)?;
+            let range = at.range.to_end(let_in.range.end);
+            Some(Export::LetIn(range, let_in))
+        } else {
+            // @export(...).
+            let vars = self.parse_some_named_args(&at)?;
+            self.skip_whitespace();
+            let dot = self.expect_poll_kind(TokenKind::Dot)?;
+            let range = at.range.to_end(dot.range.end);
+            Some(Export::Names(range, vars))
+        }
+    }
+    
     fn parse_let_in(&mut self, at: Token) -> Option<LetIn> {
-        let Some(args) = self.parse_args() else {
-            self.diagnostics.syntax_error(SyntaxError::LetInMissingArgs, &at.range);
-            return None;
-        };
-        
-        let vars: Box<[_]> = args.into_iter()
-            .filter_map(|arg| {
-                if arg.is_spread() {
-                    self.diagnostics.syntax_error(SyntaxError::SpreadNotAllowed, &arg.range);
-                    None
-                } else if arg.is_positional() {
-                    self.diagnostics.syntax_error(SyntaxError::LetInPositionalArg, &arg.range);
-                    None
-                } else {
-                    Some((arg.name_id, arg.value))
-                }
-            })
-            .collect();
-        
+        let vars = self.parse_some_named_args(&at)?;
         let child = self.parse_value_or_ellipsis()?;
+        
         match &child {
             AST::LiteralValue(tok) |
             AST::Verbatim(tok) => self.diagnostics.syntax_error(SyntaxError::LetInLiteral, &tok.range),
@@ -257,5 +273,29 @@ impl <'a> Parser<'a> {
             vars,
             child,
         })
+    }
+    
+    fn parse_some_named_args(&mut self, at: &Token) -> Option<Box<[(NameID, AST)]>> {
+        let args = match self.parse_args() {
+            Some(args) if !args.is_empty() => args,
+            _ => {
+                self.diagnostics.syntax_error(SyntaxError::DeclMissingArgs, &at.range);
+                return None;
+            },
+        };
+        
+        Some(args.into_iter()
+            .filter_map(|arg| {
+                if arg.is_spread() {
+                    self.diagnostics.syntax_error(SyntaxError::SpreadNotAllowed, &arg.range);
+                    None
+                } else if arg.is_positional() {
+                    self.diagnostics.syntax_error(SyntaxError::DeclPositionalArg, &arg.range);
+                    None
+                } else {
+                    Some((arg.name_id, arg.value))
+                }
+            })
+            .collect())
     }
 }

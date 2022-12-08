@@ -3,6 +3,7 @@
 
 mod compiler;
 mod context;
+mod exports;
 mod frame;
 mod func;
 mod highlight;

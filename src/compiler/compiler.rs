@@ -38,11 +38,20 @@ impl <'a> Compiler<'a> {
     
     pub fn compile_node(&mut self, node: &AST) -> HTML {
         match node {
-            AST::FuncDef(def) if !def.name_id.is_anonymous() => {
-                let f = self.compile_func_def(def);
-                self.set_var(def.name_id, Value::Func(f), false, node.range());
+            AST::FuncDef(def) => {
+                if def.name_id.is_anonymous() {
+                    self.warning(errors::Warning::AnonymousFunctionNotExpected, &def.signature.range);
+                } else {
+                    let f = self.compile_func_def(def);
+                    self.set_var(def.name_id, Value::Func(f), false, node.range());
+                }
                 HTML::Empty
             },
+            
+            AST::Export(e) => {
+                self.compile_export(e);
+                HTML::Empty
+            }
             
             AST::Group(group, ..) => self.compile_sequence(group, taginfo::ContentKind::ALLOW_P),
             AST::Tag(tag) => self.compile_tag(tag),

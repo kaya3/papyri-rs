@@ -1,6 +1,7 @@
 use crate::errors;
 use crate::utils::{OutFiles, SourceRange, NameID, StringPool, text};
 use super::compiler::Compiler;
+use super::frame::InactiveFrame;
 use super::html::HTML;
 use super::module_loader::ModuleCache;
 use super::native::NativeDefs;
@@ -17,6 +18,9 @@ pub struct Context {
     /// A cache containing the native functions.
     pub natives: NativeDefs,
     
+    /// A stack frame containing the native functions.
+    pub natives_frame: InactiveFrame,
+    
     /// The pool of interned names for this compiler context.
     pub string_pool: StringPool,
     
@@ -31,11 +35,14 @@ impl Context {
     /// Creates a new compiler context. This includes compiling the standard
     /// library.
     pub fn new(reporting_level: errors::ReportingLevel, out_dir: Option<&std::path::Path>) -> Context {
+        let natives = NativeDefs::build();
+        let natives_frame = natives.to_frame().to_inactive();
         let mut ctx = Context {
             string_pool: StringPool::new(),
             diagnostics: errors::Diagnostics::new(reporting_level),
             module_cache: ModuleCache::new(),
-            natives: NativeDefs::build(),
+            natives,
+            natives_frame,
             unique_ids: text::UniqueIDGenerator::new(),
             out_files: out_dir.map(OutFiles::new),
         };

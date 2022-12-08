@@ -6,6 +6,7 @@ pub enum Warning {
     NoMatchingBranch,
     PatternNameAlreadyBound(String),
     NameAlreadyExported(String),
+    AnonymousFunctionNotExpected,
 }
 
 #[allow(missing_docs)]
@@ -27,6 +28,7 @@ impl std::fmt::Display for Warning {
             Warning::NoMatchingBranch => f.write_str("no matching branch in @match"),
             Warning::PatternNameAlreadyBound(name) => write!(f, "name '{name}' already bound in this pattern; did you mean '=${name}'?"),
             Warning::NameAlreadyExported(name) => write!(f, "name '{name}' already exported"),
+            Warning::AnonymousFunctionNotExpected => f.write_str("anonymous function not expected here"),
         }
     }
 }

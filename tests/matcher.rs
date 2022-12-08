@@ -7,7 +7,7 @@ assert_matches! {
     literal_str("`foobar`", "`foobar`");
     literal_bool("True", "True");
     literal_list("[1, 2]", "[1, 2]");
-    literal_dict("@dict(x=1, y=2).", "(x=1, y=2)");
+    literal_dict("@dict::new(x=1, y=2).", "(x=1, y=2)");
     
     unit_dot_dot(".", ".");
     unit_dot_braces(".", "{}");
@@ -20,12 +20,12 @@ assert_matches! {
     typed_str("`foobar`", "_: str");
     typed_bool("True", "_: bool");
     typed_list("[1, 2]", "_: int list");
-    typed_dict("@dict(x=1, y=2).", "_: int dict");
+    typed_dict("@dict::new(x=1, y=2).", "_: int dict");
     typed_function("@fn $x -> $x", "_: function");
     
     spread_list("[1, 2, 3]", "[1, *[2, 3]]");
-    spread_dict("@dict(x=1, y=2, z=3).", "(x=1, **(y=2, z=3))");
-    equals_dict("@dict(x=1, y=2, z=3).", "=@dict(z=3, y=2, x=1).");
+    spread_dict("@dict::new(x=1, y=2, z=3).", "(x=1, **(y=2, z=3))");
+    equals_dict("@dict::new(x=1, y=2, z=3).", "=@dict::new(z=3, y=2, x=1).");
     
     tag_simple("<span>Foo</span>", "<span> _ </span>");
     tag_empty("<span/>", "<span/>");
@@ -50,7 +50,7 @@ assert_ok! {
     );
     
     dict_part(
-        "@match @dict(x=1, y=2, z=3). {(x=$x, **_) -> $x}",
+        "@match @dict::new(x=1, y=2, z=3). {(x=$x, **_) -> $x}",
         "<p>1</p>",
     );
     

@@ -249,7 +249,7 @@ impl <'a> Compiler<'a> {
                 }
                 v
             },
-            AST::LetIn(let_in) => return self.evaluate_let_in(let_in, type_hint),
+            AST::LetIn(let_in) => return self.evaluate_let_in(let_in, type_hint, false),
             AST::Match(m) => return self.evaluate_match(m, type_hint),
             AST::Name(name) => return self.evaluate_name(name, type_hint),
             AST::Template(parts, ..) => self.evaluate_template(parts),
@@ -324,14 +324,16 @@ impl <'a> Compiler<'a> {
         }
     }
     
-    fn evaluate_let_in(&mut self, let_in: &ast::LetIn, type_hint: &Type) -> Option<Value> {
+    pub fn evaluate_let_in(&mut self, let_in: &ast::LetIn, type_hint: &Type, do_export: bool) -> Option<Value> {
         let frame = self.frame()
             .to_inactive()
-            .new_child_frame(ValueMap::new(), None);
+            .new_empty_child_frame();
         self.evaluate_in_frame(frame, |_self| {
             for &(name_id, ref value) in let_in.vars.iter() {
                 let v = _self.evaluate_node(value, &Type::AnyValue)?;
-                _self.set_var(name_id, v, let_in.is_implicit, value.range());
+                let range = value.range();
+                if do_export { _self.export(name_id, v.clone(), range); }
+                _self.set_var(name_id, v, let_in.is_implicit, range);
             }
             _self.evaluate_node(&let_in.child, type_hint)
         })

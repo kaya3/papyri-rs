@@ -57,8 +57,20 @@ impl ActiveFrame {
 }
 
 impl InactiveFrame {
-    pub fn new_child_frame(&self, locals: ValueMap, func: Option<(Func, SourceRange)>) -> ActiveFrame {
-        ActiveFrame::new(Some(self.clone()), locals, func)
+    pub fn new_child_frame(&self, locals: ValueMap, func: Func, call_range: &SourceRange) -> ActiveFrame {
+        ActiveFrame::new(
+            Some(self.clone()),
+            locals,
+            Some((func, call_range.clone())),
+        )
+    }
+    
+    pub fn new_empty_child_frame(&self) -> ActiveFrame {
+        ActiveFrame::new(
+            Some(self.clone()),
+            ValueMap::new(),
+            None,
+        )
     }
 }
 
