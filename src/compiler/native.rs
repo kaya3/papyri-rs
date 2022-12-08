@@ -24,6 +24,7 @@ pub enum NativeFunc {
     ListFiles,
     Map,
     Raise,
+    Slice,
     Sorted,
     UniqueID,
     WriteFile,
@@ -41,6 +42,7 @@ pub struct NativeDefs {
     pub list_files: Func,
     pub map: Func,
     pub raise: Func,
+    pub slice: Func,
     pub sorted: Func,
     pub unique_id: Func,
     pub write_file: Func,
@@ -49,12 +51,12 @@ pub struct NativeDefs {
 impl NativeDefs {
     pub fn build() -> NativeDefs {
         let add = FuncSignature::new()
-            .pos_spread(FuncParam::new(str_ids::_ARGS, Type::list(Type::Int)))
+            .pos_spread(FuncParam::new(str_ids::_0, Type::list(Type::Int)))
             .build();
         
         let bind = FuncSignature::new()
             .positional(FuncParam::new(str_ids::_0, Type::Function))
-            .pos_spread(FuncParam::new(str_ids::_ARGS, Type::list(Type::AnyValue)))
+            .pos_spread(FuncParam::new(str_ids::_1, Type::list(Type::AnyValue)))
             .named_spread(FuncParam::new(str_ids::KWARGS, Type::dict(Type::AnyValue)))
             .content(FuncParam::new(str_ids::PARAM, Type::AnyValue))
             .build();
@@ -89,6 +91,12 @@ impl NativeDefs {
             .content(FuncParam::new(str_ids::PARAM, Type::list(Type::AnyValue)))
             .build();
         
+        let slice = FuncSignature::new()
+            .positional(FuncParam::new(str_ids::_0, Type::Int))
+            .positional(FuncParam::new(str_ids::_1, Type::optional(Type::Int)).unit_default())
+            .content(FuncParam::new(str_ids::PARAM, Type::list(Type::AnyValue)))
+            .build();
+        
         let sorted = FuncSignature::new()
             .named(FuncParam::new(str_ids::KEY, Type::optional(Type::Function)).unit_default())
             .named(FuncParam::new(str_ids::REVERSE, Type::Bool).with_default(false))
@@ -117,6 +125,7 @@ impl NativeDefs {
             list_files: Func::Native(NativeFunc::ListFiles, content_str.clone()),
             map: Func::Native(NativeFunc::Map, map),
             raise: Func::Native(NativeFunc::Raise, content_str),
+            slice: Func::Native(NativeFunc::Slice, slice),
             sorted: Func::Native(NativeFunc::Sorted, sorted),
             unique_id: Func::Native(NativeFunc::UniqueID, unique_id),
             write_file: Func::Native(NativeFunc::WriteFile, write_file),
@@ -136,6 +145,7 @@ impl NativeDefs {
             &self.list_files,
             &self.map,
             &self.raise,
+            &self.slice,
             &self.sorted,
             &self.unique_id,
             &self.write_file,
@@ -162,6 +172,7 @@ impl NativeFunc {
             NativeFunc::ListFiles => str_ids::LIST_FILES,
             NativeFunc::Map => str_ids::MAP,
             NativeFunc::Raise => str_ids::RAISE,
+            NativeFunc::Slice => str_ids::SLICE,
             NativeFunc::Sorted => str_ids::SORTED,
             NativeFunc::UniqueID => str_ids::UNIQUE_ID,
             NativeFunc::WriteFile => str_ids::WRITE_FILE,
@@ -174,7 +185,7 @@ impl <'a> Compiler<'a> {
         let mut bindings = Bindings(bindings);
         match f {
             NativeFunc::Add => {
-                let args = bindings.take_list(str_ids::_ARGS);
+                let args = bindings.take_list(str_ids::_0);
                 
                 let mut total = 0;
                 for arg in args.as_ref().iter() {
@@ -188,7 +199,7 @@ impl <'a> Compiler<'a> {
             
             NativeFunc::Bind => {
                 let f = bindings.take_function(str_ids::_0);
-                let pos_args = bindings.take_list(str_ids::_ARGS);
+                let pos_args = bindings.take_list(str_ids::_1);
                 let named_args = bindings.take_dict(str_ids::KWARGS);
                 let content_arg = bindings.take(str_ids::PARAM);
                 
@@ -327,6 +338,20 @@ impl <'a> Compiler<'a> {
                 let msg = bindings.take_str(str_ids::PARAM);
                 self.runtime_error(RuntimeError::Raised(msg), call_range);
                 None
+            },
+            
+            NativeFunc::Slice => {
+                let content = bindings.take_list(str_ids::PARAM);
+                let n = content.len() as i64;
+                
+                let start = bindings.take_int(str_ids::_0);
+                let end = bindings.take_int_option(str_ids::_1).unwrap_or(n);
+                
+                let a = if start < 0 { 0.max(start + n) } else { start.min(n) };
+                let b = if end < 0 { 0.max(end + n) } else { end.min(n) };
+                
+                let r = content.slice(a.min(b) as usize, b as usize);
+                Some(Value::List(r))
             },
             
             NativeFunc::Sorted => {
@@ -504,6 +529,14 @@ impl Bindings {
     fn take_function(&mut self, key: NameID) -> Func {
         match self.take(key) {
             Value::Func(f) => f,
+            _ => ice("failed to unpack"),
+        }
+    }
+    
+    fn take_int_option(&mut self, key: NameID) -> Option<i64> {
+        match self.take(key) {
+            Value::Int(i) => Some(i),
+            v if v.is_unit() => None,
             _ => ice("failed to unpack"),
         }
     }

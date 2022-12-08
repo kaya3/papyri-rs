@@ -56,6 +56,7 @@ impl <'a> Compiler<'a> {
                 str_ids::FILTER => return self.bind_method(natives.filter.clone(), subject, &attr.range),
                 str_ids::JOIN => return self.bind_method(natives.join.clone(), subject, &attr.range),
                 str_ids::MAP => return self.bind_method(natives.map.clone(), subject, &attr.range),
+                str_ids::SLICE => return self.bind_method(natives.slice.clone(), subject, &attr.range),
                 str_ids::SORTED => return self.bind_method(natives.sorted.clone(), subject, &attr.range),
                 _ => {},
             },

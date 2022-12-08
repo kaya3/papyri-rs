@@ -25,6 +25,7 @@ pub enum RuntimeError {
     ParamMustBePositive(String, i64),
     
     Raised(std::rc::Rc<str>),
+    IndexOutOfRange(i64, usize),
     PathNotInOutDir(std::rc::Rc<str>),
     WriteFileNotAllowed,
 }
@@ -49,6 +50,7 @@ impl std::fmt::Display for RuntimeError {
             RuntimeError::ParamMultipleValues(name) => write!(f, "received multiple values for parameter '{name}'"),
             RuntimeError::ParamMustBePositive(name, was) => write!(f, "parameter '{name}' must be positive (was {was})"),
             RuntimeError::Raised(msg) => f.write_str(msg),
+            RuntimeError::IndexOutOfRange(i, len) => write!(f, "index out of bounds (index {i}, length {len})"),
             RuntimeError::PathNotInOutDir(path) => write!(f, "path \"{path}\" is not within output directory"),
             RuntimeError::WriteFileNotAllowed => f.write_str("no output directory for '@write_file'; use '--out'"),
         }
