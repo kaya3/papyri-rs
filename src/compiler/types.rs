@@ -12,11 +12,11 @@ pub enum Type {
     Unit,
     
     /// The top type `any`, which all values are assignable to.
-    AnyValue,
+    Any,
     
     /// The type `html`, representing any HTML content; `block` and `inline`
     /// are subtypes.
-    AnyHTML,
+    HTML,
     
     /// The type `block`, representing block-level HTML content, or content
     /// which otherwise need not be wrapped in a block-level element.
@@ -54,36 +54,41 @@ pub enum Type {
 
 impl Type {
     /// Creates a representation of a `dict` type.
-    pub fn dict(t: Type) -> Type {
-        Type::Dict(Box::new(t))
+    pub fn dict(self: Type) -> Type {
+        Type::Dict(Box::new(self))
     }
     
     /// Creates a representation of a `list` type.
-    pub fn list(t: Type) -> Type {
-        Type::List(Box::new(t))
+    pub fn list(self) -> Type {
+        Type::List(Box::new(self))
     }
     
     /// Creates a representation of an optional type. The representation is
     /// normalised by simplifying `T?` to `T` whenever the unit value is
     /// already assignable to `T`.
-    pub fn optional(t: Type) -> Type {
-        if t.unit_is_assignable() {
-            t
+    pub fn option(self) -> Type {
+        if self.unit_is_assignable() {
+            self
         } else {
-            Type::Optional(Box::new(t))
+            Type::Optional(Box::new(self))
         }
+    }
+    
+    /// Converts this type to an optional type, if the given condition is true.
+    pub fn option_if(self, condition: bool) -> Type {
+        if condition { self.option() } else { self }
     }
     
     /// Indicates whether this type is either `html`, `block` or `inline`. The
     /// types `any` and `none` are not considered to be HTML types.
     pub fn is_html(&self) -> bool {
-        matches!(self, Type::AnyHTML | Type::Block | Type::Inline)
+        matches!(self, Type::HTML | Type::Block | Type::Inline)
     }
     
     /// Indicates whether the unit value is assignable to this type.
     pub fn unit_is_assignable(&self) -> bool {
-        matches!(self, Type::AnyValue |
-            Type::AnyHTML |
+        matches!(self, Type::Any |
+            Type::HTML |
             Type::Block |
             Type::Inline |
             Type::Unit |
@@ -98,8 +103,8 @@ impl Type {
         match self {
             Type::Dict(t) | Type::List(t) => t,
             Type::Optional(t) => t.component_type(),
-            Type::Block | Type::AnyHTML => &Type::AnyHTML,
-            _ => &Type::AnyValue,
+            Type::Block | Type::HTML => &Type::HTML,
+            _ => &Type::Any,
         }
     }
     
@@ -108,17 +113,17 @@ impl Type {
     pub fn least_upper_bound(self, other: Type) -> Type {
         match (self, other) {
             (t1, t2) if t1 == t2 => t1,
-            (Type::AnyValue, t) | (t, Type::AnyValue) => t,
-            (t, Type::Unit) | (Type::Unit, t) => Type::optional(t),
+            (Type::Any, t) | (t, Type::Any) => t,
+            (t, Type::Unit) | (Type::Unit, t) => t.option(),
             
-            (t1, t2) if t1.is_html() && t2.is_html() => Type::AnyHTML,
+            (t1, t2) if t1.is_html() && t2.is_html() => Type::HTML,
             
-            (Type::List(t1), Type::List(t2)) => Type::list(t1.least_upper_bound(*t2)),
-            (Type::Dict(t1), Type::Dict(t2)) => Type::dict(t1.least_upper_bound(*t2)),
-            (Type::Optional(t1), Type::Optional(t2)) => Type::optional(t1.least_upper_bound(*t2)),
-            (Type::Optional(t1), t2) | (t2, Type::Optional(t1)) => Type::optional(t1.least_upper_bound(t2)),
+            (Type::List(t1), Type::List(t2)) => t1.least_upper_bound(*t2).list(),
+            (Type::Dict(t1), Type::Dict(t2)) => t1.least_upper_bound(*t2).dict(),
+            (Type::Optional(t1), Type::Optional(t2)) => t1.least_upper_bound(*t2).option(),
+            (Type::Optional(t1), t2) | (t2, Type::Optional(t1)) => t1.least_upper_bound(t2).option(),
             
-            _ => Type::AnyValue,
+            _ => Type::Any,
         }
     }
     
@@ -126,8 +131,8 @@ impl Type {
     pub fn compile(type_annotation: &ast::TypeAnnotation) -> Type {
         match type_annotation {
             ast::TypeAnnotation::Primitive(range) => match range.as_str() {
-                "any" => Type::AnyValue,
-                "html" => Type::AnyHTML,
+                "any" => Type::Any,
+                "html" => Type::HTML,
                 "block" => Type::Block,
                 "inline" => Type::Inline,
                 "none" => Type::Unit,
@@ -140,9 +145,9 @@ impl Type {
             ast::TypeAnnotation::Group(child, range) => {
                 let child = Type::compile(child);
                 match range.as_str() {
-                    "dict" => Type::dict(child),
-                    "list" => Type::list(child),
-                    "?" => Type::optional(child),
+                    "dict" => child.dict(),
+                    "list" => child.list(),
+                    "?" => child.option(),
                     _ => errors::ice_at("not a group type", range),
                 }
             },
@@ -155,13 +160,13 @@ impl Type {
         match (self, value) {
             (t, v) if v.is_unit() => t.unit_is_assignable(),
             
-            (Type::AnyValue, _) |
+            (Type::Any, _) |
             (Type::Bool, Value::Bool(_)) |
             (Type::Int, Value::Int(_)) |
             (Type::Str, Value::Str(_)) |
             (Type::Function, Value::Func(_)) |
-            (Type::AnyHTML, Value::HTML(_)) |
-            (Type::AnyHTML, Value::Str(_)) |
+            (Type::HTML, Value::HTML(_)) |
+            (Type::HTML, Value::Str(_)) |
             (Type::Inline, Value::Str(_)) => true,
             
             (Type::Block, Value::HTML(h)) => h.is_block(),
@@ -190,13 +195,13 @@ impl Type {
         match (expected, &value) {
             (Type::Unit, v) if v.is_unit() => return Ok(Value::UNIT),
             
-            (Type::AnyValue, _) |
+            (Type::Any, _) |
             (Type::Bool, Value::Bool(..)) |
             (Type::Int, Value::Int(..)) |
             (Type::Str, Value::Str(..)) |
-            (Type::AnyHTML, Value::Str(..)) |
+            (Type::HTML, Value::Str(..)) |
             (Type::Inline, Value::Str(..)) |
-            (Type::AnyHTML, Value::HTML(..)) |
+            (Type::HTML, Value::HTML(..)) |
             (Type::Function, Value::Func(..)) => return Ok(value),
             
             (Type::Str, &Value::Bool(b)) => return Ok(Token::bool_to_string(b).into()),
@@ -216,7 +221,7 @@ impl Type {
             (_, Value::Func(..)) |
             (Type::Inline, Value::Dict(..) | Value::List(..)) => {},
             
-            (Type::AnyHTML, _) => {
+            (Type::HTML, _) => {
                 return Ok(value_to_html(value).into());
             },
             (Type::Block, _) => {
@@ -251,8 +256,8 @@ impl Type {
 impl std::fmt::Display for Type {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Type::AnyValue => f.write_str("any"),
-            Type::AnyHTML => f.write_str("html"),
+            Type::Any => f.write_str("any"),
+            Type::HTML => f.write_str("html"),
             Type::Block => f.write_str("block"),
             Type::Inline => f.write_str("inline"),
             Type::Unit => f.write_str("none"),
@@ -307,7 +312,7 @@ mod test {
         assert!(Type::Unit.unit_is_assignable());
         assert!(!Type::Int.unit_is_assignable());
         assert!(!Type::Str.unit_is_assignable());
-        assert!(Type::optional(Type::Int).unit_is_assignable());
+        assert!(Type::Int.option().unit_is_assignable());
     }
     
     #[test]
@@ -321,20 +326,20 @@ mod test {
     #[test]
     fn least_upper_bound() {
         assert_eq!(Type::Int.least_upper_bound(Type::Int), Type::Int);
-        assert_eq!(Type::Int.least_upper_bound(Type::Unit), Type::optional(Type::Int));
-        assert_eq!(Type::Int.least_upper_bound(Type::Str), Type::AnyValue);
+        assert_eq!(Type::Int.least_upper_bound(Type::Unit), Type::Int.option());
+        assert_eq!(Type::Int.least_upper_bound(Type::Str), Type::Any);
     }
     
     #[test]
     fn int_list_type() {
         let list_value: Value = vec![Value::Int(23), Value::Int(42)].into();
-        assert_eq!(list_value.get_type(), Type::list(Type::Int));
+        assert_eq!(list_value.get_type(), Type::Int.list());
     }
     
     #[test]
     fn mixed_list_type() {
         let list_value: Value = vec![Value::Int(23), Value::Bool(true)].into();
-        assert_eq!(list_value.get_type(), Type::list(Type::AnyValue));
+        assert_eq!(list_value.get_type(), Type::Any.list());
     }
     
     #[test]
@@ -352,14 +357,14 @@ mod test {
     #[test]
     fn coerce_optional() {
         assert_eq!(
-            Type::optional(Type::Str).coerce_value("foo".into(), &value_to_html).unwrap(),
+            Type::Str.option().coerce_value("foo".into(), &value_to_html).unwrap(),
             "foo".into(),
         );
     }
     
     #[test]
     fn coerce_optional_list() {
-        let t = Type::optional(Type::list(Type::Int));
+        let t = Type::Int.list().option();
         let v: Value = vec![Value::Int(23), Value::Int(42)].into();
         assert_eq!(
             t.coerce_value(v.clone(), &value_to_html).unwrap(),

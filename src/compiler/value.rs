@@ -82,6 +82,12 @@ impl From<Vec<Value>> for Value {
     }
 }
 
+impl From<SliceRef<Value>> for Value {
+    fn from(vs: SliceRef<Value>) -> Value {
+        Value::List(vs)
+    }
+}
+
 impl From<ValueMap> for Value {
     fn from(vs: ValueMap) -> Value {
         Value::Dict(Rc::new(vs))
@@ -94,7 +100,7 @@ impl From<HTML> for Value {
             HTML::Text(t) => Value::Str(t),
             HTML::Whitespace => " ".into(),
             HTML::RawNewline => "\n".into(),
-            _ => Value::HTML(html.clone())
+            html => Value::HTML(html),
         }
     }
 }
@@ -132,14 +138,8 @@ impl Value {
             Value::Bool(..) => Type::Bool,
             Value::Int(..) => Type::Int,
             Value::Str(..) => Type::Str,
-            Value::Dict(vs) => {
-                let t = Value::common_type_of(vs.values());
-                Type::dict(t)
-            },
-            Value::List(vs) => {
-                let t = Value::common_type_of(vs.as_ref().iter());
-                Type::list(t)
-            },
+            Value::Dict(vs) => Value::common_type_of(vs.values()).dict(),
+            Value::List(vs) => Value::common_type_of(vs.as_ref().iter()).list(),
             Value::HTML(html) => if html.is_empty() { Type::Unit } else if html.is_block() { Type::Block } else { Type::Inline },
             Value::Func(..) => Type::Function,
         }
@@ -267,7 +267,8 @@ impl <'a> Compiler<'a> {
         let mut children = Vec::new();
         for &(ref child, is_spread) in list.iter() {
             if is_spread {
-                let Value::List(grandchildren) = self.evaluate_node(child, &Type::list(child_type_hint.clone()))? else {
+                let grandchildren = self.evaluate_node(child, &child_type_hint.clone().list())?;
+                let Value::List(grandchildren) = grandchildren else {
                     errors::ice_at("failed to coerce", child.range());
                 };
                 children.extend(grandchildren.as_ref().iter().cloned());
@@ -289,7 +290,7 @@ impl <'a> Compiler<'a> {
                     out += s;
                 },
                 ast::TemplatePart::Name(name) => {
-                    if let Some(v) = self.evaluate_name(name, &Type::optional(Type::Str)) {
+                    if let Some(v) = self.evaluate_name(name, &Type::Str.option()) {
                         if let Some(s) = v.to_optional_rc_str(name.range()) {
                             out += s.as_ref();
                         }
@@ -330,7 +331,7 @@ impl <'a> Compiler<'a> {
             .new_empty_child_frame();
         self.evaluate_in_frame(frame, |_self| {
             for &(name_id, ref value) in let_in.vars.iter() {
-                let v = _self.evaluate_node(value, &Type::AnyValue)?;
+                let v = _self.evaluate_node(value, &Type::Any)?;
                 let range = value.range();
                 if do_export { _self.export(name_id, v.clone(), range); }
                 _self.set_var(name_id, v, let_in.is_implicit, range);

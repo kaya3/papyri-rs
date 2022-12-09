@@ -49,14 +49,14 @@ pub struct NativeDefs {
 impl NativeDefs {
     pub fn build() -> NativeDefs {
         let add = FuncSignature::new()
-            .pos_spread(FuncParam::new(str_ids::_0, Type::list(Type::Int)))
+            .pos_spread(FuncParam::new(str_ids::_0, Type::Int.list()))
             .build();
         
         let bind = FuncSignature::new()
             .positional(FuncParam::new(str_ids::_0, Type::Function))
-            .pos_spread(FuncParam::new(str_ids::_1, Type::list(Type::AnyValue)))
-            .named_spread(FuncParam::new(str_ids::KWARGS, Type::dict(Type::AnyValue)))
-            .content(FuncParam::new(str_ids::PARAM, Type::AnyValue))
+            .pos_spread(FuncParam::new(str_ids::_1, Type::Any.list()))
+            .named_spread(FuncParam::new(str_ids::KWARGS, Type::Any.dict()))
+            .content(FuncParam::new(str_ids::PARAM, Type::Any))
             .build();
         
         let content_str = FuncSignature::new()
@@ -64,37 +64,37 @@ impl NativeDefs {
             .build();
         
         let code = FuncSignature::new()
-            .named(FuncParam::new(str_ids::LANGUAGE, Type::optional(Type::Str)).implicit().unit_default())
+            .named(FuncParam::new(str_ids::LANGUAGE, Type::Str.option()).implicit().unit_default())
             .named(FuncParam::new(str_ids::CODE_BLOCK, Type::Bool).with_default(false))
             .named(FuncParam::new(str_ids::FIRST_LINE_NO, Type::Int).with_default(1))
             .content(FuncParam::new(str_ids::PARAM, Type::Str))
             .build();
         
         let filter = FuncSignature::new()
-            .positional(FuncParam::new(str_ids::_0, Type::optional(Type::Function)).unit_default())
-            .content(FuncParam::new(str_ids::PARAM, Type::list(Type::AnyValue)))
+            .positional(FuncParam::new(str_ids::_0, Type::Function.option()).unit_default())
+            .content(FuncParam::new(str_ids::PARAM, Type::Any.list()))
             .build();
         
         let join = FuncSignature::new()
-            .positional(FuncParam::new(str_ids::_0, Type::AnyValue).unit_default())
-            .content(FuncParam::new(str_ids::PARAM, Type::list(Type::AnyHTML)))
+            .positional(FuncParam::new(str_ids::_0, Type::Any).unit_default())
+            .content(FuncParam::new(str_ids::PARAM, Type::HTML.list()))
             .build();
         
         let map = FuncSignature::new()
             .positional(FuncParam::new(str_ids::_0, Type::Function))
-            .content(FuncParam::new(str_ids::PARAM, Type::list(Type::AnyValue)))
+            .content(FuncParam::new(str_ids::PARAM, Type::Any.list()))
             .build();
         
         let slice = FuncSignature::new()
             .positional(FuncParam::new(str_ids::_0, Type::Int))
-            .positional(FuncParam::new(str_ids::_1, Type::optional(Type::Int)).unit_default())
-            .content(FuncParam::new(str_ids::PARAM, Type::list(Type::AnyValue)))
+            .positional(FuncParam::new(str_ids::_1, Type::Int.option()).unit_default())
+            .content(FuncParam::new(str_ids::PARAM, Type::Any.list()))
             .build();
         
         let sorted = FuncSignature::new()
-            .named(FuncParam::new(str_ids::KEY, Type::optional(Type::Function)).unit_default())
+            .named(FuncParam::new(str_ids::KEY, Type::Function.option()).unit_default())
             .named(FuncParam::new(str_ids::REVERSE, Type::Bool).with_default(false))
-            .content(FuncParam::new(str_ids::PARAM, Type::list(Type::AnyValue)))
+            .content(FuncParam::new(str_ids::PARAM, Type::Any.list()))
             .build();
         
         let unique_id = FuncSignature::new()
@@ -104,7 +104,7 @@ impl NativeDefs {
         
         let write_file = FuncSignature::new()
             .positional(FuncParam::new(str_ids::_0, Type::Str))
-            .content(FuncParam::new(str_ids::PARAM, Type::AnyHTML))
+            .content(FuncParam::new(str_ids::PARAM, Type::HTML))
             .build();
         
         NativeDefs {
@@ -350,7 +350,7 @@ impl <'a> Compiler<'a> {
                 let b = if end < 0 { 0.max(end + n) } else { end.min(n) };
                 
                 let r = content.slice(a.min(b) as usize, b as usize);
-                Some(Value::List(r))
+                Some(r.into())
             },
             
             NativeFunc::Sorted => {
@@ -359,7 +359,7 @@ impl <'a> Compiler<'a> {
                 let content = bindings.take_list(str_ids::PARAM);
                 
                 if content.len() == 0 {
-                    return Some(Value::List(content));
+                    return Some(content.into());
                 }
                 
                 let mut decorated = Vec::new();
@@ -475,7 +475,7 @@ impl <'a> Compiler<'a> {
         self.evaluate_func_call_with_bindings(
             callback,
             bindings,
-            &Type::AnyValue,
+            &Type::Any,
             call_range,
         )
     }

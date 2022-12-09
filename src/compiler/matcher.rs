@@ -7,7 +7,7 @@ use super::value::{Value, ValueMap};
 
 impl <'a> Compiler<'a> {
     pub fn evaluate_match(&mut self, match_: &ast::Match, type_hint: &Type) -> Option<Value> {
-        let value = self.evaluate_node(&match_.value, &Type::AnyValue)?;
+        let value = self.evaluate_node(&match_.value, &Type::Any)?;
         for (pattern, handler) in match_.branches.iter() {
             let frame = self.frame()
                 .to_inactive()
@@ -48,7 +48,7 @@ impl <'a> Compiler<'a> {
                 true
             },
             ast::MatchPattern::EqualsValue(_, child) => {
-                self.evaluate_node(child, &Type::AnyValue)
+                self.evaluate_node(child, &Type::Any)
                     .map_or(false, |other| value == other)
             },
             ast::MatchPattern::Typed(_, child, type_) => {
@@ -91,7 +91,7 @@ impl <'a> Compiler<'a> {
                     *spread_index,
                     child_values.len(),
                     |i| child_values.get(i).clone(),
-                    |a, b| Value::List(child_values.slice(a, b)),
+                    |a, b| child_values.slice(a, b).into(),
                 )
             },
             

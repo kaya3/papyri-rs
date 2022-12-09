@@ -85,7 +85,7 @@ impl <'a> Compiler<'a> {
                     let range = &attr.range;
                     match attr.value.as_ref() {
                         Some(node) => {
-                            let expected_type = if attr.question_mark { Type::optional(Type::Str) } else { Type::Str };
+                            let expected_type = Type::Str.option_if(attr.question_mark);
                             if let Some(v) = self.evaluate_node(node, &expected_type) {
                                 let s = v.to_optional_rc_str(range);
                                 if s.is_some() { self.add_attr(&mut attrs, attr.name_id, s, range); }
@@ -96,7 +96,7 @@ impl <'a> Compiler<'a> {
                 },
                 ast::TagAttrOrSpread::Spread(spread) => {
                     let range = spread.range();
-                    match self.evaluate_node(spread, &Type::dict(Type::optional(Type::Str))) {
+                    match self.evaluate_node(spread, &Type::Str.option().dict()) {
                         Some(Value::Dict(dict)) => {
                             for (&k, v) in dict.iter() {
                                 let s = v.to_optional_rc_str(range);

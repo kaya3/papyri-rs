@@ -8,8 +8,20 @@ use indexmap::IndexSet;
 /// Indicates whether the given string is a valid name, matching `[a-zA-Z_][a-zA-Z0-9_]*`.
 pub fn is_identifier(s: &str) -> bool {
     let mut s_chars = s.chars();
-    matches!(s_chars.next(), Some('a'..='z' | 'A'..='Z' | '_'))
-        && s_chars.all(|c| matches!(c, 'a'..='z' | 'A'..='Z' | '0'..='9' | '_'))
+    matches!(s_chars.next(), Some(c) if is_ident_start(c))
+        && s_chars.all(is_ident_cont)
+}
+
+/// Indicates whether the given character is allowed as the first character of
+/// an identifier, i.e. whether it matches `[a-zA-Z_]`.
+pub fn is_ident_start(c: char) -> bool {
+    c.is_ascii_alphabetic() || c == '_'
+}
+
+/// Indicates whether the given character is allowed after the first character
+/// in an identifier, i.e. whether it matches `[a-zA-Z0-9_]`.
+pub fn is_ident_cont(c: char) -> bool {
+    c.is_ascii_alphanumeric() || c == '_'
 }
 
 /// Returns a usually-reasonable approximation of the given string, using only
@@ -20,13 +32,13 @@ pub fn make_identifier(s: &str, max_len: usize) -> String {
     let mut s_chars = s.chars();
     let mut id = "".to_string();
     match s_chars.next() {
-        Some(c) if matches!(c, 'a'..='z' | 'A'..='Z') => id.push(c),
+        Some(c) if c.is_ascii_alphabetic() => id.push(c),
         _ => id.push('_'),
     }
     for c in s_chars {
         if id.len() >= max_len {
             break;
-        } else if matches!(c, 'a'..='z' | 'A'..='Z' | '0'..='9') {
+        } else if c.is_ascii_alphanumeric() {
             id.push(c);
         } else if !id.ends_with("_") {
             id += "_";

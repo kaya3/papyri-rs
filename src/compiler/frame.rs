@@ -105,14 +105,13 @@ impl <'a> Compiler<'a> {
     }
     
     pub fn stack_trace(&self) -> StackTrace {
-        let mut calls = Vec::new();
-        for frame in self.call_stack.iter() {
-            if let Some((func, call_range)) = &frame.call {
+        self.call_stack.iter()
+            .filter_map(|frame| frame.call.as_ref())
+            .map(|(func, call_range)| {
                 let func_name = format!("@{}", self.get_name(func.name_id()));
-                calls.push((func_name, call_range.clone()));
-            }
-        }
-        calls.into_boxed_slice()
+                (func_name, call_range.clone())
+            })
+            .collect()
     }
     
     pub fn get_var(&mut self, name_id: NameID, range: &SourceRange) -> Option<Value> {

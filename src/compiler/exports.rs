@@ -17,7 +17,7 @@ impl <'a> Compiler<'a> {
         match e {
             ast::Export::Names(_, vars) => {
                 for &(name_id, ref arg) in vars.iter() {
-                    if let Some(v) = self.evaluate_node(arg, &Type::AnyValue) {
+                    if let Some(v) = self.evaluate_node(arg, &Type::Any) {
                         self.export(name_id, v, arg.range());
                     }
                 }

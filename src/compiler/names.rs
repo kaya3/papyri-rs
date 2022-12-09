@@ -22,7 +22,7 @@ impl <'a> Compiler<'a> {
     }
     
     fn evaluate_attr(&mut self, attr: &ast::AttrName) -> Option<Value> {
-        let subject = self.evaluate_name(&attr.subject, &Type::AnyValue)?;
+        let subject = self.evaluate_name(&attr.subject, &Type::Any)?;
         let attr_id = attr.attr_name_id;
         let natives = &self.ctx.natives;
         

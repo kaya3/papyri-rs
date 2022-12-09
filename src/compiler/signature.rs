@@ -135,7 +135,7 @@ pub struct ParamBinder<'a, 'b> {
     compiler: &'a mut Compiler<'b>,
     sig: RcFuncSignature,
     bound: PartialParams,
-    pub any_errors: bool,
+    any_errors: bool,
 }
 
 impl <'a, 'b> ParamBinder<'a, 'b> {
@@ -159,7 +159,7 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
         let sig = self.sig.as_ref();
         
         if arg.is_spread() {
-            if let Some(Value::List(vs)) = self.compiler.evaluate_node(&arg.value, &Type::list(Type::AnyValue)) {
+            if let Some(Value::List(vs)) = self.compiler.evaluate_node(&arg.value, &Type::Any.list()) {
                 for v in vs.as_ref().iter() {
                     self.add_positional_arg(v.clone(), arg.value.range());
                 }
@@ -172,7 +172,7 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
             } else if let Some(param) = &sig.spread_param {
                 param.type_.component_type()
             } else {
-                &Type::AnyValue
+                &Type::Any
             };
             if let Some(v) = self.compiler.evaluate_node(&arg.value, type_hint) {
                 self.add_positional_arg(v, arg.value.range());
@@ -186,7 +186,7 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
         let sig = self.sig.as_ref();
         
         if arg.is_spread() {
-            if let Some(Value::Dict(vs)) = self.compiler.evaluate_node(&arg.value, &Type::dict(Type::AnyValue)) {
+            if let Some(Value::Dict(vs)) = self.compiler.evaluate_node(&arg.value, &Type::Any.dict()) {
                 for (&k, v) in vs.iter() {
                     self.add_named_arg(k, v.clone(), arg.value.range());
                 }
@@ -199,7 +199,7 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
             } else if let Some(param) = &sig.spread_named_param {
                 param.type_.component_type()
             } else {
-                &Type::AnyValue
+                &Type::Any
             };
             if let Some(v) = self.compiler.evaluate_node(&arg.value, type_hint) {
                 self.add_named_arg(arg.name_id, v, arg.value.range());
@@ -230,7 +230,7 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
             // this happens if the function is already partially bound
             // type hint needs to include 'none'; if the value is not `Value::UNIT`,
             // then we'll report a different error anyway.
-            &Type::AnyValue
+            &Type::Any
         } else {
             &sig.content_param.type_
         };
@@ -385,16 +385,15 @@ impl <'a> Compiler<'a> {
     }
     
     pub fn compile_param(&mut self, param: &ast::Param) -> FuncParam {
-        let mut type_ = param.type_annotation.as_ref()
-            .map_or(Type::AnyValue, Type::compile);
-        let mut default_value = param.default_value.as_ref()
-            .map(|v| self.evaluate_node(v, &type_))
-            .flatten();
+        let type_ = param.type_annotation.as_ref()
+            .map_or(Type::Any, Type::compile)
+            .option_if(param.question_mark);
         
-        if param.question_mark {
-            type_ = Type::optional(type_);
-            default_value.get_or_insert(Value::UNIT);
-        }
+        let default_value = param.default_value.as_ref()
+            .map(|v| self.evaluate_node(v, &type_))
+            .flatten()
+            .or(param.question_mark.then_some(Value::UNIT));
+        
         FuncParam {
             name_id: param.name_id,
             is_implicit: param.is_implicit,

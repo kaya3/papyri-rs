@@ -64,7 +64,7 @@ impl <'a> Compiler<'a> {
             AST::Template(.., range) => errors::ice_at("template should not occur in non-value context", range),
             
             _ => {
-                self.evaluate_node(node, &Type::AnyHTML)
+                self.evaluate_node(node, &Type::HTML)
                     .map_or(HTML::Empty, |v| self.compile_value(v))
             },
         }

@@ -11,9 +11,9 @@ pub struct SliceRef<T> {
     b: usize,
 }
 
-impl <S, T> From<S> for SliceRef<T> where S: Into<Rc<[T]>> {
+impl <S, T> From<S> for SliceRef<T> where Rc<[T]>: From<S> {
     fn from(original: S) -> SliceRef<T> {
-        let original = original.into();
+        let original = Rc::from(original);
         let b = original.len();
         SliceRef {original, a: 0, b}
     }

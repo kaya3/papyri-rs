@@ -152,11 +152,10 @@ impl <'a> Parser<'a> {
             close_kind,
         )?;
         
-        let mut child_patterns = Vec::new();
         let mut spread_index = None;
-        
-        for (i, child) in children.into_iter().enumerate() {
-            let child = match child {
+        let child_patterns: Box<[MatchPattern]> = children.into_iter()
+            .enumerate()
+            .map(|(i, child)| match child {
                 PositionalMatchPattern::One(child) => child,
                 PositionalMatchPattern::Spread(child) => {
                     if spread_index.is_some() {
@@ -164,10 +163,9 @@ impl <'a> Parser<'a> {
                     }
                     spread_index = Some(i);
                     child
-                },
-            };
-            child_patterns.push(child);
-        }
+                }
+            })
+            .collect();
         
         let is_list = open.kind == TokenKind::LSqb;
         if !is_list {
@@ -177,7 +175,6 @@ impl <'a> Parser<'a> {
         }
         
         let range = open.range.to_end(close.range.end);
-        let child_patterns = child_patterns.into_boxed_slice();
         let pattern = match spread_index {
             Some(spread_index) => if is_list {
                 MatchPattern::SpreadList(range, child_patterns, spread_index)

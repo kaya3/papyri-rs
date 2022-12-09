@@ -20,6 +20,16 @@ assert_ok! {
         "@let(x=5) {$x $x}",
         "<p>5 5</p>",
     );
+    
+    line_comment(
+        "# Nothing\nSomething",
+        "<p>Something</p>",
+    );
+    
+    multiline_comment(
+        "<!-- Nothing\nhere -->\nSomething",
+        "<p>Something</p>",
+    );
 }
 
 assert_matches! {

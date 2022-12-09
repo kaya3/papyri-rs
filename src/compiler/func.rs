@@ -42,36 +42,36 @@ impl Func {
     }
     
     pub fn bind_content(&self, compiler: &mut Compiler, content_arg: Value, range: &SourceRange) -> Option<Func> {
-        let mut bindings = self.get_partials()
+        let mut binder = self.get_partials()
             .open(compiler, self.signature());
         
-        bindings.add_content_arg(content_arg, range);
-        bindings.close_into_bound_function(self.clone(), range)
+        binder.add_content_arg(content_arg, range);
+        binder.close_into_bound_function(self.clone(), range)
     }
     
     pub fn bind_pos_arg(&self, compiler: &mut Compiler, arg: Value, range: &SourceRange) -> Option<Func> {
-        let mut bindings = self.get_partials()
+        let mut binder = self.get_partials()
             .open(compiler, self.signature());
         
-        bindings.add_positional_arg(arg, range);
-        bindings.close_into_bound_function(self.clone(), range)
+        binder.add_positional_arg(arg, range);
+        binder.close_into_bound_function(self.clone(), range)
     }
     
     pub fn bind_partial(&self, compiler: &mut Compiler, positional_args: &[Value], named_args: &ValueMap, content_arg: Value, call_range: &SourceRange) -> Option<Func> {
-        let mut bindings = self.get_partials()
+        let mut binder = self.get_partials()
             .open(compiler, self.signature());
         
         for arg in positional_args.as_ref().iter().cloned() {
-            bindings.add_positional_arg(arg, call_range);
+            binder.add_positional_arg(arg, call_range);
         }
         for (&name_id, arg) in named_args.iter() {
-            bindings.add_named_arg(name_id, arg.clone(), call_range);
+            binder.add_named_arg(name_id, arg.clone(), call_range);
         }
         if !content_arg.is_unit() {
-            bindings.add_content_arg(content_arg, call_range);
+            binder.add_content_arg(content_arg, call_range);
         }
         
-        bindings.close_into_bound_function(self.clone(), call_range)
+        binder.close_into_bound_function(self.clone(), call_range)
     }
     
     pub fn bind_synthetic_call(&self, compiler: &mut Compiler, bind_implicits: bool, content_value: Value, call_range: &SourceRange) -> Option<ValueMap> {
@@ -120,11 +120,9 @@ impl <'a> Compiler<'a> {
     }
     
     pub fn evaluate_func_call(&mut self, call: &ast::FuncCall, type_hint: &Type) -> Option<Value> {
-        let func_type = if call.func.is_coalescing() {
-            Type::optional(Type::Function)
-        } else {
-            Type::Function
-        };
+        let func_type = Type::Function
+            .option_if(call.func.is_coalescing());
+        
         match self.evaluate_name(&call.func, &func_type)? {
             Value::Func(f) => {
                 let bindings = f.bind_call(self, call)?;

@@ -26,7 +26,7 @@ pub struct ModuleCache {
 
 type CachedCompileResult = (HTML, Rc<ValueMap>);
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 enum ModuleState {
     NotLoaded,
     Loaded(CachedCompileResult),
