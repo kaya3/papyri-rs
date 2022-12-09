@@ -296,6 +296,9 @@ pub enum MatchPattern {
     /// expression.
     EqualsValue(SourceRange, AST),
     
+    /// An `and` pattern, which matches if both child patterns match.
+    And(SourceRange, Box<(MatchPattern, MatchPattern)>),
+    
     /// A pattern which matches a string according to a regular expression,
     /// binding its capturing groups to variables. Any capturing groups which
     /// do not match will be bound to a unit value.
@@ -364,6 +367,7 @@ impl MatchPattern {
     pub fn range(&self) -> &SourceRange {
         match self {
             MatchPattern::Ignore(range) |
+            MatchPattern::And(range, ..) |
             MatchPattern::EqualsValue(range, ..) |
             MatchPattern::Typed(range, ..) |
             MatchPattern::TypeOf(range, ..) |

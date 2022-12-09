@@ -36,6 +36,8 @@ assert_matches! {
     tag_one_in_seq("<span/>", "{<span/>}");
     
     equals_captured_var("[23, 23]", "[$x, =$x]");
+    var_and_literal("[23, 23]", "[23 and $x, 23 and =$x]");
+    var_and_template("[`foo bar`, [`foo bar`, `foo`, `bar`]]", "[$x and '$a $b', =[$x, $a, $b]]");
 }
 
 assert_ok! {

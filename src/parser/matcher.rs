@@ -56,6 +56,16 @@ impl <'a> Parser<'a> {
     }
     
     fn parse_match_pattern(&mut self) -> Option<MatchPattern> {
+        let mut p = self.parse_primary_match_pattern()?;
+        while {self.skip_whitespace(); self.poll_if(|t| t.as_str() == "and").is_some()} {
+            let q = self.parse_primary_match_pattern()?;
+            let range = p.range().to_end(q.range().end);
+            p = MatchPattern::And(range, Box::new((p, q)));
+        }
+        Some(p)
+    }
+    
+    fn parse_primary_match_pattern(&mut self) -> Option<MatchPattern> {
         self.skip_whitespace();
         let tok = self.expect_poll()?;
         match tok.kind {

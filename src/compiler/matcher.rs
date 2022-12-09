@@ -47,6 +47,10 @@ impl <'a> Compiler<'a> {
                 self.bind_one(var, value);
                 true
             },
+            ast::MatchPattern::And(_, pair) => {
+                self.bind_pattern(&pair.0, value.clone())
+                    && self.bind_pattern(&pair.1, value)
+            },
             ast::MatchPattern::EqualsValue(_, child) => {
                 self.evaluate_node(child, &Type::Any)
                     .map_or(false, |other| value == other)
