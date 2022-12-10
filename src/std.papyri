@@ -1,17 +1,21 @@
 @export @fn page(
     $title: str,
     $web_root: str = `https://kaya3.github.io/papyri`,
-    $before?: html,
-    $after?: html,
+    $header?: html,
+    $footer?: html,
 ) $content: block -> {
     @let(w=@match $web_root {"$w/" -> $w, _ -> $web_root})...
     <!DOCTYPE html>
     <html>
-    <head><title>$title</><link rel=`stylesheet` type=`text/css` href="$w/papyri.css"></>#
+    <head>
+        <title>$title</>#
+        <meta charset=`utf-8`>#
+        <link rel=`stylesheet` type=`text/css` href="$w/papyri.css">
+    </>#
     <body>
-        $before#
+        @match $header {. -> ., _ -> <header>$header</>}#
         <article>$content</>#
-        $after#
+        @match $footer {. -> ., _ -> <footer>$footer</>}#
         <script type=`text/javascript` src="$w/papyri.js"/>
     </>
     </>

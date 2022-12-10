@@ -170,7 +170,7 @@ impl <'a> Parser<'a> {
             "@fn" => self.parse_func_def(at)
                 .map(Box::new)
                 .map(AST::FuncDef),
-            "@implicit" | "@let" => self.parse_let_in(at)
+            "@implicit" | "@let" => self.parse_let_in(at, false)
                 .map(Box::new)
                 .map(AST::LetIn),
             "@match" => self.parse_match(at)
@@ -244,7 +244,7 @@ impl <'a> Parser<'a> {
             Some(Export::FuncDef(range, f))
         } else if let Some(let_tok) = self.poll_if(|t| t.as_str() == "@let") {
             // @export @let ...
-            let let_in = self.parse_let_in(let_tok)?;
+            let let_in = self.parse_let_in(let_tok, true)?;
             let range = at.range.to_end(let_in.range.end);
             Some(Export::LetIn(range, let_in))
         } else {
@@ -257,13 +257,13 @@ impl <'a> Parser<'a> {
         }
     }
     
-    fn parse_let_in(&mut self, at: Token) -> Option<LetIn> {
+    fn parse_let_in(&mut self, at: Token, is_export: bool) -> Option<LetIn> {
         let vars = self.parse_some_named_args(&at)?;
         let child = self.parse_value_or_ellipsis()?;
         
         match &child {
             AST::LiteralValue(tok) |
-            AST::Verbatim(tok) => self.diagnostics.syntax_error(SyntaxError::LetInLiteral, &tok.range),
+            AST::Verbatim(tok) if !is_export => self.diagnostics.syntax_error(SyntaxError::LetInLiteral, &tok.range),
             _ => {},
         }
         
