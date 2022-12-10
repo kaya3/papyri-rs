@@ -16,6 +16,7 @@ pub enum NativeFunc {
     Add,
     Bind,
     Code,
+    EscapeHTML,
     Filter,
     Import,
     Include,
@@ -33,6 +34,7 @@ pub struct NativeDefs {
     pub add: Func,
     pub bind: Func,
     pub code: Func,
+    pub escape_html: Func,
     pub filter: Func,
     pub import: Func,
     pub include: Func,
@@ -68,6 +70,10 @@ impl NativeDefs {
             .named(FuncParam::new(str_ids::CODE_BLOCK, Type::Bool).with_default(false))
             .named(FuncParam::new(str_ids::FIRST_LINE_NO, Type::Int).with_default(1))
             .content(FuncParam::new(str_ids::PARAM, Type::Str))
+            .build();
+        
+        let escape_html = FuncSignature::new()
+            .content(FuncParam::new(str_ids::PARAM, Type::HTML))
             .build();
         
         let filter = FuncSignature::new()
@@ -111,6 +117,7 @@ impl NativeDefs {
             add: Func::Native(NativeFunc::Add, add),
             bind: Func::Native(NativeFunc::Bind, bind),
             code: Func::Native(NativeFunc::Code, code),
+            escape_html: Func::Native(NativeFunc::EscapeHTML, escape_html),
             filter: Func::Native(NativeFunc::Filter, filter),
             import: Func::Native(NativeFunc::Import, content_str.clone()),
             include: Func::Native(NativeFunc::Include, content_str.clone()),
@@ -146,6 +153,10 @@ impl NativeDefs {
                 self.unique_id.entry(),
             ]),
             
+            dict_entry(str_ids::HTML, [
+                self.escape_html.entry(),
+            ]),
+            
             dict_entry(str_ids::LIST, [
                 self.filter.entry(),
                 self.join.entry(),
@@ -176,6 +187,7 @@ impl NativeFunc {
             NativeFunc::Add => str_ids::ADD,
             NativeFunc::Bind => str_ids::BIND,
             NativeFunc::Code => str_ids::CODE,
+            NativeFunc::EscapeHTML => str_ids::ESCAPE_HTML,
             NativeFunc::Filter => str_ids::FILTER,
             NativeFunc::Import => str_ids::IMPORT,
             NativeFunc::Include => str_ids::INCLUDE,
@@ -234,6 +246,14 @@ impl <'a> Compiler<'a> {
                 };
                 
                 self.native_code_impl(language, is_block, first_line_no, src, call_range)
+            },
+            
+            NativeFunc::EscapeHTML => {
+                let content = bindings.take(str_ids::PARAM);
+                
+                let mut s = Vec::new();
+                self.ctx.render(&self.compile_value(content), true, &mut s).unwrap();
+                Some(String::from_utf8(s).unwrap().into())
             },
             
             NativeFunc::Import | NativeFunc::Include | NativeFunc::ListFiles => {

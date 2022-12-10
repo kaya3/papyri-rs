@@ -23,6 +23,16 @@ assert_matches! {
         "2",
     );
     
+    negate(
+        "@let(x=4) $x::negate",
+        "-4",
+    );
+    
+    escape_html(
+        "@let(x=`<foo>&</foo>`) @x::escape_html.",
+        "`&lt;foo&gt;&amp;&lt;/foo&gt;`",
+    );
+    
     filter_none(
         "@list::filter [1, 2, ., 3, ., 4]",
         "=[1, 2, 3, 4]",

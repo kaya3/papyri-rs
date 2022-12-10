@@ -27,18 +27,18 @@ impl <'a> Compiler<'a> {
         let natives = &self.ctx.natives;
         
         match &subject {
-            v if v.is_unit() && attr.is_coalescing => {
-                return Some(Value::UNIT);
-            },
+            v if v.is_unit() && attr.is_coalescing => return Some(Value::UNIT),
             
             Value::Bool(_) => {},
             
-            Value::Int(_) => match attr_id {
+            Value::Int(i) => match attr_id {
                 str_ids::ADD => return self.bind_pos_arg(natives.add.clone(), subject, &attr.range),
+                str_ids::NEGATE => return Some((-i).into()),
                 _ => {},
             },
             
             Value::Str(s) => match attr_id {
+                str_ids::ESCAPE_HTML => return self.bind_method(natives.escape_html.clone(), subject, &attr.range),
                 str_ids::IS_EMPTY => return Some(s.is_empty().into()),
                 str_ids::LEN => return Some(Value::Int(s.len() as i64)),
                 _ => {},
@@ -67,7 +67,10 @@ impl <'a> Compiler<'a> {
                 _ => {},
             },
             
-            Value::HTML(_) => {},
+            Value::HTML(_) => match attr_id {
+                str_ids::ESCAPE_HTML => return self.bind_method(natives.escape_html.clone(), subject, &attr.range),
+                _ => {},
+            },
         }
         
         let name = self.get_name(attr.attr_name_id).to_string();

@@ -103,6 +103,9 @@
     dict=@dict_new(
         new=$dict_new,
     ).,
+    html=@dict_new(
+        **$html,
+    ).,
     inline=@dict_new(
         from=@fn inline_from $v: inline -> $v,
     ).,
