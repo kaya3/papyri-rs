@@ -70,7 +70,7 @@ impl <'a> Parser<'a> {
     fn parse_tag_attribute(&mut self) -> Option<TagAttrOrSpread> {
         self.skip_whitespace();
         if let Some(spread) = self.poll_if_kind(TokenKind::Asterisk) {
-            if spread.range.len() != 2 {
+            if spread.spread_kind() != SpreadKind::Named {
                 self.diagnostics.syntax_error(SyntaxError::SpreadPositionalNotAllowed, &spread.range);
             }
             return self.parse_value()

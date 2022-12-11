@@ -1,7 +1,7 @@
 use crate::errors::{self, TypeError};
 use crate::utils::{SourceRange, str_ids};
 use crate::parser::{ast, Token};
-use super::compiler::Compiler;
+use super::base::Compiler;
 use super::html::HTML;
 use super::value::Value;
 

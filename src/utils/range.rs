@@ -17,11 +17,6 @@ pub struct SourceRange {
 }
 
 impl SourceRange {
-    /// Returns the length of this span.
-    pub fn len(&self) -> u32 {
-        self.end - self.start
-    }
-    
     /// Returns the source at this span.
     pub fn as_str(&self) -> &str {
         &self.src.src[self.start as usize..self.end as usize]

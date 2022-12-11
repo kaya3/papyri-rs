@@ -1,7 +1,7 @@
 //! This module contains the backend of the Papyri compiler; it is responsible
 //! for compiling an abstract syntax tree into HTML (or plain text).
 
-mod compiler;
+mod base;
 mod context;
 mod exports;
 mod frame;
@@ -20,7 +20,7 @@ mod tag;
 mod types;
 mod value;
 
-pub use compiler::CompileResult;
+pub use base::CompileResult;
 pub use context::Context;
 pub use html::HTML;
 pub use types::Type;

@@ -1,6 +1,6 @@
 use crate::errors::{ice_at, Warning};
 use crate::parser::ast;
-use super::compiler::Compiler;
+use super::base::Compiler;
 use super::html::HTML;
 use super::types::Type;
 use super::value::{Value, ValueMap};

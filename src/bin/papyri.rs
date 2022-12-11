@@ -164,16 +164,16 @@ impl Main {
     fn process_source_file(&mut self, src_path: &Path, in_dir: &Path) -> Result<SourceFileResult, String> {
         let src_path_str = src_path.to_string_lossy();
         
-        if utils::is_papyri_library(&src_path) {
+        if utils::is_papyri_library(src_path) {
             if !self.options.silent {
                 println!("{src_path_str} (library, skipping)");
             }
             return Ok(SourceFileResult::SkippedLibrary);
         }
         
-        let out_path = self.get_out_path(&src_path, &in_dir)?;
+        let out_path = self.get_out_path(src_path, in_dir)?;
         
-        if self.options.skip_unchanged && is_unchanged(&src_path, &out_path) {
+        if self.options.skip_unchanged && is_unchanged(src_path, &out_path) {
             if !self.options.silent {
                 println!("{src_path_str} (unchanged, skipping)");
             }
@@ -182,7 +182,7 @@ impl Main {
         
         self.ctx.reset();
         let result = self.ctx
-            .load_uncached(&src_path)
+            .load_uncached(src_path)
             .map_err(|e| format!("Error loading \"{src_path_str}\": {e}"))?;
         
         let mut to_write = self.ctx.out_files
@@ -216,7 +216,7 @@ impl Main {
     
     fn get_out_path(&self, src_path: &Path, in_dir: &Path) -> Result<PathBuf, String> {
         let mut out_path = if let Some(ref out_dir) = self.options.out_dir {
-            if let Some(p) = utils::relpath::make_relative(&in_dir, &src_path) {
+            if let Some(p) = utils::relpath::make_relative(in_dir, src_path) {
                 out_dir.join(p)
             } else {
                 return Err(format!("No sensible output path for \"{}\"", src_path.to_string_lossy()));
@@ -239,7 +239,7 @@ impl Main {
             .map_or(Ok(()), fs::create_dir_all)
             .map_err(|e| format!("Failed to create directory \"{path_str}\": {e}"))?;
         
-        let mut out_writer = fs::File::create(&path)
+        let mut out_writer = fs::File::create(path)
             .map(io::BufWriter::new)
             .map_err(|e| format!("Failed to create file \"{path_str}\": {e}"))?;
         

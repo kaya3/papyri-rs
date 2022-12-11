@@ -4,7 +4,8 @@ use std::rc::Rc;
 use indexmap::IndexMap;
 
 use crate::utils::{SourceRange, NameID};
-use super::token::Token;
+use crate::errors;
+use super::{token::Token, TokenKind};
 
 #[derive(Debug)]
 /// An AST node for a single HTML tag attribute.
@@ -227,6 +228,18 @@ impl Arg {
 /// Indicates whether an argument or parameter is spread, and if so whether it
 /// is a positional spread `*v` or named spread `**kw`.
 pub enum SpreadKind {NoSpread, Positional, Named}
+
+impl Token {
+    /// Determines the spread kind of this asterisk token.
+    pub fn spread_kind(&self) -> SpreadKind {
+        if self.kind != TokenKind::Asterisk { errors::ice_at("Not an Asterisk", &self.range); }
+        if self.as_str().len() == 1 {
+            SpreadKind::Positional
+        } else {
+            SpreadKind::Named
+        }
+    }
+}
 
 #[derive(Debug)]
 /// An AST node for a function call.

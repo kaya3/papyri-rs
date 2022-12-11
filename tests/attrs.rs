@@ -50,4 +50,9 @@ assert_matches! {
         "@let(bar=@fn foo $x -> $x) $bar::name",
         "`foo`",
     );
+    
+    tag_name(
+        "@let(t=<span/>) $t::tag_name",
+        "`span`",
+    );
 }

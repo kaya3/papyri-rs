@@ -4,7 +4,7 @@ use indexmap::IndexSet;
 
 use crate::errors::{NameError, RuntimeError, Warning, StackTrace, RuntimeWarning};
 use crate::utils::{SourceRange, NameID};
-use super::compiler::Compiler;
+use super::base::Compiler;
 use super::func::Func;
 use super::value::{Value, ValueMap};
 

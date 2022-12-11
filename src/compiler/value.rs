@@ -4,7 +4,7 @@ use indexmap::IndexMap;
 use crate::errors;
 use crate::parser::{ast, AST, Token, TokenKind, text};
 use crate::utils::{NameID, str_ids, SliceRef, SourceRange};
-use super::compiler::Compiler;
+use super::base::Compiler;
 use super::func::Func;
 use super::html::HTML;
 use super::tag::Tag;
@@ -313,7 +313,7 @@ impl <'a> Compiler<'a> {
             TokenKind::Name => Some(tok.as_str().into()),
             TokenKind::Verbatim => Some(tok.get_verbatim_text().into()),
             
-            TokenKind::Number => match i64::from_str_radix(tok.as_str(), 10) {
+            TokenKind::Number => match tok.as_str().parse::<i64>() {
                 Ok(value) => Some(Value::Int(value)),
                 Err(err) => {
                     self.ctx.diagnostics.syntax_error(errors::SyntaxError::TokenInvalidNumber(err), &tok.range);

@@ -48,7 +48,7 @@ impl SourceFile {
     
     /// Loads a source file from the given path.
     pub fn from_path(path: &path::Path) -> Result<Rc<SourceFile>, std::io::Error> {
-        fs::read_to_string(&path)
+        fs::read_to_string(path)
             .map(|src| {
                 let path_str: Box<str> = path.to_string_lossy().into();
                 SourceFile::new(Box::from(path), path_str, src.into_boxed_str())

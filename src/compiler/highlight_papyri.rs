@@ -62,7 +62,7 @@ pub fn syntax_highlight_papyri(src: &str) -> Vec<HTML> {
         
         let mut cur = tok.range.start as usize;
         let mut do_close = false;
-        for part in tok.as_str().split("\n") {
+        for part in tok.as_str().split('\n') {
             if do_close {
                 if &src[cur - 1..cur] != "\n" {
                     ice_at("newline splitting failed", &tok.range);

@@ -5,7 +5,7 @@ use indexmap::IndexMap;
 use crate::errors::ModuleError;
 use crate::parser;
 use crate::utils::{SourceFile, taginfo};
-use super::compiler::{Compiler, CompileResult};
+use super::base::{Compiler, CompileResult};
 use super::context::Context;
 use super::frame::{InactiveFrame, ActiveFrame};
 use super::html::HTML;
@@ -32,6 +32,12 @@ enum ModuleState {
     Loaded(CachedCompileResult),
     Busy,
     Error,
+}
+
+impl Default for ModuleCache {
+    fn default() -> ModuleCache {
+        ModuleCache::new()
+    }
 }
 
 impl ModuleCache {
@@ -95,7 +101,7 @@ impl Context {
     /// This method should only be used to load a module included or imported
     /// by another Papyri source file.
     pub fn load_cached(&mut self, path: &path::Path) -> Result<CachedCompileResult, ModuleError> {
-        let k = fs::canonicalize(&path)
+        let k = fs::canonicalize(path)
             .map_err(ModuleError::IOError)?;
         
         match self.module_cache.get(&k) {

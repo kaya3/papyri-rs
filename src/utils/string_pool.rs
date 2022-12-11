@@ -19,6 +19,12 @@ impl NameID {
 /// be used to look up names by ID. The pool's maximum capacity is `u32::MAX`.
 pub struct StringPool(IndexSet<Box<str>>);
 
+impl Default for StringPool {
+    fn default() -> StringPool {
+        StringPool::new()
+    }
+}
+
 impl StringPool {
     /// Creates a new pool, containing the names which are always pooled; see
     /// `const_strs.rs` for a full list.

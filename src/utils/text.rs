@@ -40,7 +40,7 @@ pub fn make_identifier(s: &str, max_len: usize) -> String {
             break;
         } else if c.is_ascii_alphanumeric() {
             id.push(c);
-        } else if !id.ends_with("_") {
+        } else if !id.ends_with('_') {
             id += "_";
         }
     }
@@ -85,10 +85,10 @@ pub fn fix_indentation(s: &str) -> String {
     for line in s.trim_end().lines() {
         match indentation_to_remove {
             Some(indentation) => {
-                if line.starts_with(indentation) {
-                    out += &line[indentation.len()..];
+                if let Some(stripped) = line.strip_prefix(indentation) {
+                    out += stripped;
                 } else {
-                    out += &line.trim_start();
+                    out += line.trim_start();
                 }
                 out += "\n";
             },
@@ -127,6 +127,12 @@ pub struct UniqueIDGenerator {
     ids_used: IndexSet<Rc<str>>,
 }
 
+impl Default for UniqueIDGenerator {
+    fn default() -> UniqueIDGenerator {
+        UniqueIDGenerator::new()
+    }
+}
+
 impl UniqueIDGenerator {
     /// Creates a new unique ID generator.
     pub fn new() -> UniqueIDGenerator {
@@ -147,8 +153,8 @@ impl UniqueIDGenerator {
     /// The identifier is lowercase, and its length is at most `max_len` unless
     /// it is necessary to exceed that length to ensure uniqueness.
     pub fn get_unique_id(&mut self, id_base: &str, max_len: usize) -> Rc<str> {
-        let mut id = if !is_identifier(&id_base) {
-            make_identifier(&id_base, max_len)
+        let mut id = if !is_identifier(id_base) {
+            make_identifier(id_base, max_len)
         } else if id_base.len() > max_len {
             id_base[..max_len].to_string()
         } else {

@@ -4,7 +4,7 @@ use indexmap::IndexMap;
 use crate::utils::{NameID, SourceRange, str_ids};
 use crate::errors;
 use crate::parser::ast;
-use super::compiler::Compiler;
+use super::base::Compiler;
 use super::func::Func;
 use super::types::Type;
 use super::value::{Value, ValueMap};
@@ -62,6 +62,12 @@ impl AsRef<FuncSignature> for RcFuncSignature {
     }
 }
 
+impl Default for FuncSignature {
+    fn default() -> FuncSignature {
+        FuncSignature::new()
+    }
+}
+
 impl FuncSignature {
     pub fn new() -> FuncSignature {
         FuncSignature {
@@ -109,6 +115,12 @@ pub struct PartialParams {
     spread_pos: Vec<Value>,
     spread_named: ValueMap,
     map: ValueMap,
+}
+
+impl Default for PartialParams {
+    fn default() -> PartialParams {
+        PartialParams::new()
+    }
 }
 
 impl PartialParams {
@@ -251,7 +263,7 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
                 None => self.any_errors = true,
             }
         } else if let Some(param) = &sig.spread_param {
-            match self.compiler.coerce(value, &param.type_.component_type(), range) {
+            match self.compiler.coerce(value, param.type_.component_type(), range) {
                 Some(v) => self.bound.spread_pos.push(v),
                 None => self.any_errors = true,
             }
@@ -390,9 +402,8 @@ impl <'a> Compiler<'a> {
             .option_if(param.question_mark);
         
         let default_value = param.default_value.as_ref()
-            .map(|v| self.evaluate_node(v, &type_))
-            .flatten()
-            .or(param.question_mark.then_some(Value::UNIT));
+            .and_then(|v| self.evaluate_node(v, &type_))
+            .or_else(|| param.question_mark.then_some(Value::UNIT));
         
         FuncParam {
             name_id: param.name_id,

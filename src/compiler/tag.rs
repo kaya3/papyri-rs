@@ -4,7 +4,7 @@ use indexmap::IndexMap;
 use crate::errors::{ice, ice_at, NameError, RuntimeError};
 use crate::parser::ast;
 use crate::utils::{str_ids, NameID, taginfo, text, SourceRange};
-use super::compiler::Compiler;
+use super::base::Compiler;
 use super::html::HTML;
 use super::types::Type;
 use super::value::Value;

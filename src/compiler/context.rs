@@ -1,6 +1,6 @@
 use crate::errors;
 use crate::utils::{OutFiles, SourceRange, NameID, StringPool, text};
-use super::compiler::Compiler;
+use super::base::Compiler;
 use super::frame::InactiveFrame;
 use super::html::HTML;
 use super::module_loader::ModuleCache;

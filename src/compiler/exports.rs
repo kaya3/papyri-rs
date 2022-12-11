@@ -1,7 +1,7 @@
 use crate::errors;
 use crate::parser::ast;
 use crate::utils::{NameID, SourceRange};
-use super::compiler::Compiler;
+use super::base::Compiler;
 use super::types::Type;
 use super::value::Value;
 

@@ -140,7 +140,7 @@ fn next_token(src: &str, mut on_error: impl FnMut(errors::SyntaxError)) -> (usiz
             Some('/') => {
                 if matches!(chars.next(), Some(c) if text::is_ident_start(c)) {
                     let ident_len = 1 + scan_while(&src[3..], text::is_ident_cont);
-                    if src[2 + ident_len..].starts_with(">") {
+                    if src[2 + ident_len..].starts_with('>') {
                         (3 + ident_len, TokenKind::CloseTag)
                     } else {
                         on_error(errors::SyntaxError::TagCloseMalformed);
@@ -211,7 +211,7 @@ fn next_token(src: &str, mut on_error: impl FnMut(errors::SyntaxError)) -> (usiz
         
         '&' => {
             let mut len = 1 + scan_while(&src[1..], |c| !c.is_ascii_whitespace() && c != ';');
-            if src[len..].starts_with(";") {
+            if src[len..].starts_with(';') {
                 len += 1;
             } else {
                 on_error(errors::SyntaxError::TokenEntityMissingSemicolon);

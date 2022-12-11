@@ -1,7 +1,7 @@
 use std::rc::Rc;
 use indexmap::IndexSet;
 
-use crate::errors::{ice_at, SyntaxError};
+use crate::errors::SyntaxError;
 use crate::utils::str_ids;
 use super::ast::*;
 use super::queue::Parser;
@@ -62,7 +62,7 @@ impl <'a> Parser<'a> {
             for (param, spread, is_underscore) in raw_params {
                 let is_required = spread.is_none() && !param.question_mark && param.default_value.is_none();
                 let is_positional = match spread {
-                    Some(ref spread) => spread.range.len() == 1,
+                    Some(ref spread) => spread.spread_kind() == SpreadKind::Positional,
                     None => is_underscore,
                 };
                 let is_spread = spread.is_some();
@@ -170,7 +170,7 @@ impl <'a> Parser<'a> {
         let name = self.expect_poll_kind(TokenKind::VarName)?;
         let var_name = name.get_var_name();
         let name_id = self.string_pool.insert(var_name);
-        let underscore = var_name.starts_with("_");
+        let underscore = var_name.starts_with('_');
         
         self.skip_whitespace();
         let question_mark = self.poll_if_kind(TokenKind::QuestionMark);
@@ -192,10 +192,11 @@ impl <'a> Parser<'a> {
             self.diagnostics.syntax_error(SyntaxError::ParamSpreadDefault, default_value.as_ref().unwrap().range());
         }
         
-        let end = default_value.as_ref().map(|v| v.range().end)
+        let end = default_value.as_ref()
+            .map(|v| v.range().end)
             .or_else(|| type_annotation.as_ref().map(|t| t.range_end()))
             .or_else(|| question_mark.as_ref().map(|t| t.range.end))
-            .unwrap_or_else(|| name.range.end);
+            .unwrap_or(name.range.end);
         let range = match spread.as_ref() {
             Some(t) => t.range.to_end(end),
             None => name.range.to_end(end),
@@ -218,12 +219,8 @@ impl <'a> Parser<'a> {
     pub fn parse_arg(&mut self) -> Option<Arg> {
         self.skip_whitespace();
         let spread = self.poll_if_kind(TokenKind::Asterisk);
-        let spread_kind = match spread.as_ref() {
-            None => SpreadKind::NoSpread,
-            Some(t) if t.range.len() == 1 => SpreadKind::Positional,
-            Some(t) if t.range.len() == 2 => SpreadKind::Named,
-            Some(t) => ice_at("invalid spread token", &t.range),
-        };
+        let spread_kind = spread.as_ref()
+            .map_or(SpreadKind::NoSpread, Token::spread_kind);
         
         self.skip_whitespace();
         let Some(name) = self.poll_if_kind(TokenKind::Name) else {

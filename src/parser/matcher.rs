@@ -117,7 +117,7 @@ impl <'a> Parser<'a> {
         let pattern = self.parse_match_pattern()?;
         Some(match asterisk {
             Some(asterisk) => {
-                if asterisk.range.len() != 1 {
+                if asterisk.spread_kind() != SpreadKind::Positional {
                     self.diagnostics.syntax_error(SyntaxError::SpreadNamedNotAllowed, &asterisk.range);
                 }
                 PositionalMatchPattern::Spread(pattern)
@@ -131,7 +131,7 @@ impl <'a> Parser<'a> {
         let tok = self.expect_poll()?;
         match tok.kind {
             TokenKind::Name => {
-                if tok.as_str().starts_with("_") {
+                if tok.as_str().starts_with('_') {
                     self.diagnostics.syntax_error(SyntaxError::PatternNamedUnderscore, &tok.range);
                 }
                 self.skip_whitespace();
@@ -141,7 +141,7 @@ impl <'a> Parser<'a> {
                 Some(NamedMatchPattern::One(name_id, pattern))
             },
             TokenKind::Asterisk => {
-                if tok.range.len() != 2 {
+                if tok.spread_kind() != SpreadKind::Named {
                     self.diagnostics.syntax_error(SyntaxError::SpreadPositionalNotAllowed, &tok.range);
                 }
                 let pattern = self.parse_match_pattern()?;

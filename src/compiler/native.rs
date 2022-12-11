@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use crate::errors::{ice, ice_at, RuntimeError, RuntimeWarning, ModuleError, TypeError};
 use crate::utils::{str_ids, text, NameID, SourceRange, relpath, SliceRef};
-use super::compiler::Compiler;
+use super::base::Compiler;
 use super::frame::ActiveFrame;
 use super::func::Func;
 use super::html::HTML;
@@ -378,7 +378,7 @@ impl <'a> Compiler<'a> {
                 let reverse = bindings.take_bool(str_ids::REVERSE);
                 let content = bindings.take_list(str_ids::PARAM);
                 
-                if content.len() == 0 {
+                if content.is_empty() {
                     return Some(content.into());
                 }
                 
@@ -458,7 +458,7 @@ impl <'a> Compiler<'a> {
         
         let src = text::fix_indentation(src);
         let lines = language
-            .map(|language| {
+            .and_then(|language| {
                 if let Some(lines) = syntax_highlight(&src, language) {
                     tag.attributes.insert(str_ids::CLASS, Some(format!("syntax-highlight lang-{language}").into()));
                     Some(lines)
@@ -472,7 +472,6 @@ impl <'a> Compiler<'a> {
                     None
                 }
             })
-            .flatten()
             .unwrap_or_else(|| no_highlighting(&src));
         
         tag.content = if is_block {

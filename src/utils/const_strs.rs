@@ -116,6 +116,7 @@ const_strs!(
     STR = "str",
     STYLE = "style",
     TABLE = "table",
+    TAG_NAME = "tag_name",
     TBODY = "tbody",
     TD = "td",
     TFOOT = "tfoot",

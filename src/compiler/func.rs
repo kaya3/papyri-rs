@@ -3,7 +3,7 @@ use std::rc::Rc;
 use crate::errors;
 use crate::parser::ast;
 use crate::utils::{SourceRange, NameID};
-use super::compiler::Compiler;
+use super::base::Compiler;
 use super::frame::InactiveFrame;
 use super::native::NativeFunc;
 use super::signature::{RcFuncSignature, PartialParams};

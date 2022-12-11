@@ -4,7 +4,7 @@
 pub mod ast;
 mod func;
 mod matcher;
-mod parser;
+mod base;
 mod queue;
 mod tag;
 mod template;
@@ -14,6 +14,6 @@ mod tokenizer;
 mod types;
 
 pub use ast::AST;
-pub use parser::parse;
+pub use base::parse;
 pub use token::{Token, TokenKind};
 pub use tokenizer::tokenize;

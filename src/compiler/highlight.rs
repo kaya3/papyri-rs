@@ -25,7 +25,7 @@ pub enum TokenKind {
     Punctuation,
     String,
     TypeAnnotation,
-    URL(bool),
+    Url(bool),
     Invalid,
 }
 
@@ -69,7 +69,7 @@ impl <'a> LineHighlighter<'a> {
         match kind {
             TokenKind::Comment |
             TokenKind::String => {
-                self.push_with_possible_urls(range, kind, TokenKind::URL(kind == TokenKind::Comment));
+                self.push_with_possible_urls(range, kind, TokenKind::Url(kind == TokenKind::Comment));
             },
             TokenKind::ParenLeft => {
                 self.paren_count += 1;
@@ -146,7 +146,7 @@ impl <'a> LineHighlighter<'a> {
     fn make_token(kind: TokenKind, s: &str, paren_no: u32) -> HTML {
         let css_class = match kind {
             TokenKind::Plain => return HTML::text(s),
-            TokenKind::URL(is_comment) => return LineHighlighter::make_link_token(s, is_comment),
+            TokenKind::Url(is_comment) => return LineHighlighter::make_link_token(s, is_comment),
             
             TokenKind::Comment => "comment",
             TokenKind::Decorator => "decorator",

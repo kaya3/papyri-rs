@@ -2,7 +2,7 @@ use crate::errors::TypeError;
 use crate::parser::ast::AST;
 use crate::utils::taginfo::{ContentKind, content_kind};
 use crate::utils::{str_ids, NameID};
-use super::compiler::Compiler;
+use super::base::Compiler;
 use super::html::HTML;
 
 impl ContentKind {
@@ -39,7 +39,7 @@ impl <'a> Compiler<'a> {
             }
         }
         
-        let html = comp.to_html();
+        let html = comp.into_html();
         if matches!(content_kind, ContentKind::RequireEmpty) && !html.is_empty() {
             let range = &sequence[0].range().to_end(sequence.last().unwrap().range().end);
             self.type_error(TypeError::NoContentAllowed, range);
@@ -63,9 +63,9 @@ impl SequenceBuilder {
         }
     }
     
-    fn to_html(mut self) -> HTML {
+    fn into_html(mut self) -> HTML {
         if matches!(self.content_kind, ContentKind::AllowBlock(..)) && self.children.is_empty() {
-            return self.next_child.map_or(HTML::Empty, |c| c.to_html());
+            return self.next_child.map_or(HTML::Empty, |c| c.into_html());
         }
         
         self.close_child();
@@ -91,7 +91,7 @@ impl SequenceBuilder {
     
     fn close_child(&mut self) {
         if let Some(child) = std::mem::take(&mut self.next_child) {
-            let html = child.to_html();
+            let html = child.into_html();
             if !html.is_empty() {
                 self.children.push(HTML::tag(self.content_kind.wrap_with(), html));
             }

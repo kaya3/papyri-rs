@@ -1,8 +1,9 @@
 use crate::errors;
 use crate::parser::ast;
 use crate::utils::{str_ids, SourceRange};
-use super::compiler::Compiler;
+use super::base::Compiler;
 use super::func::Func;
+use super::html::HTML;
 use super::types::Type;
 use super::value::Value;
 
@@ -67,8 +68,9 @@ impl <'a> Compiler<'a> {
                 _ => {},
             },
             
-            Value::HTML(_) => match attr_id {
+            Value::HTML(h) => match attr_id {
                 str_ids::ESCAPE_HTML => return self.bind_method(natives.escape_html.clone(), subject, &attr.range),
+                str_ids::TAG_NAME => if let HTML::Tag(t) = h { return Some(self.get_name(t.name_id).into()); },
                 _ => {},
             },
         }

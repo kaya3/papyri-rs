@@ -32,7 +32,7 @@ impl <'a, T: io::Write> Renderer<'a, T> {
             },
             HTML::Text(t) => {
                 if self.as_html {
-                    write!(self.writer, "{}", text::encode_entities(&t, false))?;
+                    write!(self.writer, "{}", text::encode_entities(t, false))?;
                 } else {
                     write!(self.writer, "{t}")?;
                 }
@@ -54,7 +54,7 @@ impl <'a, T: io::Write> Renderer<'a, T> {
             write!(self.writer, "<{name}")?;
             for (&k, v) in tag.attributes.iter() {
                 let attr_name = self.string_pool.get(k)
-                    .replace("_", "-");
+                    .replace('_', "-");
                 write!(self.writer, " {attr_name}")?;
                 if let Some(v) = v {
                     write!(self.writer, "=\"{}\"", text::encode_entities(v, true))?;
