@@ -42,16 +42,6 @@ impl SourceRange {
         }
     }
     
-    /// Returns a new span, with a starting index offset relative to this
-    /// one's, ending at the same position as this one, 
-    pub(super) fn offset_start(&self, offset: u32) -> SourceRange {
-        SourceRange {
-            src: self.src.clone(),
-            start: self.start + offset,
-            end: self.end,
-        }
-    }
-    
     /// Converts the starting position of this span to a descriptive string, in
     /// the form "line Y, col X".
     pub(crate) fn str_start(&self) -> String {

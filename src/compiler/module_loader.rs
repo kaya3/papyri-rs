@@ -130,7 +130,7 @@ impl Context {
     
     /// Compiles the standard library, and caches the result in this context's
     /// module cache.
-    pub fn compile_stdlib(&mut self) {
+    pub(super) fn compile_stdlib(&mut self) {
         use crate::errors;
         
         let src = SourceFile::synthetic("stdlib", include_str!("../std.papyri"));

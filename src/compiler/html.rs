@@ -46,7 +46,7 @@ impl HTML {
     /// Converts a string to a normalised HTML item. Empty strings become
     /// `HTML::Empty`, single spaces become `HTML::Whitespace`, and newlines
     /// become `HTML::RawNewline`.
-    pub fn text<T: AsRef<str> + Into<Rc<str>>>(s: T) -> HTML {
+    pub(super) fn text<T: AsRef<str> + Into<Rc<str>>>(s: T) -> HTML {
         match s.as_ref() {
             "" => HTML::Empty,
             " " => HTML::Whitespace,
@@ -57,7 +57,7 @@ impl HTML {
     
     /// Creates an HTML tag with no attributes. Use `Tag::new` for more complex
     /// use-cases.
-    pub fn tag(name_id: NameID, content: HTML) -> HTML {
+    pub(super) fn tag(name_id: NameID, content: HTML) -> HTML {
         Tag::new(name_id, content).into()
     }
     
@@ -65,7 +65,7 @@ impl HTML {
     /// items are dropped, consecutive text nodes are merged, and nested
     /// sequences are flattened. The result is then wrapped in an `HTML::Sequence`
     /// only if there are at least two items.
-    pub fn seq<T: IntoIterator<Item=HTML>>(content: T) -> HTML {
+    pub(super) fn seq<T: IntoIterator<Item=HTML>>(content: T) -> HTML {
         let mut builder = HTMLSeqBuilder::new();
         for child in content.into_iter() {
             builder.push(child);
@@ -88,7 +88,7 @@ impl HTML {
     
     /// Returns the name of the first block tag in this HTML content, if there
     /// is one.
-    pub fn block_kind(&self) -> Option<NameID> {
+    pub(super) fn block_kind(&self) -> Option<NameID> {
         match self {
             HTML::Tag(tag) => taginfo::is_block(tag.name_id).then_some(tag.name_id),
             HTML::Sequence(seq) => seq.iter().find_map(HTML::block_kind),
@@ -129,7 +129,7 @@ impl HTML {
     /// Indicates whether this HTML item matches a given set of allowed tag
     /// names. This is used to ensure e.g. that a `<ul>` tag only directly
     /// contains `<li>` tags.
-    pub fn is_all(&self, allowed_tag_names: &[NameID]) -> bool {
+    pub(super) fn is_all(&self, allowed_tag_names: &[NameID]) -> bool {
         match self {
             HTML::Tag(tag) => allowed_tag_names.contains(&tag.name_id),
             HTML::Sequence(seq) => seq.iter().all(|child| child.is_all(allowed_tag_names)),

@@ -28,7 +28,7 @@ impl Default for StringPool {
 impl StringPool {
     /// Creates a new pool, containing the names which are always pooled; see
     /// `const_strs.rs` for a full list.
-    pub fn new() -> StringPool {
+    pub(crate) fn new() -> StringPool {
         let strings = CONST_STRS.iter()
             .map(|&s| Box::from(s));
         
@@ -37,7 +37,7 @@ impl StringPool {
     
     /// Inserts a name into this pool if it is not already present, and returns
     /// its unique ID.
-    pub fn insert(&mut self, s: &str) -> NameID {
+    pub(crate) fn insert(&mut self, s: &str) -> NameID {
         match self.0.get_index_of(s) {
             Some(id) => NameID(id as u32),
             None => {

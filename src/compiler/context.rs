@@ -53,7 +53,7 @@ impl Context {
     /// Adds an output file to this context's collector. The operation may fail
     /// if this context has no output file collector, or if the path is not
     /// within the output directory.
-    pub fn push_out_file(&mut self, path: std::rc::Rc<str>, content: HTML) -> Result<(), errors::RuntimeError> {
+    pub(super) fn push_out_file(&mut self, path: std::rc::Rc<str>, content: HTML) -> Result<(), errors::RuntimeError> {
         let Some(sink) = self.out_files.as_mut() else {
             return Err(errors::RuntimeError::WriteFileNotAllowed);
         };
