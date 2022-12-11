@@ -21,15 +21,15 @@ pub fn is_papyri_library(path: &path::Path) -> bool {
 pub struct SourceFile {
     /// The path to this source file, as a `path::Path`. If the source file is
     /// synthetic, then this path is empty.
-    pub path: Box<path::Path>,
+    pub(crate) path: Box<path::Path>,
     
     /// The path to this source file, as a string. If the source file is
     /// synthetic, then this string is surrounded by angle-brackets, e.g.
     /// `<string>`.
-    pub path_str: Box<str>,
+    pub(crate) path_str: Box<str>,
     
     /// The contents of this source file.
-    pub src: Box<str>,
+    pub(crate) src: Box<str>,
     
     line_col_coords: OnceCell<Box<[(u32, u32)]>>,
 }
@@ -38,7 +38,7 @@ impl SourceFile {
     /// Creates a new synthetic source file which does not exist on the file
     /// system. This is used for the standard library, syntax highlighting of
     /// Papyri snippets, and tests.
-    pub fn synthetic(path_str: &str, src: &str) -> Rc<SourceFile> {
+    pub(crate) fn synthetic(path_str: &str, src: &str) -> Rc<SourceFile> {
         SourceFile::new(
             path::PathBuf::new().into_boxed_path(),
             format!("<{path_str}>").into_boxed_str(),
@@ -47,7 +47,7 @@ impl SourceFile {
     }
     
     /// Loads a source file from the given path.
-    pub fn from_path(path: &path::Path) -> Result<Rc<SourceFile>, std::io::Error> {
+    pub(crate) fn from_path(path: &path::Path) -> Result<Rc<SourceFile>, std::io::Error> {
         fs::read_to_string(path)
             .map(|src| {
                 let path_str: Box<str> = path.to_string_lossy().into();
@@ -66,7 +66,7 @@ impl SourceFile {
     
     /// Converts an index in this source file to (line, col) numbers, used for
     /// reporting diagnostics.
-    pub fn index_to_line_col(&self, index: u32) -> (u32, u32) {
+    pub(crate) fn index_to_line_col(&self, index: u32) -> (u32, u32) {
         self.line_col_coords.get_or_init(|| {
             // upper bound for the needed capacity
             let mut coords = Vec::with_capacity(self.src.len() + 1);
@@ -89,7 +89,7 @@ impl SourceFile {
 impl SourceRange {
     /// Returns a span at the end of this source file. Used to report syntax
     /// errors where an unexpected end-of-file occurs.
-    pub fn eof(src: Rc<SourceFile>) -> SourceRange {
+    pub(crate) fn eof(src: Rc<SourceFile>) -> SourceRange {
         let end = src.src.len() as u32;
         SourceRange {src, start: end, end}
     }

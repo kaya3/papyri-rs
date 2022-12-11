@@ -22,7 +22,7 @@ pub struct CompileResult {
 
 pub struct Compiler<'a> {
     pub ctx: &'a mut Context,
-    pub call_stack: Vec<ActiveFrame>,
+    pub(super) call_stack: Vec<ActiveFrame>,
     pub exports: ValueMap,
 }
 
@@ -36,7 +36,7 @@ impl <'a> Compiler<'a> {
         }
     }
     
-    pub fn compile_node(&mut self, node: &AST) -> HTML {
+    pub(super) fn compile_node(&mut self, node: &AST) -> HTML {
         match node {
             AST::FuncDef(def) => {
                 if def.name_id.is_anonymous() {

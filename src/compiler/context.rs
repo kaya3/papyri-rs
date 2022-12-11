@@ -13,19 +13,19 @@ pub struct Context {
     pub diagnostics: errors::Diagnostics,
     
     /// The module cache for this compiler context.
-    pub module_cache: ModuleCache,
+    pub(super) module_cache: ModuleCache,
     
     /// A cache containing the native functions.
-    pub natives: NativeDefs,
+    pub(super) natives: NativeDefs,
     
     /// A stack frame containing the native functions.
-    pub natives_frame: InactiveFrame,
+    pub(super) natives_frame: InactiveFrame,
     
     /// The pool of interned names for this compiler context.
-    pub string_pool: StringPool,
+    pub(super) string_pool: StringPool,
     
     /// The unique ID generator for this compiler context.
-    pub unique_ids: text::UniqueIDGenerator,
+    pub(super) unique_ids: text::UniqueIDGenerator,
     
     /// The output files collector for this compiler context, if it has one.
     pub out_files: Option<OutFiles<HTML>>,
@@ -76,43 +76,43 @@ impl Context {
 }
 
 impl <'a> Compiler<'a> {
-    pub fn name_error(&mut self, e: errors::NameError, range: &SourceRange) {
+    pub(super) fn name_error(&mut self, e: errors::NameError, range: &SourceRange) {
         self.ctx.diagnostics.name_error(e, range);
     }
     
-    pub fn type_error(&mut self, e: errors::TypeError, range: &SourceRange) {
+    pub(super) fn type_error(&mut self, e: errors::TypeError, range: &SourceRange) {
         self.ctx.diagnostics.type_error(e, range);
     }
     
-    pub fn runtime_error(&mut self, e: errors::RuntimeError, range: &SourceRange) {
+    pub(super) fn runtime_error(&mut self, e: errors::RuntimeError, range: &SourceRange) {
         self.ctx.diagnostics.runtime_error(e, self.stack_trace(), range);
     }
     
-    pub fn warning(&mut self, e: errors::Warning, range: &SourceRange) {
+    pub(super) fn warning(&mut self, e: errors::Warning, range: &SourceRange) {
         self.ctx.diagnostics.warning(e, range);
     }
     
-    pub fn runtime_warning(&mut self, e: errors::RuntimeWarning, range: &SourceRange) {
+    pub(super) fn runtime_warning(&mut self, e: errors::RuntimeWarning, range: &SourceRange) {
         self.ctx.diagnostics.runtime_warning(e, self.stack_trace(), range);
     }
     
-    pub fn module_error(&mut self, path: &std::path::Path, e: errors::ModuleError, range: &SourceRange) {
+    pub(super) fn module_error(&mut self, path: &std::path::Path, e: errors::ModuleError, range: &SourceRange) {
         self.ctx.diagnostics.module_error(path, e, range);
     }
     
-    pub fn err_expected_type(&mut self, expected: Type, was: Type, range: &SourceRange) {
+    pub(super) fn err_expected_type(&mut self, expected: Type, was: Type, range: &SourceRange) {
         self.type_error(errors::TypeError::ExpectedWas(expected, was), range);
     }
     
-    pub fn string_pool(&self) -> &StringPool {
+    pub(super) fn string_pool(&self) -> &StringPool {
         &self.ctx.string_pool
     }
     
-    pub fn string_pool_mut(&mut self) -> &mut StringPool {
+    pub(super) fn string_pool_mut(&mut self) -> &mut StringPool {
         &mut self.ctx.string_pool
     }
     
-    pub fn get_name(&self, name_id: NameID) -> &str {
+    pub(super) fn get_name(&self, name_id: NameID) -> &str {
         self.string_pool().get(name_id)
     }
 }

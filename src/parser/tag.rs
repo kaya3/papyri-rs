@@ -7,7 +7,7 @@ use super::queue::Parser;
 use super::token::{Token, TokenKind};
 
 impl <'a> Parser<'a> {
-    pub fn parse_tag(&mut self, langle: Token) -> Option<AST> {
+    pub(super) fn parse_tag(&mut self, langle: Token) -> Option<AST> {
         let name_tok = self.expect_poll()?;
         let (name, name_str) = match name_tok.kind {
             TokenKind::Name => {

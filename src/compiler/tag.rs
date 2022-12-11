@@ -9,25 +9,25 @@ use super::html::HTML;
 use super::types::Type;
 use super::value::Value;
 
-pub type AttrMap = IndexMap<NameID, Option<Rc<str>>>;
+pub(super) type AttrMap = IndexMap<NameID, Option<Rc<str>>>;
 
 #[derive(Debug, Clone)]
 pub struct Tag {
-    pub name_id: NameID,
-    pub attributes: AttrMap,
-    pub content: HTML,
+    pub(super) name_id: NameID,
+    pub(super) attributes: AttrMap,
+    pub(super) content: HTML,
 }
 
 impl Tag {
-    pub fn new(name_id: NameID, content: HTML) -> Tag {
+    pub(super) fn new(name_id: NameID, content: HTML) -> Tag {
         Tag::new_with_attrs(name_id, AttrMap::new(), content)
     }
     
-    pub fn new_with_attrs(name_id: NameID, attributes: AttrMap, content: HTML) -> Tag {
+    pub(super) fn new_with_attrs(name_id: NameID, attributes: AttrMap, content: HTML) -> Tag {
         Tag {name_id, attributes, content}
     }
     
-    pub fn str_attr(mut self, k: NameID, v: &str) -> Tag {
+    pub(super) fn str_attr(mut self, k: NameID, v: &str) -> Tag {
         let v = Some(Rc::from(v));
         if self.attributes.insert(k, v).is_some() {
             ice("duplicate attribute");
@@ -58,7 +58,7 @@ impl From<Tag> for Value {
 }
 
 impl <'a> Compiler<'a> {
-    pub fn compile_tag(&mut self, tag: &ast::Tag) -> HTML {
+    pub(super) fn compile_tag(&mut self, tag: &ast::Tag) -> HTML {
         let tag_name_id = match tag.name {
             ast::TagName::Literal(name_id) => name_id,
             ast::TagName::Name(ref name) => match self.evaluate_name(name, &Type::Str) {

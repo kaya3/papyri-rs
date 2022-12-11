@@ -8,7 +8,7 @@ use super::html::HTML;
 use super::tag::Tag;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TokenKind {
+pub(super) enum TokenKind {
     Plain,
     Comment,
     Decorator,
@@ -43,7 +43,7 @@ static URL_REGEX: Lazy<regex::Regex> = Lazy::new(|| {
         .expect("Failed to compile URL regex")
 });
 
-pub struct LineHighlighter<'a> {
+pub(super) struct LineHighlighter<'a> {
     src: &'a str,
     parts: Vec<HTML>,
     paren_stack: Vec<(&'static str, u32)>,
@@ -53,7 +53,7 @@ pub struct LineHighlighter<'a> {
 }
 
 impl <'a> LineHighlighter<'a> {
-    pub fn new(src: &str) -> LineHighlighter {
+    pub(super) fn new(src: &str) -> LineHighlighter {
         LineHighlighter {
             src,
             parts: Vec::new(),
@@ -64,7 +64,7 @@ impl <'a> LineHighlighter<'a> {
         }
     }
     
-    pub fn push(&mut self, range: Range<usize>, kind: TokenKind) {
+    pub(super) fn push(&mut self, range: Range<usize>, kind: TokenKind) {
         let s = &self.src[range.clone()];
         match kind {
             TokenKind::Comment |
@@ -136,7 +136,7 @@ impl <'a> LineHighlighter<'a> {
         }
     }
     
-    pub fn take_line(&mut self) -> HTML {
+    pub(super) fn take_line(&mut self) -> HTML {
         self.close_part();
         let line = HTML::seq(std::mem::take(&mut self.parts));
         self.current_token_kind = None;
@@ -182,7 +182,7 @@ impl <'a> LineHighlighter<'a> {
     }
 }
 
-pub fn enumerate_lines(lines: Vec<HTML>, start: i64) -> HTML {
+pub(super) fn enumerate_lines(lines: Vec<HTML>, start: i64) -> HTML {
     let mut out = Vec::new();
     for (i, line) in lines.into_iter().enumerate() {
         let tag = Tag::new(str_ids::SPAN, line)
@@ -194,14 +194,14 @@ pub fn enumerate_lines(lines: Vec<HTML>, start: i64) -> HTML {
     HTML::seq(out)
 }
 
-pub fn no_highlighting(src: &str) -> Vec<HTML> {
+pub(super) fn no_highlighting(src: &str) -> Vec<HTML> {
     src.lines()
         .map(HTML::text)
         .collect()
 }
 
 #[cfg(not(feature="syntect"))]
-pub fn syntax_highlight(src: &str, language: &str) -> Option<Vec<HTML>> {
+pub(super) fn syntax_highlight(src: &str, language: &str) -> Option<Vec<HTML>> {
     if language == "papyri" {
         Some(syntax_highlight_papyri(src))
     } else {
@@ -210,7 +210,7 @@ pub fn syntax_highlight(src: &str, language: &str) -> Option<Vec<HTML>> {
 }
 
 #[cfg(feature="syntect")]
-pub fn syntax_highlight(src: &str, language: &str) -> Option<Vec<HTML>> {
+pub(super) fn syntax_highlight(src: &str, language: &str) -> Option<Vec<HTML>> {
     if language == "papyri" {
         Some(syntax_highlight_papyri(src))
     } else {
@@ -312,7 +312,7 @@ mod syntect_highlighting {
         }
     }
     
-    pub fn highlight(src: &str, language: &str) -> Option<Vec<HTML>> {
+    pub(super) fn highlight(src: &str, language: &str) -> Option<Vec<HTML>> {
         let syntax = CACHE.syntax_set.find_syntax_by_token(language)?;
         
         let mut state = ParseState::new(syntax);

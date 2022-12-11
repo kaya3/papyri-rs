@@ -6,7 +6,7 @@ use super::types::Type;
 use super::value::{Value, ValueMap};
 
 impl <'a> Compiler<'a> {
-    pub fn evaluate_match(&mut self, match_: &ast::Match, type_hint: &Type) -> Option<Value> {
+    pub(super) fn evaluate_match(&mut self, match_: &ast::Match, type_hint: &Type) -> Option<Value> {
         let value = self.evaluate_node(&match_.value, &Type::Any)?;
         for (pattern, handler) in match_.branches.iter() {
             let frame = self.frame()

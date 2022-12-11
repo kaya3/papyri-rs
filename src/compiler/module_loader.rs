@@ -70,7 +70,7 @@ impl Context {
     /// Creates and returns a new stack frame in which a Papyri module can be
     /// compiled. The new stack frame normally contains all native functions
     /// and the standard library.
-    pub fn get_initial_frame(&self) -> ActiveFrame {
+    pub(super) fn get_initial_frame(&self) -> ActiveFrame {
         self.module_cache.stdlib
             .as_ref()
             .unwrap_or(&self.natives_frame)

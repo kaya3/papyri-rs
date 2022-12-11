@@ -113,17 +113,17 @@ impl From<&HTML> for Value {
 
 impl Value {
     /// The unit value, of type `none`.
-    pub const UNIT: Value = Value::HTML(HTML::Empty);
+    pub(super) const UNIT: Value = Value::HTML(HTML::Empty);
     
     /// Indicates whether this value is the unit value, `Value::UNIT`.
-    pub fn is_unit(&self) -> bool {
+    pub(super) fn is_unit(&self) -> bool {
         matches!(self, Value::HTML(HTML::Empty))
     }
     
     /// Convenience method for coercing a value to an optional string. Returns
     /// `Some` if this value is a string, or `None` if this is `Value::UNIT`;
     /// the value must not be of any other type.
-    pub fn to_optional_rc_str(&self, range: &SourceRange) -> Option<Rc<str>> {
+    pub(super) fn to_optional_rc_str(&self, range: &SourceRange) -> Option<Rc<str>> {
         match self {
             Value::Str(s) => Some(s.clone()),
             v if v.is_unit() => None,
@@ -147,7 +147,7 @@ impl Value {
     
     /// Returns the strongest type assignable from all values in the given
     /// iterator.
-    pub fn common_type_of<'a, T: Iterator<Item=&'a Value>>(vs: T) -> Type {
+    pub(super) fn common_type_of<'a, T: Iterator<Item=&'a Value>>(vs: T) -> Type {
         vs.map(Value::get_type)
             .reduce(Type::least_upper_bound)
             .unwrap_or(Type::Unit)
@@ -182,7 +182,7 @@ impl <'a> Compiler<'a> {
     /// Converts a value to its HTML representation. Lists become `<ul>` tags,
     /// dictionaries become tables, and functions will be represented as
     /// `<code>(@fn name)</code>`.
-    pub fn compile_value(&self, value: Value) -> HTML {
+    pub(super) fn compile_value(&self, value: Value) -> HTML {
         use crate::parser;
         
         match value {
@@ -219,7 +219,7 @@ impl <'a> Compiler<'a> {
     
     /// Evaluates an AST node to a value. Returns `None` if a compilation error
     /// occurs.
-    pub fn evaluate_node(&mut self, node: &AST, type_hint: &Type) -> Option<Value> {
+    pub(super) fn evaluate_node(&mut self, node: &AST, type_hint: &Type) -> Option<Value> {
         let v = match node {
             AST::LiteralValue(tok) => if tok.kind == TokenKind::Dot {
                 Value::UNIT
@@ -307,7 +307,7 @@ impl <'a> Compiler<'a> {
     /// Evaluates a literal token to a value, or returns `None` if a parse
     /// error occurs. The token must be either a `Boolean`, `Number`, `Name` or
     /// `Verbatim`.
-    pub fn evaluate_literal(&mut self, tok: &Token) -> Option<Value> {
+    pub(super) fn evaluate_literal(&mut self, tok: &Token) -> Option<Value> {
         match tok.kind {
             TokenKind::Boolean => Some(Value::Bool(tok.get_bool_value())),
             TokenKind::Name => Some(tok.as_str().into()),
@@ -325,7 +325,7 @@ impl <'a> Compiler<'a> {
         }
     }
     
-    pub fn evaluate_let_in(&mut self, let_in: &ast::LetIn, type_hint: &Type, do_export: bool) -> Option<Value> {
+    pub(super) fn evaluate_let_in(&mut self, let_in: &ast::LetIn, type_hint: &Type, do_export: bool) -> Option<Value> {
         let frame = self.frame()
             .to_inactive()
             .new_empty_child_frame();

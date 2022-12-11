@@ -28,7 +28,7 @@ impl NamedMatchPattern {
 }
 
 impl <'a> Parser<'a> {
-    pub fn parse_match(&mut self, at: Token) -> Option<Match> {
+    pub(super) fn parse_match(&mut self, at: Token) -> Option<Match> {
         let value = self.parse_value()?;
         
         self.skip_whitespace();

@@ -27,34 +27,34 @@ fn main() {
 #[derive(Args)]
 ///papyri
 ///Compiles Papyri to HTML.
-pub struct ProgramArgs {
+struct ProgramArgs {
     #[arg(long = "version")]
     ///Print version number and then exit
     print_version: bool,
     
     #[arg(short = "u", long = "skip-unchanged")]
     ///Skip unchanged source files
-    pub skip_unchanged: bool,
+    skip_unchanged: bool,
     
     #[arg(short, long)]
     ///Suppress output when there are no errors or warnings
-    pub silent: bool,
+    silent: bool,
     
     #[arg(long = "ignore-warnings")]
     ///Suppress diagnostic information for warnings
-    pub ignore_warnings: bool,
+    ignore_warnings: bool,
     
     #[arg(short, long)]
     ///Compile to text instead of HTML
-    pub text: bool,
+    text: bool,
     
     #[arg(short, long = "out")]
     ///Output directory (default is the current directory)
-    pub out_dir: Option<std::path::PathBuf>,
+    out_dir: Option<std::path::PathBuf>,
     
     ///The Papyri source file(s) to compile. If none are specified, the current
     ///directory is searched for Papyri source files.
-    pub paths: Vec<String>,
+    paths: Vec<String>,
 }
 
 struct Main {

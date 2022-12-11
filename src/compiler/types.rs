@@ -54,19 +54,19 @@ pub enum Type {
 
 impl Type {
     /// Creates a representation of a `dict` type.
-    pub fn dict(self: Type) -> Type {
+    pub(super) fn dict(self: Type) -> Type {
         Type::Dict(Box::new(self))
     }
     
     /// Creates a representation of a `list` type.
-    pub fn list(self) -> Type {
+    pub(super) fn list(self) -> Type {
         Type::List(Box::new(self))
     }
     
     /// Creates a representation of an optional type. The representation is
     /// normalised by simplifying `T?` to `T` whenever the unit value is
     /// already assignable to `T`.
-    pub fn option(self) -> Type {
+    pub(super) fn option(self) -> Type {
         if self.unit_is_assignable() {
             self
         } else {
@@ -75,18 +75,18 @@ impl Type {
     }
     
     /// Converts this type to an optional type, if the given condition is true.
-    pub fn option_if(self, condition: bool) -> Type {
+    pub(super) fn option_if(self, condition: bool) -> Type {
         if condition { self.option() } else { self }
     }
     
     /// Indicates whether this type is either `html`, `block` or `inline`. The
     /// types `any` and `none` are not considered to be HTML types.
-    pub fn is_html(&self) -> bool {
+    pub(super) fn is_html(&self) -> bool {
         matches!(self, Type::HTML | Type::Block | Type::Inline)
     }
     
     /// Indicates whether the unit value is assignable to this type.
-    pub fn unit_is_assignable(&self) -> bool {
+    pub(super) fn unit_is_assignable(&self) -> bool {
         matches!(self, Type::Any |
             Type::HTML |
             Type::Block |
@@ -99,7 +99,7 @@ impl Type {
     /// used as a type hint for a list or dictionary value. The returned type
     /// is meaningless if a list or dictionary could never be coerced to this
     /// type.
-    pub fn component_type(&self) -> &Type {
+    pub(super) fn component_type(&self) -> &Type {
         match self {
             Type::Dict(t) | Type::List(t) => t,
             Type::Optional(t) => t.component_type(),
@@ -110,7 +110,7 @@ impl Type {
     
     /// Returns the strongest type representing all values of both `self` and
     /// `other`.
-    pub fn least_upper_bound(self, other: Type) -> Type {
+    pub(super) fn least_upper_bound(self, other: Type) -> Type {
         match (self, other) {
             (t1, t2) if t1 == t2 => t1,
             (Type::Any, t) | (t, Type::Any) => t,
@@ -128,7 +128,7 @@ impl Type {
     }
     
     /// Compiles an AST type annotation into the Papyri type it represents.
-    pub fn compile(type_annotation: &ast::TypeAnnotation) -> Type {
+    pub(super) fn compile(type_annotation: &ast::TypeAnnotation) -> Type {
         match type_annotation {
             ast::TypeAnnotation::Primitive(range) => match range.as_str() {
                 "any" => Type::Any,
@@ -156,7 +156,7 @@ impl Type {
     
     /// Determines whether the given value is assignable to this type. Values
     /// which are not assignable may still be coercible.
-    pub fn check_value(&self, value: Value) -> bool {
+    pub(super) fn check_value(&self, value: Value) -> bool {
         match (self, value) {
             (t, v) if v.is_unit() => t.unit_is_assignable(),
             
@@ -279,13 +279,13 @@ impl std::fmt::Debug for Type {
 }
 
 impl <'a> Compiler<'a> {
-    pub fn coerce(&mut self, value: Value, expected: &Type, range: &SourceRange) -> Option<Value> {
+    pub(super) fn coerce(&mut self, value: Value, expected: &Type, range: &SourceRange) -> Option<Value> {
         expected.coerce_value(value, &|v| self.compile_value(v))
             .map_err(|e| self.type_error(e, range))
             .ok()
     }
     
-    pub fn try_coerce(&mut self, value: Value, expected: &Type) -> Option<Value> {
+    pub(super) fn try_coerce(&mut self, value: Value, expected: &Type) -> Option<Value> {
         expected.coerce_value(value, &|v| self.compile_value(v))
             .ok()
     }

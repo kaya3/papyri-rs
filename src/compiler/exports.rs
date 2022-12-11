@@ -6,14 +6,14 @@ use super::types::Type;
 use super::value::Value;
 
 impl <'a> Compiler<'a> {
-    pub fn export(&mut self, name_id: NameID, value: Value, range: &SourceRange) {
+    pub(super) fn export(&mut self, name_id: NameID, value: Value, range: &SourceRange) {
         if self.exports.insert(name_id, value).is_some() {
             let name = self.get_name(name_id).to_string();
             self.warning(errors::Warning::NameAlreadyExported(name), range);
         }
     }
     
-    pub fn compile_export(&mut self, e: &ast::Export) {
+    pub(super) fn compile_export(&mut self, e: &ast::Export) {
         match e {
             ast::Export::Names(_, vars) => {
                 for &(name_id, ref arg) in vars.iter() {

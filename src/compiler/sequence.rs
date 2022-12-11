@@ -16,7 +16,7 @@ impl ContentKind {
 }
 
 impl <'a> Compiler<'a> {
-    pub fn compile_sequence(&mut self, sequence: &[AST], content_kind: ContentKind) -> HTML {
+    pub(super) fn compile_sequence(&mut self, sequence: &[AST], content_kind: ContentKind) -> HTML {
         let require_inline = matches!(content_kind, ContentKind::RequireInline | ContentKind::RequireInlineNoLineBreaks);
         let forbid_breaks = matches!(content_kind, ContentKind::RequireInlineNoLineBreaks);
         

@@ -30,26 +30,26 @@ pub enum NativeFunc {
     WriteFile,
 }
 
-pub struct NativeDefs {
-    pub add: Func,
-    pub bind: Func,
-    pub code: Func,
-    pub escape_html: Func,
-    pub filter: Func,
-    pub import: Func,
-    pub include: Func,
-    pub join: Func,
-    pub list_files: Func,
-    pub map: Func,
-    pub raise: Func,
-    pub slice: Func,
-    pub sorted: Func,
-    pub unique_id: Func,
-    pub write_file: Func,
+pub(super) struct NativeDefs {
+    pub(super) add: Func,
+    pub(super) bind: Func,
+    pub(super) code: Func,
+    pub(super) escape_html: Func,
+    pub(super) filter: Func,
+    pub(super) import: Func,
+    pub(super) include: Func,
+    pub(super) join: Func,
+    pub(super) list_files: Func,
+    pub(super) map: Func,
+    pub(super) raise: Func,
+    pub(super) slice: Func,
+    pub(super) sorted: Func,
+    pub(super) unique_id: Func,
+    pub(super) write_file: Func,
 }
 
 impl NativeDefs {
-    pub fn build() -> NativeDefs {
+    pub(super) fn build() -> NativeDefs {
         let add = FuncSignature::new()
             .pos_spread(FuncParam::new(str_ids::_0, Type::Int.list()))
             .build();
@@ -132,7 +132,7 @@ impl NativeDefs {
         }
     }
     
-    pub fn to_frame(&self) -> ActiveFrame {
+    pub(super) fn to_frame(&self) -> ActiveFrame {
         impl Func {
             fn entry(&self) -> (NameID, Value) {
                 (self.name_id(), self.clone().into())
@@ -182,7 +182,7 @@ impl NativeDefs {
 }
 
 impl NativeFunc {
-    pub fn name_id(&self) -> NameID {
+    pub(super) fn name_id(&self) -> NameID {
         match self {
             NativeFunc::Add => str_ids::ADD,
             NativeFunc::Bind => str_ids::BIND,
@@ -204,7 +204,7 @@ impl NativeFunc {
 }
 
 impl <'a> Compiler<'a> {
-    pub fn evaluate_native_func(&mut self, f: NativeFunc, bindings: ValueMap, call_range: &SourceRange) -> Option<Value> {
+    pub(super) fn evaluate_native_func(&mut self, f: NativeFunc, bindings: ValueMap, call_range: &SourceRange) -> Option<Value> {
         let mut bindings = Bindings(bindings);
         match f {
             NativeFunc::Add => {

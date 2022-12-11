@@ -13,7 +13,7 @@ mod token;
 mod tokenizer;
 mod types;
 
-pub use ast::AST;
+pub(crate) use ast::AST;
 pub use base::parse;
 pub use token::{Token, TokenKind};
 pub use tokenizer::tokenize;

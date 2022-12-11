@@ -18,7 +18,7 @@ pub struct FuncParam {
 }
 
 impl FuncParam {
-    pub fn new(name_id: NameID, type_: Type) -> FuncParam {
+    pub(super) fn new(name_id: NameID, type_: Type) -> FuncParam {
         FuncParam {
             name_id,
             is_implicit: false,
@@ -27,17 +27,17 @@ impl FuncParam {
         }
     }
     
-    pub fn implicit(mut self) -> FuncParam {
+    pub(super) fn implicit(mut self) -> FuncParam {
         self.is_implicit = true;
         self
     }
     
-    pub fn unit_default(mut self) -> FuncParam {
+    pub(super) fn unit_default(mut self) -> FuncParam {
         self.default_value = Some(Value::UNIT);
         self
     }
     
-    pub fn with_default<T: Into<Value>>(mut self, default_value: T) -> FuncParam {
+    pub(super) fn with_default<T: Into<Value>>(mut self, default_value: T) -> FuncParam {
         self.default_value = Some(default_value.into());
         self
     }
@@ -69,7 +69,7 @@ impl Default for FuncSignature {
 }
 
 impl FuncSignature {
-    pub fn new() -> FuncSignature {
+    pub(super) fn new() -> FuncSignature {
         FuncSignature {
             positional_params: Vec::new(),
             spread_param: None,
@@ -79,32 +79,32 @@ impl FuncSignature {
         }
     }
     
-    pub fn positional(mut self, param: FuncParam) -> FuncSignature {
+    pub(super) fn positional(mut self, param: FuncParam) -> FuncSignature {
         self.positional_params.push(param);
         self
     }
     
-    pub fn named(mut self, param: FuncParam) -> FuncSignature {
+    pub(super) fn named(mut self, param: FuncParam) -> FuncSignature {
         self.named_params.insert(param.name_id, param);
         self
     }
     
-    pub fn pos_spread(mut self, param: FuncParam) -> FuncSignature {
+    pub(super) fn pos_spread(mut self, param: FuncParam) -> FuncSignature {
         self.spread_param = Some(param);
         self
     }
     
-    pub fn named_spread(mut self, param: FuncParam) -> FuncSignature {
+    pub(super) fn named_spread(mut self, param: FuncParam) -> FuncSignature {
         self.spread_named_param = Some(param);
         self
     }
     
-    pub fn content(mut self, param: FuncParam) -> FuncSignature {
+    pub(super) fn content(mut self, param: FuncParam) -> FuncSignature {
         self.content_param = param;
         self
     }
     
-    pub fn build(self: FuncSignature) -> RcFuncSignature {
+    pub(super) fn build(self: FuncSignature) -> RcFuncSignature {
         RcFuncSignature(Rc::new(self))
     }
 }
@@ -124,7 +124,7 @@ impl Default for PartialParams {
 }
 
 impl PartialParams {
-    pub fn new() -> PartialParams {
+    pub(super) fn new() -> PartialParams {
         PartialParams {
             positional_arg_count: 0,
             spread_pos: Vec::new(),
@@ -133,7 +133,7 @@ impl PartialParams {
         }
     }
     
-    pub fn open<'a, 'b>(self, compiler: &'a mut Compiler<'b>, sig: RcFuncSignature) -> ParamBinder<'a, 'b> {
+    pub(super) fn open<'a, 'b>(self, compiler: &'a mut Compiler<'b>, sig: RcFuncSignature) -> ParamBinder<'a, 'b> {
         ParamBinder {
             compiler,
             sig,
@@ -143,7 +143,7 @@ impl PartialParams {
     }
 }
 
-pub struct ParamBinder<'a, 'b> {
+pub(super) struct ParamBinder<'a, 'b> {
     compiler: &'a mut Compiler<'b>,
     sig: RcFuncSignature,
     bound: PartialParams,
@@ -151,23 +151,18 @@ pub struct ParamBinder<'a, 'b> {
 }
 
 impl <'a, 'b> ParamBinder<'a, 'b> {
-    pub fn new(compiler: &'a mut Compiler<'b>, sig: RcFuncSignature) -> ParamBinder<'a, 'b> {
-        PartialParams::new()
-            .open(compiler, sig)
-    }
-    
-    pub fn close_partial(mut self, call_range: &SourceRange) -> Option<PartialParams> {
+    pub(super) fn close_partial(mut self, call_range: &SourceRange) -> Option<PartialParams> {
         self.check_pos_count(call_range);
         (!self.any_errors)
             .then_some(self.bound)
     }
     
-    pub fn close_into_bound_function(self, f: Func, call_range: &SourceRange) -> Option<Func> {
+    pub(super) fn close_into_bound_function(self, f: Func, call_range: &SourceRange) -> Option<Func> {
         self.close_partial(call_range)
             .map(|b| Func::Bound(Rc::new((f, b))))
     }
     
-    pub fn compile_positional_arg(&mut self, arg: &ast::Arg) {
+    pub(super) fn compile_positional_arg(&mut self, arg: &ast::Arg) {
         let sig = self.sig.as_ref();
         
         if arg.is_spread() {
@@ -194,7 +189,7 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
         }
     }
     
-    pub fn compile_named_arg(&mut self, arg: &ast::Arg) {
+    pub(super) fn compile_named_arg(&mut self, arg: &ast::Arg) {
         let sig = self.sig.as_ref();
         
         if arg.is_spread() {
@@ -221,7 +216,7 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
         }
     }
     
-    pub fn bind_implicit_args(&mut self, call_range: &SourceRange) {
+    pub(super) fn bind_implicit_args(&mut self, call_range: &SourceRange) {
         let sig = self.sig.as_ref();
         
         for param in sig.named_params.values() {
@@ -235,7 +230,7 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
         }
     }
     
-    pub fn compile_content_arg(&mut self, node: &ast::AST) {
+    pub(super) fn compile_content_arg(&mut self, node: &ast::AST) {
         let sig = self.sig.as_ref();
         
         let type_hint = if self.bound.map.contains_key(&sig.content_param.name_id) {
@@ -254,7 +249,7 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
         }
     }
     
-    pub fn add_positional_arg(&mut self, value: Value, range: &SourceRange) {
+    pub(super) fn add_positional_arg(&mut self, value: Value, range: &SourceRange) {
         let sig = self.sig.as_ref();
         
         if let Some(param) = sig.positional_params.get(self.bound.positional_arg_count) {
@@ -273,7 +268,7 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
         self.bound.positional_arg_count += 1;
     }
     
-    pub fn add_named_arg(&mut self, name_id: NameID, value: Value, range: &SourceRange) {
+    pub(super) fn add_named_arg(&mut self, name_id: NameID, value: Value, range: &SourceRange) {
         let sig = self.sig.as_ref();
         
         let (type_, map) = if let Some(param) = sig.named_params.get(&name_id) {
@@ -298,7 +293,7 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
         }
     }
     
-    pub fn add_content_arg(&mut self, content_value: Value, range: &SourceRange) {
+    pub(super) fn add_content_arg(&mut self, content_value: Value, range: &SourceRange) {
         let sig = self.sig.as_ref();
         let name_id = sig.content_param.name_id;
         
@@ -332,7 +327,7 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
         }
     }
     
-    pub fn build(mut self, call_range: &SourceRange) -> Option<ValueMap> {
+    pub(super) fn build(mut self, call_range: &SourceRange) -> Option<ValueMap> {
         self.check_pos_count(call_range);
         if self.any_errors { return None; }
         
@@ -380,7 +375,7 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
 }
 
 impl <'a> Compiler<'a> {
-    pub fn compile_func_signature(&mut self, sig: &ast::Signature) -> RcFuncSignature {
+    pub(super) fn compile_func_signature(&mut self, sig: &ast::Signature) -> RcFuncSignature {
         FuncSignature {
             positional_params: sig.positional_params.iter()
                 .map(|p| self.compile_param(p))
@@ -396,7 +391,7 @@ impl <'a> Compiler<'a> {
         }.build()
     }
     
-    pub fn compile_param(&mut self, param: &ast::Param) -> FuncParam {
+    pub(super) fn compile_param(&mut self, param: &ast::Param) -> FuncParam {
         let type_ = param.type_annotation.as_ref()
             .map_or(Type::Any, Type::compile)
             .option_if(param.question_mark);

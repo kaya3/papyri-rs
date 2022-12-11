@@ -8,12 +8,12 @@ pub mod relpath;
 mod sliceref;
 mod sourcefile;
 mod string_pool;
-pub mod taginfo;
+pub(crate) mod taginfo;
 pub mod text;
 
-pub use const_strs::str_ids;
+pub(crate) use const_strs::str_ids;
 pub use outfiles::OutFiles;
-pub use range::SourceRange;
+pub(crate) use range::SourceRange;
 pub use sliceref::SliceRef;
 pub use sourcefile::{SourceFile, is_papyri_file, is_papyri_library};
 pub use string_pool::{StringPool, NameID};

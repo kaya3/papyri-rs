@@ -4,7 +4,7 @@ macro_rules! const_strs {
     (@count () {$id: expr}) => {};
     (@count ($name_head: ident, $val_head: expr, $($name_tail: ident, $val_tail: expr,)*) {$id: expr}) => {
         #[doc = concat!("The ID of the interned string `", stringify!($val_head), "`.")]
-        pub const $name_head: NameID = NameID($id);
+        pub(crate) const $name_head: NameID = NameID($id);
         const_strs!(@count ($($name_tail, $val_tail,)*) {$id + 1});
     };
     

@@ -27,23 +27,23 @@ impl <T> AsRef<[T]> for SliceRef<T> {
 
 impl <T> SliceRef<T> {
     /// Returns a reference to the element at index `i` in this slice.
-    pub fn get(&self, i: usize) -> &T {
+    pub(crate) fn get(&self, i: usize) -> &T {
         &self.original[self.a + i]
     }
     
     /// Indicates whether this slice is empty.
-    pub fn is_empty(&self) -> bool {
+    pub(crate) fn is_empty(&self) -> bool {
         self.a == self.b
     }
     
     /// Returns the length of this slice.
-    pub fn len(&self) -> usize {
+    pub(crate) fn len(&self) -> usize {
         self.b - self.a
     }
     
     /// Creates a new reference-counted pointer to a sub-slice of this slice,
     /// without copying.
-    pub fn slice(&self, a: usize, b: usize) -> SliceRef<T> {
+    pub(crate) fn slice(&self, a: usize, b: usize) -> SliceRef<T> {
         if a > b || self.a + b > self.original.len() { errors::ice("illegal slice"); }
         
         SliceRef {

@@ -4,7 +4,7 @@ use crate::utils::SourceFile;
 use super::highlight::{TokenKind, LineHighlighter};
 use super::html::HTML;
 
-pub fn syntax_highlight_papyri(src: &str) -> Vec<HTML> {
+pub(super) fn syntax_highlight_papyri(src: &str) -> Vec<HTML> {
     let tokens = parser::tokenize(
         SourceFile::synthetic("string", src.trim_end()),
         false,

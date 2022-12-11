@@ -6,7 +6,7 @@ use super::text;
 use super::token::{Token, TokenKind};
 
 impl <'a> Parser<'a> {
-    pub fn parse_template_parts(&mut self, open: Token) -> Option<(Vec<TemplatePart>, SourceRange)> {
+    pub(super) fn parse_template_parts(&mut self, open: Token) -> Option<(Vec<TemplatePart>, SourceRange)> {
         let TokenKind::Quote(open_kind, _) = open.kind else {
             ice_at("invalid template token", &open.range);
         };

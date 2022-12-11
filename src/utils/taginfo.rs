@@ -5,7 +5,7 @@ use super::str_ids;
 
 #[derive(Debug, Clone, Copy)]
 /// Specifies what contents/children an HTML tag can have.
-pub enum ContentKind {
+pub(crate) enum ContentKind {
     /// Children must all be one of these specific tag kinds; wrap with the
     /// first one otherwise.
     RequireOneOf(&'static [NameID]),
@@ -29,15 +29,15 @@ pub enum ContentKind {
 impl ContentKind {
     /// Content must be block-level; any inline content will be wrapped in
     /// `<p>` tags.
-    pub const REQUIRE_P: ContentKind = ContentKind::RequireBlock(str_ids::P);
+    pub(crate) const REQUIRE_P: ContentKind = ContentKind::RequireBlock(str_ids::P);
     
     /// Content may be either all block-level or all inline. If the content is
     /// mixed, then inline content will be wrapped in `<p>` tags.
-    pub const ALLOW_P: ContentKind = ContentKind::AllowBlock(str_ids::P);
+    pub(crate) const ALLOW_P: ContentKind = ContentKind::AllowBlock(str_ids::P);
 }
 
 /// Indicates whether `name_id` is the id of a self-closing HTML tag name.
-pub fn is_self_closing(name_id: NameID) -> bool {
+pub(crate) fn is_self_closing(name_id: NameID) -> bool {
     // https://developer.mozilla.org/en-US/docs/Glossary/Void_element
     matches!(
         name_id,
@@ -64,7 +64,7 @@ pub fn is_self_closing(name_id: NameID) -> bool {
 
 /// Indicates whether `name_id` is the id of a HTML block-level tag name, or
 /// otherwise should not be wrapped in a block-level element.
-pub fn is_block(name_id: NameID) -> bool {
+pub(crate) fn is_block(name_id: NameID) -> bool {
     // https://developer.mozilla.org/en-US/docs/Web/HTML/Block-level_elements
     // Extras:
     // - !DOCTYPE, body, canvas, head, html, menu, script, video
@@ -116,7 +116,7 @@ pub fn is_block(name_id: NameID) -> bool {
 
 /// Returns the `ContentKind` specifying what contents/children are allowed for
 /// an HTML tag of this name.
-pub fn content_kind(name_id: NameID) -> ContentKind {
+pub(crate) fn content_kind(name_id: NameID) -> ContentKind {
     match name_id {
         str_ids::ARTICLE |
         str_ids::ASIDE |

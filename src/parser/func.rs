@@ -8,7 +8,7 @@ use super::queue::Parser;
 use super::token::{Token, TokenKind};
 
 impl <'a> Parser<'a> {
-    pub fn parse_func_def(&mut self, at: Token) -> Option<FuncDef> {
+    pub(super) fn parse_func_def(&mut self, at: Token) -> Option<FuncDef> {
         self.skip_whitespace();
         let name_id = self.poll_if_kind(TokenKind::Name)
             .map_or(
@@ -27,7 +27,7 @@ impl <'a> Parser<'a> {
         })
     }
     
-    pub fn parse_func_call(&mut self, at: Token) -> Option<FuncCall> {
+    pub(super) fn parse_func_call(&mut self, at: Token) -> Option<FuncCall> {
         let func = self.parse_name(at)?;
         let args = self.parse_args()?.into_boxed_slice();
         let content = self.parse_value_or_ellipsis()?;
@@ -130,7 +130,7 @@ impl <'a> Parser<'a> {
         })
     }
     
-    pub fn parse_args(&mut self) -> Option<Vec<Arg>> {
+    pub(super) fn parse_args(&mut self) -> Option<Vec<Arg>> {
         self.skip_whitespace();
         let Some(lpar) = self.poll_if_kind(TokenKind::LPar) else {
             return Some(Vec::new());
@@ -216,7 +216,7 @@ impl <'a> Parser<'a> {
         ))
     }
     
-    pub fn parse_arg(&mut self) -> Option<Arg> {
+    pub(super) fn parse_arg(&mut self) -> Option<Arg> {
         self.skip_whitespace();
         let spread = self.poll_if_kind(TokenKind::Asterisk);
         let spread_kind = spread.as_ref()

@@ -95,7 +95,7 @@ impl <'a> Parser<'a> {
     /// first. Text substitutions are applied here.
     /// 
     /// `first_token` must be a token with text.
-    pub fn parse_text(&mut self, first_token: Token) -> AST {
+    pub(super) fn parse_text(&mut self, first_token: Token) -> AST {
         let Some(text) = first_token.text() else {
             ice_at("invalid text token", &first_token.range)
         };

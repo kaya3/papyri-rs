@@ -5,7 +5,7 @@ use super::queue::Parser;
 use super::token::{Token, TokenKind};
 
 impl <'a> Parser<'a> {
-    pub fn parse_type(&mut self) -> Option<TypeAnnotation> {
+    pub(super) fn parse_type(&mut self) -> Option<TypeAnnotation> {
         self.skip_whitespace();
         let primitive_token = self.expect_poll_kind(TokenKind::Name)?;
         if !primitive_token.is_primitive_type() {

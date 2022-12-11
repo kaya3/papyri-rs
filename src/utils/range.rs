@@ -7,24 +7,24 @@ use super::SourceFile;
 /// smaller than 4GiB.
 pub struct SourceRange {
     /// The Papyri source file which this span occurs in.
-    pub src: Rc<SourceFile>,
+    pub(crate) src: Rc<SourceFile>,
     
     /// The index of the start of this span.
-    pub start: u32,
+    pub(crate) start: u32,
     
     /// The index of the end of this span.
-    pub end: u32,
+    pub(crate) end: u32,
 }
 
 impl SourceRange {
     /// Returns the source at this span.
-    pub fn as_str(&self) -> &str {
+    pub(crate) fn as_str(&self) -> &str {
         &self.src.src[self.start as usize..self.end as usize]
     }
     
     /// Returns a new span, starting at the same position as this one, with a
     /// new end index.
-    pub fn to_end(&self, end: u32) -> SourceRange {
+    pub(crate) fn to_end(&self, end: u32) -> SourceRange {
         SourceRange {
             src: self.src.clone(),
             start: self.start,
@@ -34,7 +34,7 @@ impl SourceRange {
     
     /// Returns a new span, starting at the end of this one, with a new end
     /// index.
-    pub fn from_end(&self, end: u32) -> SourceRange {
+    pub(crate) fn from_end(&self, end: u32) -> SourceRange {
         SourceRange {
             src: self.src.clone(),
             start: self.end,
@@ -44,7 +44,7 @@ impl SourceRange {
     
     /// Returns a new span, with a starting index offset relative to this
     /// one's, ending at the same position as this one, 
-    pub fn offset_start(&self, offset: u32) -> SourceRange {
+    pub(super) fn offset_start(&self, offset: u32) -> SourceRange {
         SourceRange {
             src: self.src.clone(),
             start: self.start + offset,
@@ -54,13 +54,13 @@ impl SourceRange {
     
     /// Converts the starting position of this span to a descriptive string, in
     /// the form "line Y, col X".
-    pub fn str_start(&self) -> String {
+    pub(crate) fn str_start(&self) -> String {
         pos_to_string(self.src.index_to_line_col(self.start))
     }
     
     /// Converts the ending position of this span to a descriptive string, in
     /// the form "line Y, col X".
-    pub fn str_end(&self) -> String {
+    pub(crate) fn str_end(&self) -> String {
         pos_to_string(self.src.index_to_line_col(self.end))
     }
 }

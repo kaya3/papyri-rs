@@ -19,7 +19,7 @@ impl <'a> Parser<'a> {
         nodes
     }
     
-    pub fn parse_nodes_until(&mut self, closer: impl Fn(&Token) -> bool) -> (Vec<AST>, Option<Token>) {
+    pub(super) fn parse_nodes_until(&mut self, closer: impl Fn(&Token) -> bool) -> (Vec<AST>, Option<Token>) {
         self.skip_whitespace();
         
         let mut nodes = Vec::new();
@@ -40,7 +40,7 @@ impl <'a> Parser<'a> {
         (nodes, end)
     }
     
-    pub fn parse_separated_until<T>(&mut self, open: &Token, parse: impl Fn(&mut Self) -> Option<T>, sep_kind: TokenKind, close_kind: TokenKind) -> Option<(Vec<T>, Token)> {
+    pub(super) fn parse_separated_until<T>(&mut self, open: &Token, parse: impl Fn(&mut Self) -> Option<T>, sep_kind: TokenKind, close_kind: TokenKind) -> Option<(Vec<T>, Token)> {
         let mut children = Vec::new();
         let mut expect_end = false;
         let close = loop {
@@ -64,7 +64,7 @@ impl <'a> Parser<'a> {
         Some((children, close))
     }
     
-    pub fn parse_value_or_ellipsis(&mut self) -> Option<AST> {
+    pub(super) fn parse_value_or_ellipsis(&mut self) -> Option<AST> {
         self.skip_whitespace();
         if let Some(ellipsis) = self.poll_if_kind(TokenKind::Ellipsis) {
             Some(self.parse_ellipsis_group(ellipsis))
@@ -73,7 +73,7 @@ impl <'a> Parser<'a> {
         }
     }
     
-    pub fn parse_value(&mut self) -> Option<AST> {
+    pub(super) fn parse_value(&mut self) -> Option<AST> {
         self.skip_whitespace();
         let tok = self.expect_poll()?;
         
@@ -144,7 +144,7 @@ impl <'a> Parser<'a> {
         }
     }
     
-    pub fn parse_name(&mut self, token: Token) -> Option<Name> {
+    pub(super) fn parse_name(&mut self, token: Token) -> Option<Name> {
         let mut name = Name::SimpleName(SimpleName {
             name_id: self.string_pool.insert(token.get_var_name()),
             range: token.range,
@@ -191,7 +191,7 @@ impl <'a> Parser<'a> {
         open.range.to_end(end)
     }
     
-    pub fn parse_ellipsis_group(&mut self, open: Token) -> AST {
+    pub(super) fn parse_ellipsis_group(&mut self, open: Token) -> AST {
         let mut children = Vec::new();
         while let Some(tok) = self.poll_if(|tok| !matches!(tok.kind, TokenKind::CloseTag | TokenKind::RBrace)) {
             if let Some(child) = self.parse_node(tok) {
