@@ -1,6 +1,7 @@
 @export @fn page(
     $title: str,
     $web_root: str = `https://kaya3.github.io/papyri`,
+    $head?: html,
     $header?: html,
     $footer?: html,
 ) $content: block -> {
@@ -10,7 +11,8 @@
     <head>
         <title>$title</>#
         <meta charset=`utf-8`>#
-        <link rel=`stylesheet` type=`text/css` href="$w/papyri.css">
+        <link rel=`stylesheet` type=`text/css` href="$w/papyri.css">#
+        $head
     </>#
     <body>
         @match $header {. -> ., _ -> <header>$header</>}#
