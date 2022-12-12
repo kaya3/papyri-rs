@@ -18,7 +18,7 @@ pub enum Func {
 }
 
 impl Func {
-    pub fn name_id(&self) -> NameID {
+    pub(super) fn name_id(&self) -> NameID {
         match self {
             Func::NonNative(f) => f.name_id,
             Func::Native(f, _) => f.name_id(),
@@ -26,7 +26,7 @@ impl Func {
         }
     }
     
-    pub fn signature(&self) -> RcFuncSignature {
+    pub(super) fn signature(&self) -> RcFuncSignature {
         match self {
             Func::NonNative(f) => f.signature.clone(),
             Func::Native(_, sig) => sig.clone(),
@@ -41,7 +41,7 @@ impl Func {
         }
     }
     
-    pub fn bind_content(&self, compiler: &mut Compiler, content_arg: Value, range: &SourceRange) -> Option<Func> {
+    pub(super) fn bind_content(&self, compiler: &mut Compiler, content_arg: Value, range: &SourceRange) -> Option<Func> {
         let mut binder = self.get_partials()
             .open(compiler, self.signature());
         
@@ -49,7 +49,7 @@ impl Func {
         binder.close_into_bound_function(self.clone(), range)
     }
     
-    pub fn bind_pos_arg(&self, compiler: &mut Compiler, arg: Value, range: &SourceRange) -> Option<Func> {
+    pub(super) fn bind_pos_arg(&self, compiler: &mut Compiler, arg: Value, range: &SourceRange) -> Option<Func> {
         let mut binder = self.get_partials()
             .open(compiler, self.signature());
         
@@ -57,7 +57,7 @@ impl Func {
         binder.close_into_bound_function(self.clone(), range)
     }
     
-    pub fn bind_partial(&self, compiler: &mut Compiler, positional_args: &[Value], named_args: &ValueMap, content_arg: Value, call_range: &SourceRange) -> Option<Func> {
+    pub(super) fn bind_partial(&self, compiler: &mut Compiler, positional_args: &[Value], named_args: &ValueMap, content_arg: Value, call_range: &SourceRange) -> Option<Func> {
         let mut binder = self.get_partials()
             .open(compiler, self.signature());
         
@@ -74,7 +74,7 @@ impl Func {
         binder.close_into_bound_function(self.clone(), call_range)
     }
     
-    pub fn bind_synthetic_call(&self, compiler: &mut Compiler, bind_implicits: bool, content_value: Value, call_range: &SourceRange) -> Option<ValueMap> {
+    pub(super) fn bind_synthetic_call(&self, compiler: &mut Compiler, bind_implicits: bool, content_value: Value, call_range: &SourceRange) -> Option<ValueMap> {
         let mut binder = self.get_partials()
             .open(compiler, self.signature());
         if bind_implicits {
@@ -110,7 +110,7 @@ pub struct NonNativeFunc {
 }
 
 impl <'a> Compiler<'a> {
-    pub fn compile_func_def(&mut self, def: &ast::FuncDef) -> Func {
+    pub(super) fn compile_func_def(&mut self, def: &ast::FuncDef) -> Func {
         Func::NonNative(Rc::new(NonNativeFunc {
             name_id: def.name_id,
             closure: self.frame().to_inactive(),
@@ -119,7 +119,7 @@ impl <'a> Compiler<'a> {
         }))
     }
     
-    pub fn evaluate_func_call(&mut self, call: &ast::FuncCall, type_hint: &Type) -> Option<Value> {
+    pub(super) fn evaluate_func_call(&mut self, call: &ast::FuncCall, type_hint: &Type) -> Option<Value> {
         let func_type = Type::Function
             .option_if(call.func.is_coalescing());
         
@@ -133,7 +133,7 @@ impl <'a> Compiler<'a> {
         }
     }
     
-    pub fn evaluate_func_call_with_bindings(&mut self, func: Func, bindings: ValueMap, type_hint: &Type, call_range: &SourceRange) -> Option<Value> {
+    pub(super) fn evaluate_func_call_with_bindings(&mut self, func: Func, bindings: ValueMap, type_hint: &Type, call_range: &SourceRange) -> Option<Value> {
         match func {
             Func::NonNative(ref f) => {
                 let frame = f.closure.new_child_frame(bindings, func.clone(), call_range);

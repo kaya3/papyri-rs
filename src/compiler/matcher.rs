@@ -31,17 +31,11 @@ impl <'a> Compiler<'a> {
             ast::MatchPattern::Ignore(..) => true,
             ast::MatchPattern::LiteralNone(..) => value.is_unit(),
             ast::MatchPattern::Literal(other) => {
-                let Some(other) = self.evaluate_literal(other) else { return false; };
-                match (value, other) {
-                    (v, o) if o.is_unit() => v.is_unit(),
-                    (Value::Bool(a), Value::Bool(b)) => a == b,
-                    (Value::Int(i), Value::Int(j)) => i == j,
-                    (Value::Str(s), Value::Str(t)) => s == t,
-                    _ => false,
-                }
+                self.evaluate_literal(other)
+                    .map_or(false, |other| value == other)
             },
-            ast::MatchPattern::LiteralName(_, name_id) => {
-                matches!(value, Value::Str(s) if s.as_ref() == self.get_name(*name_id))
+            &ast::MatchPattern::LiteralName(_, name_id) => {
+                matches!(value, Value::Str(s) if s.as_ref() == self.get_name(name_id))
             },
             ast::MatchPattern::VarName(var) => {
                 self.bind_one(var, value);
@@ -75,7 +69,9 @@ impl <'a> Compiler<'a> {
             },
             
             ast::MatchPattern::ExactHTMLSeq(_, child_patterns) => {
-                let Value::HTML(html) = value else { return false; };
+                let Some(html) = value.try_into_html() else {
+                    return false;
+                };
                 match html {
                     HTML::Empty => child_patterns.is_empty(),
                     HTML::Sequence(seq) => {
@@ -100,7 +96,9 @@ impl <'a> Compiler<'a> {
             },
             
             ast::MatchPattern::SpreadHTMLSeq(_, child_patterns, spread_index) => {
-                let Value::HTML(html) = value else { return false; };
+                let Some(html) = value.try_into_html() else {
+                    return false;
+                };
                 
                 let html_slice = match &html {
                     HTML::Empty => {

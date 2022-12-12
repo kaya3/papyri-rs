@@ -120,6 +120,16 @@ impl Value {
         matches!(self, Value::HTML(HTML::Empty))
     }
     
+    /// Returns this value's HTML content, if the value is HTML or a string,
+    /// otherwise returns `None`. No coercion or compilation is performed.
+    pub(super) fn try_into_html(self) -> Option<HTML> {
+        match self {
+            Value::HTML(h) => Some(h),
+            Value::Str(s) => Some(s.into()),
+            _ => None,
+        }
+    }
+    
     /// Convenience method for coercing a value to an optional string. Returns
     /// `Some` if this value is a string, or `None` if this is `Value::UNIT`;
     /// the value must not be of any other type.

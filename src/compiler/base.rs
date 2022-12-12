@@ -20,14 +20,14 @@ pub struct CompileResult {
     pub exports: ValueMap,
 }
 
-pub struct Compiler<'a> {
-    pub ctx: &'a mut Context,
+pub(super) struct Compiler<'a> {
+    pub(super) ctx: &'a mut Context,
     pub(super) call_stack: Vec<ActiveFrame>,
-    pub exports: ValueMap,
+    pub(super) exports: ValueMap,
 }
 
 impl <'a> Compiler<'a> {
-    pub fn new(ctx: &'a mut Context) -> Compiler<'a> {
+    pub(super) fn new(ctx: &'a mut Context) -> Compiler<'a> {
         let frame = ctx.get_initial_frame();
         Compiler {
             ctx,

@@ -34,6 +34,8 @@ assert_matches! {
     tag_seq("{<a/><b/><i/>}", "{<a/><b/><i/>}");
     tag_spread("{<a/><b/><i/><u/>}", "{<a/> *_ <u/>}");
     tag_one_in_seq("<span/>", "{<span/>}");
+    html_text_seq("{Foo}", "{_}");
+    html_text_seq_spread("{Foo}", "{*_}");
     
     equals_captured_var("[23, 23]", "[$x, =$x]");
     var_and_literal("[23, 23]", "[23 and $x, 23 and =$x]");
