@@ -158,6 +158,17 @@ pub(crate) fn content_kind(name_id: NameID) -> ContentKind {
             str_ids::HEAD,
         ]),
         
+        str_ids::HEAD => ContentKind::RequireOneOf(&[
+            str_ids::BASE,
+            str_ids::LINK,
+            str_ids::META,
+            str_ids::NOSCRIPT,
+            str_ids::SCRIPT,
+            str_ids::STYLE,
+            str_ids::TEMPLATE,
+            str_ids::TITLE,
+        ]),
+        
         str_ids::MENU |
         str_ids::OL |
         str_ids::UL => ContentKind::RequireOneOf(&[
