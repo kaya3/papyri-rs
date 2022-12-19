@@ -306,7 +306,9 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
                 self.any_errors = true;
             }
         } else if let Some(v) = self.compiler.coerce(content_value, &sig.content_param.type_, range) {
-            self.bound.map.insert(name_id, v);
+            if !name_id.is_anonymous() {
+                self.bound.map.insert(name_id, v);
+            }
         } else {
             self.any_errors = true;
         }
@@ -341,7 +343,9 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
             let v = self.compiler.coerce(self.bound.spread_named.into(), &param.type_, call_range)?;
             self.bound.map.insert(param.name_id, v);
         }
-        if !self.bound.map.contains_key(&sig.content_param.name_id) {
+        
+        let content_name_id = sig.content_param.name_id;
+        if !content_name_id.is_anonymous() && !self.bound.map.contains_key(&content_name_id) {
             errors::ice_at("no content arg provided", call_range);
         }
         
@@ -387,7 +391,11 @@ impl <'a> Compiler<'a> {
                 .collect(),
             spread_named_param: sig.spread_named_param.as_ref()
                 .map(|p| self.compile_param(p)),
-            content_param: self.compile_param(&sig.content_param),
+            content_param: sig.content_param.as_ref()
+                .map_or_else(
+                    || FuncParam::new(str_ids::ANONYMOUS, Type::Unit),
+                    |p| self.compile_param(p),
+                ),
         }.build()
     }
     

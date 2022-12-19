@@ -110,14 +110,20 @@ impl <'a> Parser<'a> {
             }
         };
         
-        let (content_param, spread, _) = self.parse_param()?;
-        if let Some(spread) = spread {
-            self.diagnostics.syntax_error(SyntaxError::ParamContentSpread, &spread.range);
-        } else if let Some(value) = content_param.default_value.as_ref() {
-            self.diagnostics.syntax_error(SyntaxError::ParamContentDefault, value.range());
-        }
+        self.skip_whitespace();
+        let (content_param, mut range) = if let Some(dot) = self.poll_if_kind(TokenKind::Dot) {
+            (None, dot.range)
+        } else {
+            let (c, spread, _) = self.parse_param()?;
+            if let Some(spread) = spread {
+                self.diagnostics.syntax_error(SyntaxError::ParamContentSpread, &spread.range);
+            } else if let Some(value) = c.default_value.as_ref() {
+                self.diagnostics.syntax_error(SyntaxError::ParamContentDefault, value.range());
+            }
+            let range = c.range.clone();
+            (Some(c), range)
+        };
         
-        let mut range = content_param.range.clone();
         if let Some(lpar) = lpar { range = lpar.range.to_end(range.end); }
         
         Some(Signature {

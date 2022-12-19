@@ -133,7 +133,7 @@ pub struct Signature {
     pub spread_named_param: Option<Box<Param>>,
     
     /// The content parameter in this function signature.
-    pub content_param: Param,
+    pub content_param: Option<Param>,
 }
 
 #[derive(Debug)]
