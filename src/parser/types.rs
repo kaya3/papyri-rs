@@ -4,6 +4,19 @@ use super::ast::*;
 use super::queue::Parser;
 use super::token::{Token, TokenKind};
 
+impl Token {
+    /// Indicates whether this token is a primitive type name.
+    pub fn is_primitive_type(&self) -> bool {
+        matches!(self.kind, TokenKind::Name)
+            && matches!(self.as_str(), "any" | "none" | "html" | "block" | "inline" | "bool" | "int" | "str" | "function" | "regex")
+    }
+    
+    /// Indicates whether this token is a group type name or modifier.
+    pub fn is_group_type(&self) -> bool {
+        matches!(self.as_str(), "dict" | "list" | "?")
+    }
+}
+
 impl <'a> Parser<'a> {
     pub(super) fn parse_type(&mut self) -> Option<TypeAnnotation> {
         self.skip_whitespace();

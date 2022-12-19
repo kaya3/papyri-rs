@@ -24,6 +24,10 @@ pub enum RuntimeError {
     ParamMultipleValues(String),
     ParamMustBePositive(String, i64),
     
+    RegexSyntaxError(regex::Error),
+    RegexMixedGroupKinds,
+    RegexInvalidGroupName(String),
+    
     Raised(std::rc::Rc<str>),
     IndexOutOfRange(i64, usize),
     PathNotInOutDir(std::rc::Rc<str>),
@@ -49,6 +53,9 @@ impl std::fmt::Display for RuntimeError {
             RuntimeError::ParamMissingImplicit(name) => write!(f, "missing required implicit parameter '{name}'"),
             RuntimeError::ParamMultipleValues(name) => write!(f, "received multiple values for parameter '{name}'"),
             RuntimeError::ParamMustBePositive(name, was) => write!(f, "parameter '{name}' must be positive (was {was})"),
+            RuntimeError::RegexSyntaxError(e) => write!(f, "regex syntax error ({e})"),
+            RuntimeError::RegexMixedGroupKinds => f.write_str("regex cannot have both named and unnamed capture groups"),
+            RuntimeError::RegexInvalidGroupName(name) => write!(f, "regex group name '{name}' is not a valid identifier"),
             RuntimeError::Raised(msg) => f.write_str(msg),
             RuntimeError::IndexOutOfRange(i, len) => write!(f, "index out of bounds (index {i}, length {len})"),
             RuntimeError::PathNotInOutDir(path) => write!(f, "path \"{path}\" is not within output directory"),

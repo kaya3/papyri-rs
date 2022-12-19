@@ -6,6 +6,7 @@ use super::base::Compiler;
 use super::frame::ActiveFrame;
 use super::func::Func;
 use super::html::HTML;
+use super::regex_value::RegexValue;
 use super::signature::{FuncParam, FuncSignature};
 use super::tag::Tag;
 use super::types::Type;
@@ -24,6 +25,9 @@ pub enum NativeFunc {
     ListFiles,
     Map,
     Raise,
+    RegexCompile,
+    RegexFind,
+    RegexFindAll,
     Slice,
     Sorted,
     UniqueID,
@@ -42,6 +46,9 @@ pub(super) struct NativeDefs {
     pub(super) list_files: Func,
     pub(super) map: Func,
     pub(super) raise: Func,
+    pub(super) regex_compile: Func,
+    pub(super) regex_find: Func,
+    pub(super) regex_find_all: Func,
     pub(super) slice: Func,
     pub(super) sorted: Func,
     pub(super) unique_id: Func,
@@ -91,6 +98,11 @@ impl NativeDefs {
             .content(FuncParam::new(str_ids::PARAM, Type::Any.list()))
             .build();
         
+        let regex_find = FuncSignature::new()
+            .positional(FuncParam::new(str_ids::_0, Type::Regex))
+            .content(FuncParam::new(str_ids::PARAM, Type::Str))
+            .build();
+        
         let slice = FuncSignature::new()
             .positional(FuncParam::new(str_ids::_0, Type::Int))
             .positional(FuncParam::new(str_ids::_1, Type::Int.option()).unit_default())
@@ -124,7 +136,10 @@ impl NativeDefs {
             join: Func::Native(NativeFunc::Join, join),
             list_files: Func::Native(NativeFunc::ListFiles, content_str.clone()),
             map: Func::Native(NativeFunc::Map, map),
-            raise: Func::Native(NativeFunc::Raise, content_str),
+            raise: Func::Native(NativeFunc::Raise, content_str.clone()),
+            regex_compile: Func::Native(NativeFunc::RegexCompile, content_str),
+            regex_find: Func::Native(NativeFunc::RegexFind, regex_find.clone()),
+            regex_find_all: Func::Native(NativeFunc::RegexFindAll, regex_find),
             slice: Func::Native(NativeFunc::Slice, slice),
             sorted: Func::Native(NativeFunc::Sorted, sorted),
             unique_id: Func::Native(NativeFunc::UniqueID, unique_id),
@@ -169,6 +184,12 @@ impl NativeDefs {
                 self.bind.entry(),
             ]),
             
+            dict_entry(str_ids::REGEX, [
+                self.regex_compile.entry(),
+                self.regex_find.entry(),
+                self.regex_find_all.entry(),
+            ]),
+            
             self.code.entry(),
             self.import.entry(),
             self.include.entry(),
@@ -195,6 +216,9 @@ impl NativeFunc {
             NativeFunc::ListFiles => str_ids::LIST_FILES,
             NativeFunc::Map => str_ids::MAP,
             NativeFunc::Raise => str_ids::RAISE,
+            NativeFunc::RegexCompile => str_ids::COMPILE,
+            NativeFunc::RegexFind => str_ids::FIND,
+            NativeFunc::RegexFindAll => str_ids::FIND_ALL,
             NativeFunc::Slice => str_ids::SLICE,
             NativeFunc::Sorted => str_ids::SORTED,
             NativeFunc::UniqueID => str_ids::UNIQUE_ID,
@@ -357,6 +381,24 @@ impl <'a> Compiler<'a> {
                 let msg = bindings.take_str(str_ids::PARAM);
                 self.runtime_error(RuntimeError::Raised(msg), call_range);
                 None
+            },
+            
+            NativeFunc::RegexCompile => {
+                let regex_str = bindings.take_str(str_ids::PARAM);
+                self.compile_regex(regex_str.as_ref(), call_range)
+                    .map(Value::from)
+            },
+            
+            NativeFunc::RegexFind => {
+                let regex = bindings.take_regex(str_ids::_0);
+                let s = bindings.take_str(str_ids::PARAM);
+                Some(regex.find(s.as_ref()))
+            },
+            
+            NativeFunc::RegexFindAll => {
+                let regex = bindings.take_regex(str_ids::_0);
+                let s = bindings.take_str(str_ids::PARAM);
+                Some(regex.find_all(s.as_ref()))
             },
             
             NativeFunc::Slice => {
@@ -547,6 +589,13 @@ impl Bindings {
     fn take_function(&mut self, key: NameID) -> Func {
         match self.take(key) {
             Value::Func(f) => f,
+            _ => ice("failed to unpack"),
+        }
+    }
+    
+    fn take_regex(&mut self, key: NameID) -> Rc<RegexValue> {
+        match self.take(key) {
+            Value::Regex(r) => r,
             _ => ice("failed to unpack"),
         }
     }

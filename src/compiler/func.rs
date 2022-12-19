@@ -140,7 +140,8 @@ impl <'a> Compiler<'a> {
                 self.evaluate_in_frame(frame, |_self| _self.evaluate_node(f.body.as_ref(), type_hint))
             },
             Func::Native(f, _) => {
-                self.evaluate_native_func(f, bindings, call_range)
+                let v = self.evaluate_native_func(f, bindings, call_range)?;
+                self.coerce(v, type_hint, call_range)
             },
             Func::Bound(f) => {
                 self.evaluate_func_call_with_bindings(f.0.clone(), bindings, type_hint, call_range)

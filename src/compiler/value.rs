@@ -7,6 +7,7 @@ use crate::utils::{NameID, str_ids, SliceRef, SourceRange};
 use super::base::Compiler;
 use super::func::Func;
 use super::html::HTML;
+use super::regex_value::RegexValue;
 use super::tag::Tag;
 use super::types::Type;
 
@@ -36,6 +37,9 @@ pub enum Value {
     /// A function, either defined in a Papyri source file, or with a native
     /// implementation.
     Func(Func),
+    
+    /// A regular expression.
+    Regex(Rc<RegexValue>),
 }
 
 pub type ValueMap = IndexMap<NameID, Value>;
@@ -55,6 +59,12 @@ impl From<i64> for Value {
 impl From<Func> for Value {
     fn from(f: Func) -> Value {
         Value::Func(f)
+    }
+}
+
+impl From<RegexValue> for Value {
+    fn from(r: RegexValue) -> Self {
+        Value::Regex(Rc::new(r))
     }
 }
 
@@ -152,6 +162,7 @@ impl Value {
             Value::List(vs) => Value::common_type_of(vs.as_ref().iter()).list(),
             Value::HTML(html) => if html.is_empty() { Type::Unit } else if html.is_block() { Type::Block } else { Type::Inline },
             Value::Func(..) => Type::Function,
+            Value::Regex(..) => Type::Regex,
         }
     }
     
@@ -190,8 +201,8 @@ impl Default for Value {
 
 impl <'a> Compiler<'a> {
     /// Converts a value to its HTML representation. Lists become `<ul>` tags,
-    /// dictionaries become tables, and functions will be represented as
-    /// `<code>(@fn name)</code>`.
+    /// dictionaries become tables, functions and regexes are represented as
+    /// code.
     pub(super) fn compile_value(&self, value: Value) -> HTML {
         use crate::parser;
         
@@ -214,7 +225,8 @@ impl <'a> Compiler<'a> {
             Value::List(vs) => {
                 let items: Vec<_> = vs.as_ref()
                     .iter()
-                    .map(|child| HTML::tag(str_ids::LI, self.compile_value(child.clone())))
+                    .cloned()
+                    .map(|child| HTML::tag(str_ids::LI, self.compile_value(child)))
                     .collect();
                 HTML::tag(str_ids::UL, HTML::seq(items))
             },
@@ -223,6 +235,10 @@ impl <'a> Compiler<'a> {
             Value::Func(f) => {
                 let name = self.get_name(f.name_id());
                 HTML::tag(str_ids::CODE, format!("(@fn {name})").into())
+            },
+            
+            Value::Regex(r) => {
+                HTML::tag(str_ids::CODE, format!("(@regex {})", r.as_str()).into())
             },
         }
     }

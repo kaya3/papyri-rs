@@ -98,6 +98,11 @@
         **$function,
         call=@fn function_call($_f: function, *$_args, **$kwargs) $content -> @_f(*$_args, **$kwargs) $content,
     ).,
+    regex=@dict_new(
+        **$regex,
+        test=@fn regex_test($_r: regex) $s: str -> @match @_r::find $s {. -> False, _ -> True},
+        count=@fn regex_count($_r: regex) $s: str -> @let(v=@_r::find_all $s) $v::len,
+    ).,
     list=@dict_new(
         **$list,
         len=@fn list_len $v: any list -> $v::len,
@@ -107,6 +112,7 @@
     ).,
     html=@dict_new(
         **$html,
+        tag_name=@fn html_tag_name $h: html -> $h::tag_name,
     ).,
     inline=@dict_new(
         from=@fn inline_from $v: inline -> $v,

@@ -71,6 +71,12 @@ impl <'a> Compiler<'a> {
                 _ => {},
             },
             
+            Value::Regex(_) => match attr_id {
+                str_ids::FIND => return self.bind_pos_arg(natives.regex_find.clone(), subject, &attr.range),
+                str_ids::FIND_ALL => return self.bind_pos_arg(natives.regex_find_all.clone(), subject, &attr.range),
+                _ => {},
+            },
+            
             Value::HTML(h) => match attr_id {
                 str_ids::ESCAPE_HTML => return self.bind_method(natives.escape_html.clone(), subject, &attr.range),
                 str_ids::TAG_NAME => if let HTML::Tag(t) = h { return Some(self.get_name(t.name_id).into()); },

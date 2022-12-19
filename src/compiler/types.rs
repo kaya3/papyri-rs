@@ -38,6 +38,9 @@ pub enum Type {
     /// The type `function`, representing all function with any signature.
     Function,
     
+    /// The type `regex`, representing regular expressions.
+    Regex,
+    
     /// A type of the form `T dict`, representing a dictionary whose elements
     /// are of type `T`.
     Dict(Box<Type>),
@@ -140,6 +143,7 @@ impl Type {
                 "int" => Type::Int,
                 "str" => Type::Str,
                 "function" => Type::Function,
+                "regex" => Type::Regex,
                 _ => errors::ice_at("not a primitive type", range),
             },
             ast::TypeAnnotation::Group(child, range) => {
@@ -161,13 +165,14 @@ impl Type {
             (t, v) if v.is_unit() => t.unit_is_assignable(),
             
             (Type::Any, _) |
-            (Type::Bool, Value::Bool(_)) |
-            (Type::Int, Value::Int(_)) |
-            (Type::Str, Value::Str(_)) |
-            (Type::Function, Value::Func(_)) |
-            (Type::HTML, Value::HTML(_)) |
-            (Type::HTML, Value::Str(_)) |
-            (Type::Inline, Value::Str(_)) => true,
+            (Type::Bool, Value::Bool(..)) |
+            (Type::Int, Value::Int(..)) |
+            (Type::Str, Value::Str(..)) |
+            (Type::Function, Value::Func(..)) |
+            (Type::Regex, Value::Regex(..)) |
+            (Type::HTML, Value::HTML(..)) |
+            (Type::HTML, Value::Str(..)) |
+            (Type::Inline, Value::Str(..)) => true,
             
             (Type::Block, Value::HTML(h)) => h.is_block(),
             (Type::Inline, Value::HTML(h)) => h.is_inline(),
@@ -202,7 +207,8 @@ impl Type {
             (Type::HTML, Value::Str(..)) |
             (Type::Inline, Value::Str(..)) |
             (Type::HTML, Value::HTML(..)) |
-            (Type::Function, Value::Func(..)) => return Ok(value),
+            (Type::Function, Value::Func(..)) |
+            (Type::Regex, Value::Regex(..)) => return Ok(value),
             
             (Type::Str, &Value::Bool(b)) => return Ok(Token::bool_to_string(b).into()),
             (Type::Str, &Value::Int(i)) => return Ok(i.to_string().into()),
@@ -265,6 +271,7 @@ impl std::fmt::Display for Type {
             Type::Int => f.write_str("int"),
             Type::Str => f.write_str("str"),
             Type::Function => f.write_str("function"),
+            Type::Regex => f.write_str("regex"),
             Type::Dict(t) => write!(f, "{t} dict"),
             Type::List(t) => write!(f, "{t} list"),
             Type::Optional(t) => write!(f, "{t}?"),

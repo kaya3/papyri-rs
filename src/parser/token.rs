@@ -137,17 +137,6 @@ impl Token {
             && matches!(self.as_str(), "@export" | "@fn" | "@implicit" | "@let" | "@match")
     }
     
-    /// Indicates whether this token is a primitive type name.
-    pub fn is_primitive_type(&self) -> bool {
-        matches!(self.kind, TokenKind::Name)
-            && matches!(self.as_str(), "any" | "none" | "html" | "block" | "inline" | "bool" | "int" | "str" | "function")
-    }
-    
-    /// Indicates whether this token is a group type name or modifier.
-    pub fn is_group_type(&self) -> bool {
-        matches!(self.as_str(), "dict" | "list" | "?")
-    }
-    
     /// Indicates whether this token is a closing tag for the given tag name.
     /// If no tag name is given, only `</>` matches.
     pub fn is_close_tag(&self, name: &Option<String>) -> bool {
