@@ -60,6 +60,11 @@ assert_ok! {
         "@let(foo=@dict::new(bar=@fn $_ -> 23).) @foo::bar.",
         "<p>23</p>",
     );
+    
+    empty_content_param(
+        "@fn foo . -> Foo\n@foo.",
+        "<p>Foo</p>",
+    );
 }
 
 assert_matches! {

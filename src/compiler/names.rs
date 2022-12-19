@@ -30,7 +30,10 @@ impl <'a> Compiler<'a> {
         match &subject {
             v if v.is_unit() && attr.is_coalescing => return Some(Value::UNIT),
             
-            Value::Bool(_) => {},
+            Value::Bool(b) => match attr_id {
+                str_ids::NEGATE => return Some((!b).into()),
+                _ => {},
+            },
             
             Value::Int(i) => match attr_id {
                 str_ids::ADD => return self.bind_pos_arg(natives.add.clone(), subject, &attr.range),
@@ -52,10 +55,10 @@ impl <'a> Compiler<'a> {
             },
             
             Value::List(vs) => match attr_id {
-                str_ids::IS_EMPTY => return Some(vs.is_empty().into()),
-                str_ids::LEN => return Some(Value::Int(vs.len() as i64)),
                 str_ids::FILTER => return self.bind_method(natives.filter.clone(), subject, &attr.range),
+                str_ids::IS_EMPTY => return Some(vs.is_empty().into()),
                 str_ids::JOIN => return self.bind_method(natives.join.clone(), subject, &attr.range),
+                str_ids::LEN => return Some(Value::Int(vs.len() as i64)),
                 str_ids::MAP => return self.bind_method(natives.map.clone(), subject, &attr.range),
                 str_ids::SLICE => return self.bind_method(natives.slice.clone(), subject, &attr.range),
                 str_ids::SORTED => return self.bind_method(natives.sorted.clone(), subject, &attr.range),

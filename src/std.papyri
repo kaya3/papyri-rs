@@ -80,7 +80,7 @@
     |<a class="footnote-ref"/><span class="footnote panel">$v</>
 }
 
-@fn dict_new(**$kwargs: any dict) $_: none -> $kwargs
+@fn dict_new(**$kwargs: any dict). -> $kwargs
 
 @export(
     str=@dict_new(
