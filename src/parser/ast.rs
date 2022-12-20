@@ -1,7 +1,7 @@
 //! This module contains type declarations for AST nodes.
 
 use std::rc::Rc;
-use indexmap::IndexMap;
+use indexmap::{IndexMap, IndexSet};
 
 use crate::utils::{SourceRange, NameID};
 use crate::errors;
@@ -309,8 +309,13 @@ pub enum MatchPattern {
     /// expression.
     EqualsValue(SourceRange, AST),
     
-    /// An `and` pattern, which matches if both child patterns match.
+    /// An `&` pattern, which matches if both child patterns match.
     And(SourceRange, Box<(MatchPattern, MatchPattern)>),
+    
+    /// An `|` pattern, which matches if either of the child patterns match.
+    /// Any names bound only by the unmatched branch will be bound to a unit
+    /// value.
+    Or(SourceRange, Box<(MatchPattern, MatchPattern)>, Box<[NameID]>),
     
     /// A pattern which matches a string according to a regular expression,
     /// binding its capturing groups to variables. Any capturing groups which
@@ -381,6 +386,7 @@ impl MatchPattern {
         match self {
             MatchPattern::Ignore(range) |
             MatchPattern::And(range, ..) |
+            MatchPattern::Or(range, ..) |
             MatchPattern::EqualsValue(range, ..) |
             MatchPattern::Typed(range, ..) |
             MatchPattern::TypeOf(range, ..) |
@@ -398,7 +404,52 @@ impl MatchPattern {
         }
     }
     
-    /// Indicates whether this pattern can possibly match any HTML content.
+    pub(super) fn get_name_ids(&self, out: &mut IndexSet<NameID>) {
+        match self {
+            MatchPattern::VarName(name) |
+            MatchPattern::TypeOf(_, _, name) => {
+                out.insert(name.name_id);
+            },
+            MatchPattern::And(_, pair) => {
+                pair.0.get_name_ids(out);
+                pair.1.get_name_ids(out);
+            },
+            MatchPattern::Or(.., name_ids) => {
+                out.extend(name_ids.iter());
+            },
+            MatchPattern::Regex(_, _, names) => {
+                out.extend(names.iter().map(|name| name.name_id));
+            },
+            MatchPattern::Typed(_, child, _) => {
+                child.get_name_ids(out);
+            },
+            MatchPattern::Tag(_, tag_pattern) => {
+                tag_pattern.name.get_name_ids(out);
+                tag_pattern.attrs.get_name_ids(out);
+                tag_pattern.content.get_name_ids(out);
+            },
+            MatchPattern::ExactList(_, children) |
+            MatchPattern::SpreadList(_, children, _) |
+            MatchPattern::ExactHTMLSeq(_, children) |
+            MatchPattern::SpreadHTMLSeq(_, children, _) => {
+                for child in children.iter() {
+                    child.get_name_ids(out);
+                }
+            },
+            MatchPattern::Dict(_, dict_pattern) => {
+                for (_, child) in dict_pattern.attrs.iter() {
+                    child.get_name_ids(out);
+                }
+                if let Some(spread) = &dict_pattern.spread {
+                    spread.get_name_ids(out);
+                }
+            },
+            _ => {},
+        }
+    }
+    
+    /// Indicates whether this pattern is allowed in a position where only HTML
+    /// content is expected.
     pub fn can_match_html(&self) -> bool {
         match self {
             MatchPattern::Ignore(..) |
@@ -410,6 +461,9 @@ impl MatchPattern {
             
             MatchPattern::Typed(_, child, _) |
             MatchPattern::TypeOf(_, child, _) => child.can_match_html(),
+            
+            MatchPattern::And(_, pair) |
+            MatchPattern::Or(_, pair, _) => pair.0.can_match_html() && pair.1.can_match_html(),
             
             _ => false,
         }

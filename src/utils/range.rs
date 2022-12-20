@@ -32,6 +32,7 @@ impl SourceRange {
         }
     }
     
+    /*
     /// Returns a new span, starting at the end of this one, with a new end
     /// index.
     pub(crate) fn from_end(&self, end: u32) -> SourceRange {
@@ -40,7 +41,7 @@ impl SourceRange {
             start: self.end,
             end,
         }
-    }
+    }*/
     
     /// Converts the starting position of this span to a descriptive string, in
     /// the form "line Y, col X".

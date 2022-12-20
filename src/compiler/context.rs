@@ -77,11 +77,11 @@ impl Context {
 
 impl <'a> Compiler<'a> {
     pub(super) fn name_error(&mut self, e: errors::NameError, range: &SourceRange) {
-        self.ctx.diagnostics.name_error(e, range);
+        self.ctx.diagnostics.name_error(e, self.stack_trace(), range);
     }
     
     pub(super) fn type_error(&mut self, e: errors::TypeError, range: &SourceRange) {
-        self.ctx.diagnostics.type_error(e, range);
+        self.ctx.diagnostics.type_error(e, self.stack_trace(), range);
     }
     
     pub(super) fn runtime_error(&mut self, e: errors::RuntimeError, range: &SourceRange) {

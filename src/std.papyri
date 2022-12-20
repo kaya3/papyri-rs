@@ -52,6 +52,7 @@
 @export @fn kbd $v: str -> <kbd>$v</>
 @export @fn quote $v: inline -> <q>$v</>
 @export @fn samp $v: str -> <samp>$v</>
+@export @fn span $v: inline -> <span>$v</>
 @export @fn sub $v: inline -> <sub>$v</>
 @export @fn sup $v: inline -> <sup>$v</>
 @export @fn strikethrough $v: inline -> <s>$v</>
@@ -86,6 +87,8 @@
     str=@dict_new(
         **$str,
         from=@fn str_from $s: str -> $s,
+        is_empty=@fn str_is_empty $s: str -> $s::is_empty,
+        is_whitespace=@fn str_is_whitespace $s: str -> $s::is_whitespace,
         len=@fn str_len $s: str -> $s::len,
         trim=@fn str_trim $s: str -> @match $s {
             " $s " -> $s,
@@ -105,13 +108,19 @@
     ).,
     list=@dict_new(
         **$list,
+        flat=@fn list_flat $v: any list -> $v::flat,
+        is_empty=@fn list_is_empty $v: any list -> $v::is_empty,
         len=@fn list_len $v: any list -> $v::len,
+        reversed=@fn list_reversed $v: any list -> $v::reversed,
     ).,
     dict=@dict_new(
         new=$dict_new,
     ).,
     html=@dict_new(
         **$html,
+        is_empty=@fn html_is_empty $h: html -> $h::is_empty,
+        is_whitespace=@fn html_is_whitespace $h: html -> $h::is_whitespace,
+        nodes=@fn html_nodes $h: html -> $h::nodes,
         tag_name=@fn html_tag_name $h: html -> $h::tag_name,
     ).,
     inline=@dict_new(

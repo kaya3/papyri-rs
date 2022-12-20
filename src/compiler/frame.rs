@@ -54,6 +54,22 @@ impl ActiveFrame {
         if implicit { f.implicit.insert(name_id); }
         f.set(name_id, value)
     }
+    
+    pub(super) fn unset_all(&self, name_ids: &[NameID]) {
+        let mut f = self.f.as_ref().borrow_mut();
+        for &name_id in name_ids.iter() {
+            f.unset(name_id);
+        }
+    }
+    
+    pub(super) fn set_all_if_not_present(&self, name_ids: &[NameID], value: Value) {
+        let mut f = self.f.as_ref().borrow_mut();
+        for &name_id in name_ids.iter() {
+            if !f.has(name_id) {
+                f.set(name_id, value.clone());
+            }
+        }
+    }
 }
 
 impl InactiveFrame {
@@ -92,10 +108,19 @@ impl Frame {
         }
     }
     
+    fn has(&self, name_id: NameID) -> bool {
+        self.locals.contains_key(&name_id)
+    }
+    
     /// Sets the value of a variable in this frame. Returns `true` if a variable
     /// of that name was already present.
     fn set(&mut self, name_id: NameID, value: Value) -> bool {
         self.locals.insert(name_id, value).is_some()
+    }
+    
+    fn unset(&mut self, name_id: NameID) {
+        self.locals.remove(&name_id);
+        self.implicit.remove(&name_id);
     }
 }
 

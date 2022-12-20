@@ -44,8 +44,8 @@ impl Diagnostics {
     }
     
     /// Reports a type error in a Papyri source file.
-    pub fn type_error(&mut self, e: TypeError, range: &SourceRange) {
-        self.add(Severity::Error, PapyriError::TypeError(e), range, None);
+    pub fn type_error(&mut self, e: TypeError, trace: StackTrace, range: &SourceRange) {
+        self.add(Severity::Error, PapyriError::TypeError(e), range, Some(trace));
     }
     
     /// Reports an error which occurs while loading a Papyri module.
@@ -57,8 +57,8 @@ impl Diagnostics {
     /// Reports a name error which occurs during compilation of a Papyri source
     /// file. A name error indicates that a variable or parameter of some name
     /// has not been declared.
-    pub fn name_error(&mut self, e: NameError, range: &SourceRange) {
-        self.add(Severity::Error, PapyriError::NameError(e), range, None);
+    pub fn name_error(&mut self, e: NameError, trace: StackTrace, range: &SourceRange) {
+        self.add(Severity::Error, PapyriError::NameError(e), range, Some(trace));
     }
     
     /// Reports a runtime error by adding it to the collection. This occurs

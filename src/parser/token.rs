@@ -30,15 +30,16 @@ pub enum TokenKind {
     RAngle,
     CloseTag,
     
-    Dot,
-    Ellipsis,
-    Comma,
-    Equals,
-    Colon,
-    DoubleColon,
+    Ampersand,
     Arrow,
-    Bar,
     Asterisk,
+    Bar,
+    Colon,
+    Comma,
+    Dot,
+    DoubleColon,
+    Ellipsis,
+    Equals,
     ExclamationMark,
     QuestionMark,
     Quote(QuoteKind, QuoteDir),
@@ -78,15 +79,16 @@ impl std::fmt::Display for TokenKind {
             TokenKind::RBrace => "'}'",
             TokenKind::LAngle => "'<'",
             TokenKind::RAngle => "'>' or '/>'",
-            TokenKind::Dot => "'.'",
-            TokenKind::Ellipsis => "ellipsis",
-            TokenKind::Comma => "','",
-            TokenKind::Equals => "'='",
-            TokenKind::Colon => "':'",
-            TokenKind::DoubleColon => "'::'",
+            TokenKind::Ampersand => "'&'",
             TokenKind::Arrow => "'->'",
-            TokenKind::Bar => "'|'",
             TokenKind::Asterisk => "'*' or '**'",
+            TokenKind::Bar => "'|'",
+            TokenKind::Colon => "':'",
+            TokenKind::Comma => "','",
+            TokenKind::Dot => "'.'",
+            TokenKind::DoubleColon => "'::'",
+            TokenKind::Ellipsis => "ellipsis",
+            TokenKind::Equals => "'='",
             TokenKind::ExclamationMark => "'!'",
             TokenKind::QuestionMark => "'?'",
             TokenKind::Quote(k, _) => match k {
@@ -186,15 +188,16 @@ impl Token {
             TokenKind::RPar |
             TokenKind::LAngle |
             TokenKind::RAngle |
-            TokenKind::Dot |
-            TokenKind::Comma |
-            TokenKind::Equals |
-            TokenKind::Colon |
-            TokenKind::DoubleColon |
+            TokenKind::Ampersand |
+            TokenKind::Arrow |
             TokenKind::Asterisk |
+            TokenKind::Colon |
+            TokenKind::Comma |
+            TokenKind::Dot |
+            TokenKind::DoubleColon |
+            TokenKind::Equals |
             TokenKind::ExclamationMark |
             TokenKind::QuestionMark |
-            TokenKind::Arrow |
             TokenKind::RawText => Some(self.as_str()),
             
             TokenKind::Ellipsis => Some("\u{2026}"),

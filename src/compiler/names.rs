@@ -1,6 +1,6 @@
 use crate::errors;
 use crate::parser::ast;
-use crate::utils::{str_ids, SourceRange};
+use crate::utils::{str_ids, SourceRange, text};
 use super::base::Compiler;
 use super::func::Func;
 use super::html::HTML;
@@ -44,7 +44,9 @@ impl <'a> Compiler<'a> {
             Value::Str(s) => match attr_id {
                 str_ids::ESCAPE_HTML => return self.bind_method(natives.escape_html.clone(), subject, &attr.range),
                 str_ids::IS_EMPTY => return Some(s.is_empty().into()),
+                str_ids::IS_WHITESPACE => return Some(text::is_whitespace(s).into()),
                 str_ids::LEN => return Some(Value::Int(s.len() as i64)),
+                str_ids::NODES => return Some([subject].into()),
                 _ => {},
             },
             
@@ -56,10 +58,12 @@ impl <'a> Compiler<'a> {
             
             Value::List(vs) => match attr_id {
                 str_ids::FILTER => return self.bind_method(natives.filter.clone(), subject, &attr.range),
+                str_ids::FLAT => return Some(Value::flatten_list(vs.as_ref()).into()),
                 str_ids::IS_EMPTY => return Some(vs.is_empty().into()),
                 str_ids::JOIN => return self.bind_method(natives.join.clone(), subject, &attr.range),
                 str_ids::LEN => return Some(Value::Int(vs.len() as i64)),
                 str_ids::MAP => return self.bind_method(natives.map.clone(), subject, &attr.range),
+                str_ids::REVERSED => return Some(Value::reverse_list(vs.as_ref()).into()),
                 str_ids::SLICE => return self.bind_method(natives.slice.clone(), subject, &attr.range),
                 str_ids::SORTED => return self.bind_method(natives.sorted.clone(), subject, &attr.range),
                 _ => {},
@@ -79,6 +83,15 @@ impl <'a> Compiler<'a> {
             
             Value::HTML(h) => match attr_id {
                 str_ids::ESCAPE_HTML => return self.bind_method(natives.escape_html.clone(), subject, &attr.range),
+                str_ids::IS_EMPTY => return Some(h.is_empty().into()),
+                str_ids::IS_WHITESPACE => return Some(h.is_whitespace().into()),
+                str_ids::NODES => {
+                    return Some(match h {
+                        HTML::Empty => [].into(),
+                        HTML::Sequence(seq) => seq.iter().map(Value::from).collect::<Vec<_>>().into(),
+                        _ => [subject].into(),
+                    });
+                },
                 str_ids::TAG_NAME => if let HTML::Tag(t) = h { return Some(self.get_name(t.name_id).into()); },
                 _ => {},
             },

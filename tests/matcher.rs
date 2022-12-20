@@ -38,8 +38,12 @@ assert_matches! {
     html_text_seq_spread("{Foo}", "{*_}");
     
     equals_captured_var("[23, 23]", "[$x, =$x]");
-    var_and_literal("[23, 23]", "[23 and $x, 23 and =$x]");
-    var_and_template("[`foo bar`, [`foo bar`, `foo`, `bar`]]", "[$x and '$a $b', =[$x, $a, $b]]");
+    var_and_literal("[23, 23]", "[23 & $x, 23 & =$x]");
+    var_and_template("[`foo bar`, [`foo bar`, `foo`, `bar`]]", "[$x & '$a $b', =[$x, $a, $b]]");
+    
+    or_left("1", "1 | 2");
+    or_right("2", "1 | 2");
+    and_or_precedence("1", "1 | 2 & 3");
 }
 
 assert_ok! {
@@ -76,6 +80,16 @@ assert_ok! {
     type_of(
         "@match `foobar` {_: $t -> $t}",
         "<p>str</p>",
+    );
+    
+    or_left_bind(
+        "@match 123 {$x | $y -> [$x, $y]}",
+        "<ul><li>123</li><li></li></ul>",
+    );
+    
+    or_right_bind(
+        "@match 123 {$x: bool | $y -> [$x, $y]}",
+        "<ul><li></li><li>123</li></ul>",
     );
 }
 

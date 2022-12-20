@@ -92,6 +92,12 @@ impl From<Vec<Value>> for Value {
     }
 }
 
+impl <const N: usize> From<[Value; N]> for Value {
+    fn from(vs: [Value; N]) -> Value {
+        Value::List(vs.as_slice().into())
+    }
+}
+
 impl From<SliceRef<Value>> for Value {
     fn from(vs: SliceRef<Value>) -> Value {
         Value::List(vs)
@@ -164,6 +170,23 @@ impl Value {
             Value::Func(..) => Type::Function,
             Value::Regex(..) => Type::Regex,
         }
+    }
+    
+    pub(super) fn reverse_list(vs: &[Value]) -> Vec<Value> {
+        let mut vs = Vec::from(vs);
+        vs.reverse();
+        vs
+    }
+    
+    pub(super) fn flatten_list(vs: &[Value]) -> Vec<Value> {
+        let mut out = Vec::new();
+        for child in vs.iter() {
+            match child {
+                Value::List(children) => out.extend(children.as_ref().iter().cloned()),
+                _ => out.push(child.clone()),
+            }
+        }
+        out
     }
     
     /// Returns the strongest type assignable from all values in the given

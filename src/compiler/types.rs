@@ -292,10 +292,11 @@ impl <'a> Compiler<'a> {
             .ok()
     }
     
+    /*
     pub(super) fn try_coerce(&mut self, value: Value, expected: &Type) -> Option<Value> {
         expected.coerce_value(value, &|v| self.compile_value(v))
             .ok()
-    }
+    }*/
 }
 
 #[cfg(test)]

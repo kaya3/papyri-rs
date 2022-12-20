@@ -45,6 +45,14 @@ impl <'a> Compiler<'a> {
                 self.bind_pattern(&pair.0, value.clone())
                     && self.bind_pattern(&pair.1, value)
             },
+            ast::MatchPattern::Or(_, pair, name_ids) => {
+                let r = self.bind_pattern(&pair.0, value.clone())
+                    || {self.frame().unset_all(name_ids); self.bind_pattern(&pair.1, value)};
+                if r {
+                    self.frame().set_all_if_not_present(name_ids, Value::UNIT);
+                }
+                r
+            },
             ast::MatchPattern::EqualsValue(_, child) => {
                 self.evaluate_node(child, &Type::Any)
                     .map_or(false, |other| value == other)

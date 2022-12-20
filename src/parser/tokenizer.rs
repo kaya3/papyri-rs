@@ -107,6 +107,42 @@ fn next_token(src: &str, mut on_error: impl FnMut(errors::SyntaxError)) -> (usiz
             (len, kind)
         },
         
+        '&' if matches!(chars.next(), Some('a'..='z' | 'A'..='Z' | '#')) => {
+            let mut len = 2 + scan_while(&src[2..], |c| !c.is_ascii_whitespace() && c != ';');
+            if src[len..].starts_with(';') {
+                len += 1;
+            } else {
+                on_error(errors::SyntaxError::TokenEntityMissingSemicolon);
+            }
+            (len, TokenKind::Entity)
+        },
+        
+        '\\' => {
+            match chars.next() {
+                Some('\n') => {
+                    on_error(errors::SyntaxError::TokenInvalidEscape);
+                    (1, TokenKind::Escape)
+                },
+                Some(c) => if matches!(c, 'x' | 'u' | 'U') {
+                    // expected token length, including the `\x` | `\u` | `\U`
+                    let end = if c == 'x' { 4 } else if c == 'u' { 6 } else { 10 };
+                    let len = if src.len() >= end && src[2..end].chars().all(|c| c.is_ascii_hexdigit()) {
+                        end
+                    } else {
+                        on_error(errors::SyntaxError::TokenInvalidEscape);
+                        2
+                    };
+                    (len, TokenKind::Escape)
+                } else {
+                    (1 + c.len_utf8(), TokenKind::Escape)
+                },
+                None => {
+                    on_error(errors::SyntaxError::TokenExpectedWasEOF(TokenKind::Escape));
+                    (1, TokenKind::RawText)
+                },
+            }
+        },
+        
         '`' => {
             let open_delim_len = 1 + scan_while(&src[1..], |c| c == '`');
             let len = match src[open_delim_len..].find(&src[..open_delim_len]) {
@@ -171,53 +207,17 @@ fn next_token(src: &str, mut on_error: impl FnMut(errors::SyntaxError)) -> (usiz
         '>' => (1, TokenKind::RAngle),
         '/' if src.starts_with("/>") => (2, TokenKind::RAngle),
         
-        '.' => if src.starts_with("...") { (3, TokenKind::Ellipsis) } else { (1, TokenKind::Dot) },
+        '&' => (1, TokenKind::Ampersand),
+        '|' => (1, TokenKind::Bar),
         ',' => (1, TokenKind::Comma),
         '=' => (1, TokenKind::Equals),
+        '!' => (1, TokenKind::ExclamationMark),
+        '.' => if src.starts_with("...") { (3, TokenKind::Ellipsis) } else { (1, TokenKind::Dot) },
         ':' => if src.starts_with("::") { (2, TokenKind::DoubleColon) } else { (1, TokenKind::Colon) },
         '?' => if src.starts_with("?::") { (3, TokenKind::DoubleColon) } else { (1, TokenKind::QuestionMark) },
-        '|' => (1, TokenKind::Bar),
-        '!' => (1, TokenKind::ExclamationMark),
         '*' => (if src.starts_with("**") { 2 } else { 1 }, TokenKind::Asterisk),
         '\'' => (1, TokenKind::Quote(QuoteKind::Single, QuoteDir::Left)),
         '"' => (1, TokenKind::Quote(QuoteKind::Double, QuoteDir::Left)),
-        
-        '\\' => {
-            let next_char = chars.next();
-            match next_char {
-                Some('\n') => {
-                    on_error(errors::SyntaxError::TokenInvalidEscape);
-                    (1, TokenKind::Escape)
-                },
-                Some(c) => if matches!(c, 'x' | 'u' | 'U') {
-                    // expected token length, including the `\x` | `\u` | `\U`
-                    let end = if c == 'x' { 4 } else if c == 'u' { 6 } else { 10 };
-                    let len = if src.len() >= end && src[2..end].chars().all(|c| c.is_ascii_hexdigit()) {
-                        end
-                    } else {
-                        on_error(errors::SyntaxError::TokenInvalidEscape);
-                        2
-                    };
-                    (len, TokenKind::Escape)
-                } else {
-                    (1 + c.len_utf8(), TokenKind::Escape)
-                },
-                None => {
-                    on_error(errors::SyntaxError::TokenExpectedWasEOF(TokenKind::Escape));
-                    (1, TokenKind::RawText)
-                },
-            }
-        },
-        
-        '&' => {
-            let mut len = 1 + scan_while(&src[1..], |c| !c.is_ascii_whitespace() && c != ';');
-            if src[len..].starts_with(';') {
-                len += 1;
-            } else {
-                on_error(errors::SyntaxError::TokenEntityMissingSemicolon);
-            }
-            (len, TokenKind::Entity)
-        },
         
         _ => {
             let char_len = first_char.len_utf8();
@@ -397,6 +397,7 @@ mod test {
         assert_tok(":: bar", 2, TokenKind::DoubleColon);
         assert_tok("?:: bar", 3, TokenKind::DoubleColon);
         assert_tok("-> bar", 2, TokenKind::Arrow);
+        assert_tok("& bar", 1, TokenKind::Ampersand);
         assert_tok("| bar", 1, TokenKind::Bar);
         assert_tok("* bar", 1, TokenKind::Asterisk);
         assert_tok("** bar", 2, TokenKind::Asterisk);

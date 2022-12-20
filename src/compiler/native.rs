@@ -111,7 +111,7 @@ impl NativeDefs {
         
         let sorted = FuncSignature::new()
             .named(FuncParam::new(str_ids::KEY, Type::Function.option()).unit_default())
-            .named(FuncParam::new(str_ids::REVERSE, Type::Bool).with_default(false))
+            .named(FuncParam::new(str_ids::REVERSED, Type::Bool).with_default(false))
             .content(FuncParam::new(str_ids::PARAM, Type::Any.list()))
             .build();
         
@@ -417,7 +417,7 @@ impl <'a> Compiler<'a> {
             
             NativeFunc::Sorted => {
                 let key_func = bindings.take_function_option(str_ids::KEY);
-                let reverse = bindings.take_bool(str_ids::REVERSE);
+                let reverse = bindings.take_bool(str_ids::REVERSED);
                 let content = bindings.take_list(str_ids::PARAM);
                 
                 if content.is_empty() {

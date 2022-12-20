@@ -88,8 +88,8 @@ assert_matches! {
         "=[1, 15, 22, 3]",
     );
     
-    sort_reverse(
-        "@list::sorted(reverse=True) [4, 2, 3, 5, 1]",
+    sort_reversed(
+        "@list::sorted(reversed=True) [4, 2, 3, 5, 1]",
         "=[5, 4, 3, 2, 1]",
     );
     

@@ -1,4 +1,4 @@
-use indexmap::IndexMap;
+use indexmap::{IndexMap, IndexSet};
 
 use crate::errors::{ice_at, SyntaxError};
 use crate::utils::{taginfo, SourceRange, NameID};
@@ -56,8 +56,24 @@ impl <'a> Parser<'a> {
     }
     
     fn parse_match_pattern(&mut self) -> Option<MatchPattern> {
+        let mut p = self.parse_and_match_pattern()?;
+        while {self.skip_whitespace(); self.poll_if_kind(TokenKind::Bar).is_some()} {
+            let q = self.parse_and_match_pattern()?;
+            let range = p.range().to_end(q.range().end);
+            
+            let mut name_ids = IndexSet::new();
+            p.get_name_ids(&mut name_ids);
+            q.get_name_ids(&mut name_ids);
+            let name_ids = name_ids.into_iter().collect();
+            
+            p = MatchPattern::Or(range, Box::new((p, q)), name_ids);
+        }
+        Some(p)
+    }
+    
+    fn parse_and_match_pattern(&mut self) -> Option<MatchPattern> {
         let mut p = self.parse_primary_match_pattern()?;
-        while {self.skip_whitespace(); self.poll_if(|t| t.as_str() == "and").is_some()} {
+        while {self.skip_whitespace(); self.poll_if_kind(TokenKind::Ampersand).is_some()} {
             let q = self.parse_primary_match_pattern()?;
             let range = p.range().to_end(q.range().end);
             p = MatchPattern::And(range, Box::new((p, q)));
