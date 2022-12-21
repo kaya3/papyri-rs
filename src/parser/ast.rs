@@ -72,7 +72,7 @@ pub enum TypeAnnotation {
 }
 
 impl TypeAnnotation {
-    /// Returns the source span of this type annotation, if there is one.
+    /// Returns the source span of this type annotation.
     pub(crate) fn range(&self) -> SourceRange {
         match self {
             TypeAnnotation::Primitive(range) => range.clone(),
@@ -111,7 +111,7 @@ pub struct Param {
     /// will be taken from a variable of the same name at the call-site.
     pub(crate) is_implicit: bool,
     
-    /// The optional type annotation for this parameter, if it has one.
+    /// The type annotation for this parameter, if it has one.
     pub(crate) type_annotation: Option<TypeAnnotation>,
     
     /// The default value for this parameter, if it has one.
@@ -124,22 +124,18 @@ pub struct Signature {
     /// The source span of this function signature.
     pub(crate) range: SourceRange,
     
-    /// The positional parameters in this function signature. Parameters are
-    /// positional if their names begin with underscores.
-    pub(crate) positional_params: Box<[Param]>,
+    /// The parameters in this function signature. All positional parameters
+    /// occur before all named parameters.
+    pub(crate) params: Box<[Param]>,
     
-    /// The positional spread parameter in this function signature, if it has
-    /// one.
-    pub(crate) spread_param: Option<Box<Param>>,
+    pub(crate) positional_count: u16,
+    pub(crate) positional_spread: bool,
+    pub(crate) named_count: u16,
+    pub(crate) named_spread: bool,
     
-    /// The named parameters in this function signature.
-    pub(crate) named_params: Box<[Param]>,
-    
-    /// The named spread parameter in this function signature, if it has one.
-    pub(crate) spread_named_param: Option<Box<Param>>,
-    
-    /// The content parameter in this function signature.
-    pub(crate) content_param: Option<Param>,
+    /// If true, the final parameter is the content parameter. Otherwise, the
+    /// contents parameter is anonymous and of type `none`.
+    pub(crate) has_content: bool,
 }
 
 #[derive(Debug)]

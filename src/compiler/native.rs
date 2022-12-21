@@ -57,70 +57,70 @@ pub(super) struct NativeDefs {
 
 impl NativeDefs {
     pub(super) fn build() -> NativeDefs {
-        let add = FuncSignature::new()
+        let add = FuncSignature::builder()
             .pos_spread(FuncParam::new(str_ids::_0, Type::Int.list()))
             .build();
         
-        let bind = FuncSignature::new()
+        let bind = FuncSignature::builder()
             .positional(FuncParam::new(str_ids::_0, Type::Function))
             .pos_spread(FuncParam::new(str_ids::_1, Type::Any.list()))
             .named_spread(FuncParam::new(str_ids::KWARGS, Type::Any.dict()))
             .content(FuncParam::new(str_ids::PARAM, Type::Any))
             .build();
         
-        let content_str = FuncSignature::new()
+        let content_str = FuncSignature::builder()
             .content(FuncParam::new(str_ids::PARAM, Type::Str))
             .build();
         
-        let code = FuncSignature::new()
+        let code = FuncSignature::builder()
             .named(FuncParam::new(str_ids::LANGUAGE, Type::Str.option()).implicit().unit_default())
             .named(FuncParam::new(str_ids::CODE_BLOCK, Type::Bool).with_default(false))
             .named(FuncParam::new(str_ids::FIRST_LINE_NO, Type::Int).with_default(1))
             .content(FuncParam::new(str_ids::PARAM, Type::Str))
             .build();
         
-        let escape_html = FuncSignature::new()
+        let escape_html = FuncSignature::builder()
             .content(FuncParam::new(str_ids::PARAM, Type::HTML))
             .build();
         
-        let filter = FuncSignature::new()
+        let filter = FuncSignature::builder()
             .positional(FuncParam::new(str_ids::_0, Type::Function.option()).unit_default())
             .content(FuncParam::new(str_ids::PARAM, Type::Any.list()))
             .build();
         
-        let join = FuncSignature::new()
+        let join = FuncSignature::builder()
             .positional(FuncParam::new(str_ids::_0, Type::Any).unit_default())
             .content(FuncParam::new(str_ids::PARAM, Type::HTML.list()))
             .build();
         
-        let map = FuncSignature::new()
+        let map = FuncSignature::builder()
             .positional(FuncParam::new(str_ids::_0, Type::Function))
             .content(FuncParam::new(str_ids::PARAM, Type::Any.list()))
             .build();
         
-        let regex_find = FuncSignature::new()
+        let regex_find = FuncSignature::builder()
             .positional(FuncParam::new(str_ids::_0, Type::Regex))
             .content(FuncParam::new(str_ids::PARAM, Type::Str))
             .build();
         
-        let slice = FuncSignature::new()
+        let slice = FuncSignature::builder()
             .positional(FuncParam::new(str_ids::_0, Type::Int))
             .positional(FuncParam::new(str_ids::_1, Type::Int.option()).unit_default())
             .content(FuncParam::new(str_ids::PARAM, Type::Any.list()))
             .build();
         
-        let sorted = FuncSignature::new()
+        let sorted = FuncSignature::builder()
             .named(FuncParam::new(str_ids::KEY, Type::Function.option()).unit_default())
             .named(FuncParam::new(str_ids::REVERSED, Type::Bool).with_default(false))
             .content(FuncParam::new(str_ids::PARAM, Type::Any.list()))
             .build();
         
-        let unique_id = FuncSignature::new()
+        let unique_id = FuncSignature::builder()
             .named(FuncParam::new(str_ids::MAX_LENGTH, Type::Int).with_default(128))
             .content(FuncParam::new(str_ids::PARAM, Type::Str))
             .build();
         
-        let write_file = FuncSignature::new()
+        let write_file = FuncSignature::builder()
             .positional(FuncParam::new(str_ids::_0, Type::Str))
             .content(FuncParam::new(str_ids::PARAM, Type::HTML))
             .build();
@@ -417,7 +417,7 @@ impl <'a> Compiler<'a> {
             
             NativeFunc::Sorted => {
                 let key_func = bindings.take_function_option(str_ids::KEY);
-                let reverse = bindings.take_bool(str_ids::REVERSED);
+                let reversed = bindings.take_bool(str_ids::REVERSED);
                 let content = bindings.take_list(str_ids::PARAM);
                 
                 if content.is_empty() {
@@ -446,13 +446,16 @@ impl <'a> Compiler<'a> {
                     decorated.push((k, v));
                 }
                 
+                // gives correct stability behaviour
+                if reversed { decorated.reverse(); }
+                
                 match decorated.first().unwrap().0 {
                     Value::Int(_) => decorated.sort_by_key(|p| match p.0 {
                         Value::Int(k) => k,
                         _ => ice_at("failed to unwrap int sort key", call_range),
                     }),
-                    Value::Str(_) => decorated.sort_by_key(|p| match p.0.clone() {
-                        Value::Str(k) => k,
+                    Value::Str(_) => decorated.sort_by_key(|p| match &p.0 {
+                        Value::Str(k) => k.clone(),
                         _ => ice_at("failed to unwrap str sort key", call_range),
                     }),
                     _ => ice_at("failed to unwrap sort key", call_range),
@@ -462,7 +465,7 @@ impl <'a> Compiler<'a> {
                     .map(|p| p.1)
                     .collect();
                 
-                if reverse { undecorated.reverse(); }
+                if reversed { undecorated.reverse(); }
                 Some(undecorated.into())
             },
             

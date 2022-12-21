@@ -46,9 +46,9 @@ impl FuncParam {
 #[derive(Debug)]
 pub struct FuncSignature {
     positional_params: Vec<FuncParam>,
-    spread_param: Option<FuncParam>,
+    spread_param: Option<Box<FuncParam>>,
     named_params: IndexMap<NameID, FuncParam>,
-    spread_named_param: Option<FuncParam>,
+    spread_named_param: Option<Box<FuncParam>>,
     content_param: FuncParam,
 }
 
@@ -62,14 +62,8 @@ impl AsRef<FuncSignature> for RcFuncSignature {
     }
 }
 
-impl Default for FuncSignature {
-    fn default() -> FuncSignature {
-        FuncSignature::new()
-    }
-}
-
 impl FuncSignature {
-    pub(super) fn new() -> FuncSignature {
+    pub(super) fn builder() -> FuncSignature {
         FuncSignature {
             positional_params: Vec::new(),
             spread_param: None,
@@ -90,12 +84,12 @@ impl FuncSignature {
     }
     
     pub(super) fn pos_spread(mut self, param: FuncParam) -> FuncSignature {
-        self.spread_param = Some(param);
+        self.spread_param = Some(Box::new(param));
         self
     }
     
     pub(super) fn named_spread(mut self, param: FuncParam) -> FuncSignature {
-        self.spread_named_param = Some(param);
+        self.spread_named_param = Some(Box::new(param));
         self
     }
     
@@ -380,23 +374,26 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
 
 impl <'a> Compiler<'a> {
     pub(super) fn compile_func_signature(&mut self, sig: &ast::Signature) -> RcFuncSignature {
-        FuncSignature {
-            positional_params: sig.positional_params.iter()
-                .map(|p| self.compile_param(p))
-                .collect(),
-            spread_param: sig.spread_param.as_ref()
-                .map(|p| self.compile_param(p)),
-            named_params: sig.named_params.iter()
-                .map(|p| (p.name_id, self.compile_param(p)))
-                .collect(),
-            spread_named_param: sig.spread_named_param.as_ref()
-                .map(|p| self.compile_param(p)),
-            content_param: sig.content_param.as_ref()
-                .map_or_else(
-                    || FuncParam::new(str_ids::ANONYMOUS, Type::Unit),
-                    |p| self.compile_param(p),
-                ),
-        }.build()
+        let mut out = FuncSignature::builder();
+        let mut params = sig.params.iter()
+            .map(|p| self.compile_param(p));
+        
+        for _ in 0..sig.positional_count {
+            out = out.positional(params.next().unwrap());
+        }
+        if sig.positional_spread {
+            out = out.pos_spread(params.next().unwrap());
+        }
+        for _ in 0..sig.named_count {
+            out = out.named(params.next().unwrap());
+        }
+        if sig.named_spread {
+            out = out.named_spread(params.next().unwrap());
+        }
+        if sig.has_content {
+            out = out.content(params.next().unwrap());
+        }
+        out.build()
     }
     
     pub(super) fn compile_param(&mut self, param: &ast::Param) -> FuncParam {

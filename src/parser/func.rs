@@ -40,10 +40,11 @@ impl <'a> Parser<'a> {
     }
     
     fn parse_signature(&mut self) -> Option<Signature> {
-        let mut positional_params: Vec<Param> = Vec::new();
-        let mut spread_param: Option<Param> = None;
-        let mut named_params: Vec<Param> = Vec::new();
-        let mut spread_named_param: Option<Param> = None;
+        let mut params = Vec::new();
+        let mut positional_count = 0;
+        let mut positional_spread = false;
+        let mut named_count = 0;
+        let mut named_spread = false;
         
         self.skip_whitespace();
         let lpar = self.poll_if_kind(TokenKind::LPar);
@@ -55,6 +56,7 @@ impl <'a> Parser<'a> {
                 TokenKind::RPar,
             )?;
             
+            let mut any_named_params = false;
             let mut names_used = IndexSet::new();
             let mut any_optional_params = false;
             let mut any_optional_named_params = false;
@@ -70,7 +72,7 @@ impl <'a> Parser<'a> {
                 if !names_used.insert(param.name_id) {
                     let name = self.string_pool.get(param.name_id).to_string();
                     self.diagnostics.syntax_error(SyntaxError::ParamDuplicateName(name), &param.range);
-                } else if is_positional && (!named_params.is_empty() || spread_named_param.is_some()) {
+                } else if is_positional && any_named_params {
                     self.diagnostics.syntax_error(SyntaxError::ParamPositionalAfterNamed, &param.range);
                 } else if is_required && (if is_positional { any_optional_params } else { any_optional_named_params }) {
                     self.diagnostics.syntax_error(SyntaxError::ParamRequiredAfterOptional, &param.range);
@@ -80,39 +82,42 @@ impl <'a> Parser<'a> {
                     self.diagnostics.syntax_error(SyntaxError::ParamSpreadImplicit, &param.range);
                 } else if param.is_implicit && param.default_value.is_some() {
                     self.diagnostics.syntax_error(SyntaxError::ParamDefaultImplicit, &param.range);
-                } else if (if is_positional { &spread_param } else { &spread_named_param }).is_some() {
+                } else if (is_positional && positional_spread) || (!is_positional && named_spread) {
                     let msg = if is_spread { SyntaxError::ParamMultipleSpread } else { SyntaxError::ParamAfterSpread };
                     self.diagnostics.syntax_error(msg, &param.range);
                 }
                 
                 match (is_positional, is_spread) {
                     (false, false) => {
-                        named_params.push(param);
+                        named_count += 1;
+                        any_named_params = true;
                         any_optional_named_params |= !is_required;
                     },
                     (true, false) => {
-                        positional_params.push(param);
+                        positional_count += 1;
                         any_optional_params |= !is_required;
                     },
                     (false, true) => {
                         if is_underscore {
                             self.diagnostics.syntax_error(SyntaxError::ParamNamedSpreadUnderscore, &param.range);
                         }
-                        spread_named_param = Some(param);
+                        any_named_params = true;
+                        named_spread = true;
                     },
                     (true, true) => {
                         if !is_underscore {
                             self.diagnostics.syntax_error(SyntaxError::ParamPositionalSpreadNoUnderscore, &param.range);
                         }
-                        spread_param = Some(param);
+                        positional_spread = true;
                     },
                 }
+                params.push(param);
             }
         };
         
         self.skip_whitespace();
-        let (content_param, mut range) = if let Some(dot) = self.poll_if_kind(TokenKind::Dot) {
-            (None, dot.range)
+        let (has_content, mut range) = if let Some(dot) = self.poll_if_kind(TokenKind::Dot) {
+            (false, dot.range)
         } else {
             let (c, spread, _) = self.parse_param()?;
             if let Some(spread) = spread {
@@ -121,18 +126,20 @@ impl <'a> Parser<'a> {
                 self.diagnostics.syntax_error(SyntaxError::ParamContentDefault, value.range());
             }
             let range = c.range.clone();
-            (Some(c), range)
+            params.push(c);
+            (true, range)
         };
         
         if let Some(lpar) = lpar { range = lpar.range.to_end(range.end); }
         
         Some(Signature {
             range,
-            positional_params: positional_params.into_boxed_slice(),
-            spread_param: spread_param.map(Box::new),
-            named_params: named_params.into_boxed_slice(),
-            spread_named_param: spread_named_param.map(Box::new),
-            content_param,
+            params: params.into_boxed_slice(),
+            positional_count,
+            positional_spread,
+            named_count,
+            named_spread,
+            has_content,
         })
     }
     
