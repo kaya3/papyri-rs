@@ -124,24 +124,24 @@ impl std::fmt::Display for Token {
 
 impl Token {
     /// Returns this token's source as a borrowed string.
-    pub fn as_str(&self) -> &str {
+    pub(crate) fn as_str(&self) -> &str {
         self.range.as_str()
     }
     
     /// Indicates whether this token is a whitespace or newline token.
-    pub fn is_whitespace(&self) -> bool {
+    pub(crate) fn is_whitespace(&self) -> bool {
         self.kind == TokenKind::Whitespace || self.kind == TokenKind::Newline
     }
     
     /// Indicates whether this token is a keyword function name.
-    pub fn is_keyword_func(&self) -> bool {
+    pub(crate) fn is_keyword_func(&self) -> bool {
         matches!(self.kind, TokenKind::FuncName)
             && matches!(self.as_str(), "@export" | "@fn" | "@implicit" | "@let" | "@match")
     }
     
     /// Indicates whether this token is a closing tag for the given tag name.
     /// If no tag name is given, only `</>` matches.
-    pub fn is_close_tag(&self, name: &Option<String>) -> bool {
+    pub(crate) fn is_close_tag(&self, name: &Option<String>) -> bool {
         self.kind == TokenKind::CloseTag && {
             let s = self.as_str();
             s == "</>" || matches!(name, Some(t) if t.eq_ignore_ascii_case(&s[2..s.len() - 1]))
@@ -149,37 +149,37 @@ impl Token {
     }
     
     /// Returns the `bool` value of a Boolean literal token.
-    pub fn get_bool_value(&self) -> bool {
+    pub(crate) fn get_bool_value(&self) -> bool {
         if self.kind != TokenKind::Boolean { ice_at("token is not Boolean", &self.range); }
         self.as_str() == "True"
     }
     
     /// Converts a `bool` value to the source of a Boolean literal token. This
     /// is the inverse of `get_bool_value`.
-    pub fn bool_to_string(b: bool) -> &'static str {
+    pub(crate) fn bool_to_string(b: bool) -> &'static str {
         if b { "True" } else { "False" }
     }
     
     /// Returns the name from this VarName or FuncName token.
-    pub fn get_var_name(&self) -> &str {
+    pub(super) fn get_var_name(&self) -> &str {
         if !matches!(self.kind, TokenKind::VarName | TokenKind::FuncName) { ice_at("token is not VarName or FuncName", &self.range); }
         &self.as_str()[1..]
     }
     
     /// Returns the raw text of this Verbatim token.
-    pub fn get_verbatim_text(&self) -> &str {
+    pub(crate) fn get_verbatim_text(&self) -> &str {
         if self.kind != TokenKind::Verbatim { ice_at("token is not Verbatim", &self.range); }
         self.as_str().trim_matches('`')
     }
     
     /// Indicates whether this Verbatim token is a multi-line string literal.
-    pub fn is_multiline_verbatim(&self) -> bool {
+    pub(crate) fn is_multiline_verbatim(&self) -> bool {
         if self.kind != TokenKind::Verbatim { ice_at("token is not Verbatim", &self.range); }
         self.as_str().starts_with("```")
     }
     
     /// Returns the representation of this token as normal text, if it has one.
-    pub fn text(&self) -> Option<&str> {
+    pub(crate) fn text(&self) -> Option<&str> {
         match self.kind {
             TokenKind::Name |
             TokenKind::Number |

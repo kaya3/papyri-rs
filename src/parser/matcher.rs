@@ -19,7 +19,7 @@ enum NamedMatchPattern {
 }
 
 impl NamedMatchPattern {
-    fn range(&self) -> &SourceRange {
+    fn range(&self) -> SourceRange {
         match self {
             NamedMatchPattern::One(_, p) |
             NamedMatchPattern::Spread(p) => p.range(),
@@ -59,14 +59,14 @@ impl <'a> Parser<'a> {
         let mut p = self.parse_and_match_pattern()?;
         while {self.skip_whitespace(); self.poll_if_kind(TokenKind::Bar).is_some()} {
             let q = self.parse_and_match_pattern()?;
-            let range = p.range().to_end(q.range().end);
             
             let mut name_ids = IndexSet::new();
             p.get_name_ids(&mut name_ids);
             q.get_name_ids(&mut name_ids);
             let name_ids = name_ids.into_iter().collect();
             
-            p = MatchPattern::Or(range, Box::new((p, q)), name_ids);
+            let pair = (p, q);
+            p = MatchPattern::Or(Box::new(pair), name_ids);
         }
         Some(p)
     }
@@ -74,9 +74,8 @@ impl <'a> Parser<'a> {
     fn parse_and_match_pattern(&mut self) -> Option<MatchPattern> {
         let mut p = self.parse_primary_match_pattern()?;
         while {self.skip_whitespace(); self.poll_if_kind(TokenKind::Ampersand).is_some()} {
-            let q = self.parse_primary_match_pattern()?;
-            let range = p.range().to_end(q.range().end);
-            p = MatchPattern::And(range, Box::new((p, q)));
+            let pair = (p, self.parse_primary_match_pattern()?);
+            p = MatchPattern::And(Box::new(pair));
         }
         Some(p)
     }
@@ -100,12 +99,7 @@ impl <'a> Parser<'a> {
             TokenKind::Number |
             TokenKind::Verbatim => Some(MatchPattern::Literal(tok)),
             
-            TokenKind::Equals => {
-                let value = self.parse_value()?;
-                let range = tok.range.to_end(value.range().end);
-                Some(MatchPattern::EqualsValue(range, value))
-            }
-            
+            TokenKind::Equals => self.parse_value().map(MatchPattern::EqualsValue),
             TokenKind::LAngle => self.parse_tag_pattern(tok),
             TokenKind::LSqb => self.parse_seq_pattern(tok, TokenKind::Comma, TokenKind::RSqb).map(|(p, _)| p),
             TokenKind::LPar => self.parse_dict_pattern(tok),
@@ -185,9 +179,9 @@ impl <'a> Parser<'a> {
                 PositionalMatchPattern::One(child) => child,
                 PositionalMatchPattern::Spread(child) => {
                     if spread_index.is_some() {
-                        self.diagnostics.syntax_error(SyntaxError::PatternMultipleSpreads, child.range())
+                        self.diagnostics.syntax_error(SyntaxError::PatternMultipleSpreads, &child.range())
                     }
-                    spread_index = Some(i);
+                    spread_index = Some(i as u32);
                     child
                 }
             })
@@ -196,7 +190,7 @@ impl <'a> Parser<'a> {
         let is_list = open.kind == TokenKind::LSqb;
         if !is_list {
             for child in child_patterns.iter().filter(|p| !p.can_match_html()) {
-                self.diagnostics.syntax_error(SyntaxError::PatternCannotMatchHTML, child.range());
+                self.diagnostics.syntax_error(SyntaxError::PatternCannotMatchHTML, &child.range());
             }
         }
         
@@ -315,7 +309,10 @@ impl <'a> Parser<'a> {
         regex_str += ")$";
         
         match regex::Regex::new(&regex_str) {
-            Ok(r) => Some(MatchPattern::Regex(range, r, vars.into_boxed_slice())),
+            Ok(regex) => {
+                let p = RegexMatchPattern {regex, names: vars.into_boxed_slice()};
+                Some(MatchPattern::Regex(range, Box::new(p)))
+            },
             Err(e) => ice_at(&format!("regex {regex_str} failed to parse: {e}"), &range),
         }
     }
@@ -336,19 +333,20 @@ impl <'a> Parser<'a> {
         let mut spread = None;
         
         for part in parts.into_iter() {
-            let part_range = part.range().clone();
-            if spread.is_some() {
-                self.diagnostics.syntax_error(SyntaxError::PatternNamedAfterSpread, &part_range);
-                break;
-            }
+            let part_range = &part.range();
             match part {
                 NamedMatchPattern::One(name_id, child) => {
-                    if attrs.insert(name_id, child).is_some() {
+                    if spread.is_some() {
+                        self.diagnostics.syntax_error(SyntaxError::PatternNamedAfterSpread, part_range);
+                    } else if attrs.insert(name_id, child).is_some() {
                         let name = self.string_pool.get(name_id).to_string();
-                        self.diagnostics.syntax_error(SyntaxError::PatternDuplicateName(name), &part_range);
+                        self.diagnostics.syntax_error(SyntaxError::PatternDuplicateName(name), part_range);
                     }
                 },
                 NamedMatchPattern::Spread(child) => {
+                    if spread.is_some() {
+                        self.diagnostics.syntax_error(SyntaxError::ParamMultipleSpread, part_range);
+                    }
                     spread = Some(child);
                 },
             }
@@ -371,22 +369,19 @@ impl <'a> Parser<'a> {
         }
         
         self.skip_whitespace();
-        if let Some(var) = self.poll_if_kind(TokenKind::VarName) {
-            let range = pattern.range().to_end(var.range.end);
+        let type_pattern = if let Some(var) = self.poll_if_kind(TokenKind::VarName) {
             let var = self.parse_name_pattern(var)?;
-            Some(MatchPattern::TypeOf(
-                range,
-                Box::new(pattern),
-                var,
-            ))
+            MatchPattern::TypeOf(var)
         } else {
             let type_ = self.parse_type()?;
-            let range = pattern.range().to_end(type_.range_end());
-            Some(MatchPattern::Typed(
-                range,
-                Box::new(pattern),
-                type_,
-            ))
-        }
+            MatchPattern::Typed(type_)
+        };
+        
+        Some(if matches!(pattern, MatchPattern::Ignore(..)) {
+            type_pattern
+        } else {
+            let pair = (pattern, type_pattern);
+            MatchPattern::And(Box::new(pair))
+        })
     }
 }

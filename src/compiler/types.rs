@@ -146,8 +146,9 @@ impl Type {
                 "regex" => Type::Regex,
                 _ => errors::ice_at("not a primitive type", range),
             },
-            ast::TypeAnnotation::Group(child, range) => {
-                let child = Type::compile(child);
+            ast::TypeAnnotation::Group(g) => {
+                let (child, range) = g.as_ref();
+                let child = child.as_ref().map_or(Type::Any, Type::compile);
                 match range.as_str() {
                     "dict" => child.dict(),
                     "list" => child.list(),
@@ -340,13 +341,13 @@ mod test {
     
     #[test]
     fn int_list_type() {
-        let list_value: Value = vec![Value::Int(23), Value::Int(42)].into();
+        let list_value: Value = [Value::Int(23), Value::Int(42)].into();
         assert_eq!(list_value.get_type(), Type::Int.list());
     }
     
     #[test]
     fn mixed_list_type() {
-        let list_value: Value = vec![Value::Int(23), Value::Bool(true)].into();
+        let list_value: Value = [Value::Int(23), Value::Bool(true)].into();
         assert_eq!(list_value.get_type(), Type::Any.list());
     }
     
@@ -373,7 +374,7 @@ mod test {
     #[test]
     fn coerce_optional_list() {
         let t = Type::Int.list().option();
-        let v: Value = vec![Value::Int(23), Value::Int(42)].into();
+        let v: Value = [Value::Int(23), Value::Int(42)].into();
         assert_eq!(
             t.coerce_value(v.clone(), &value_to_html).unwrap(),
             v,

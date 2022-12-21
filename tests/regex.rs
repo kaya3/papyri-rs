@@ -40,4 +40,14 @@ assert_matches! {
         "@regex::find_all(@regex::compile `(?P<letters>[a-z]+)(?P<numbers>[0-9]+)`) `foo123 bar456`",
         "[(letters=`foo`, numbers=`123`), (letters=`bar`, numbers=`456`)]",
     );
+    
+    trim(
+        "@str::trim `  foo  `",
+        "`foo`",
+    );
+    
+    no_trim(
+        "@str::trim `foo`",
+        "`foo`",
+    );
 }

@@ -5,24 +5,24 @@ use indexmap::{IndexMap, IndexSet};
 
 use crate::utils::{SourceRange, NameID};
 use crate::errors;
-use super::{token::Token, TokenKind};
+use super::token::{Token, TokenKind};
 
 #[derive(Debug)]
 /// An AST node for a single HTML tag attribute.
 pub struct TagAttribute {
     /// The source span of this AST node.
-    pub range: SourceRange,
+    pub(crate) range: SourceRange,
     
     /// The ID of the interned name of this attribute.
-    pub name_id: NameID,
+    pub(crate) name_id: NameID,
     
     /// If `true`, the attribute is ignored if its value is `none`; e.g.
     /// `attr?=$value`.
-    pub question_mark: bool,
+    pub(crate) question_mark: bool,
     
     /// The attribute's value; it is `None` for a Boolean attribute, as in
     /// `<input disabled>`.
-    pub value: Option<AST>,
+    pub(crate) value: Option<AST>,
 }
 
 #[derive(Debug)]
@@ -49,42 +49,48 @@ pub enum TagName {
 /// An AST node representing an HTML tag.
 pub struct Tag {
     /// The source span of this AST node.
-    pub range: SourceRange,
+    pub(crate) range: SourceRange,
     
     /// The tag name.
-    pub name: TagName,
+    pub(crate) name: TagName,
     
     /// The tag's attributes.
-    pub attrs: Box<[TagAttrOrSpread]>,
+    pub(crate) attrs: Box<[TagAttrOrSpread]>,
     
     /// The tag's contents.
-    pub children: Box<[AST]>,
+    pub(crate) children: Box<[AST]>,
 }
 
 #[derive(Debug)]
-/// An AST node representing a type annotation.
+/// An AST node representing an type annotation.
 pub enum TypeAnnotation {
     /// A primitive type name.
     Primitive(SourceRange),
     
     /// A group type; either `T list`, `T dict`, or `T?`.
-    Group(Box<TypeAnnotation>, SourceRange),
+    Group(Box<(Option<TypeAnnotation>, SourceRange)>),
 }
 
 impl TypeAnnotation {
-    /// Returns the source span of this type annotation.
-    pub fn range(&self) -> SourceRange {
+    /// Returns the source span of this type annotation, if there is one.
+    pub(crate) fn range(&self) -> SourceRange {
         match self {
             TypeAnnotation::Primitive(range) => range.clone(),
-            TypeAnnotation::Group(child, kind) => child.range().to_end(kind.end),
+            TypeAnnotation::Group(g) => {
+                let (child, range) = g.as_ref();
+                child.as_ref().map_or_else(
+                    || range.clone(),
+                    |t| t.range().to_end(range.end),
+                )
+            },
         }
     }
     
     /// Returns the end position of the source span of this type annotation.
-    pub fn range_end(&self) -> u32 {
+    pub(crate) fn range_end(&self) -> u32 {
         match self {
-            TypeAnnotation::Primitive(range) |
-            TypeAnnotation::Group(_, range) => range.end,
+            TypeAnnotation::Primitive(range) => range.end,
+            TypeAnnotation::Group(g) => g.1.end,
         }
     }
 }
@@ -93,79 +99,79 @@ impl TypeAnnotation {
 /// A parameter declaration for an AST function signature node.
 pub struct Param {
     /// The source span for this parameter declaration.
-    pub range: SourceRange,
+    pub(crate) range: SourceRange,
     
     /// The ID of the interned parameter name.
-    pub name_id: NameID,
+    pub(crate) name_id: NameID,
     
     /// If `true`, the parameter is optional with a default `none`.
-    pub question_mark: bool,
+    pub(crate) question_mark: bool,
     
     /// If `true`, the parameter is implicit, meaning that its default value
     /// will be taken from a variable of the same name at the call-site.
-    pub is_implicit: bool,
+    pub(crate) is_implicit: bool,
     
-    /// The type annotation for this parameter, if it has one.
-    pub type_annotation: Option<TypeAnnotation>,
+    /// The optional type annotation for this parameter, if it has one.
+    pub(crate) type_annotation: Option<TypeAnnotation>,
     
     /// The default value for this parameter, if it has one.
-    pub default_value: Option<Box<AST>>,
+    pub(crate) default_value: Option<Box<AST>>,
 }
 
 #[derive(Debug)]
 /// A function signature for an AST function definition.
 pub struct Signature {
     /// The source span of this function signature.
-    pub range: SourceRange,
+    pub(crate) range: SourceRange,
     
     /// The positional parameters in this function signature. Parameters are
     /// positional if their names begin with underscores.
-    pub positional_params: Box<[Param]>,
+    pub(crate) positional_params: Box<[Param]>,
     
     /// The positional spread parameter in this function signature, if it has
     /// one.
-    pub spread_param: Option<Box<Param>>,
+    pub(crate) spread_param: Option<Box<Param>>,
     
     /// The named parameters in this function signature.
-    pub named_params: Box<[Param]>,
+    pub(crate) named_params: Box<[Param]>,
     
     /// The named spread parameter in this function signature, if it has one.
-    pub spread_named_param: Option<Box<Param>>,
+    pub(crate) spread_named_param: Option<Box<Param>>,
     
     /// The content parameter in this function signature.
-    pub content_param: Option<Param>,
+    pub(crate) content_param: Option<Param>,
 }
 
 #[derive(Debug)]
 /// An AST node for a function definition.
 pub struct FuncDef {
     /// The source span of this function definition.
-    pub range: SourceRange,
+    pub(crate) range: SourceRange,
     
     /// The ID of the interned function name; it may be anonymous.
-    pub name_id: NameID,
+    pub(crate) name_id: NameID,
     
     /// The signature of this function definition.
-    pub signature: Signature,
+    pub(crate) signature: Signature,
     
     /// The function body.
-    pub body: Rc<AST>,
+    pub(crate) body: Rc<AST>,
 }
 
 #[derive(Debug)]
 /// A "let in" AST node.
 pub struct LetIn {
     /// The source span of this "let in" expression.
-    pub range: SourceRange,
+    pub(crate) range: SourceRange,
     
     /// If true, this expression is `@implicit`, otherwise it is `@let`.
-    pub is_implicit: bool,
+    pub(crate) is_implicit: bool,
     
     /// The variables declared in this "let in" expression.
-    pub vars: Box<[(NameID, AST)]>,
+    pub(crate) vars: Box<[(NameID, AST)]>,
     
     /// The expression body.
-    pub child: AST,
+    pub(crate) child: AST,
 }
 
 #[derive(Debug)]
@@ -195,30 +201,30 @@ impl Export {
 /// An argument in an AST function call.
 pub struct Arg {
     /// The source span of this argument.
-    pub range: SourceRange,
+    pub(crate) range: SourceRange,
     
     /// The ID of the argument name, if it is a named argument; it is anonymous
     /// if this argument is positional or a spread.
-    pub name_id: NameID,
+    pub(crate) name_id: NameID,
     
     /// Indicates whether this argument is a simple argument, a positional
     /// spread argument, or a named spread argument.
-    pub spread_kind: SpreadKind,
+    pub(crate) spread_kind: SpreadKind,
     
     /// The argument's value.
-    pub value: AST,
+    pub(crate) value: AST,
 }
 
 impl Arg {
     /// Indicates whether this argument is positional, including a positional
     /// spread argument.
-    pub fn is_positional(&self) -> bool {
+    pub(crate) fn is_positional(&self) -> bool {
         self.name_id.is_anonymous() && self.spread_kind != SpreadKind::Named
     }
     
     /// Indicates whether this argument is a positional spread or named spread
     /// argument.
-    pub fn is_spread(&self) -> bool {
+    pub(crate) fn is_spread(&self) -> bool {
         self.spread_kind != SpreadKind::NoSpread
     }
 }
@@ -231,7 +237,7 @@ pub enum SpreadKind {NoSpread, Positional, Named}
 
 impl Token {
     /// Determines the spread kind of this asterisk token.
-    pub fn spread_kind(&self) -> SpreadKind {
+    pub(crate) fn spread_kind(&self) -> SpreadKind {
         if self.kind != TokenKind::Asterisk { errors::ice_at("Not an Asterisk", &self.range); }
         if self.as_str().len() == 1 {
             SpreadKind::Positional
@@ -245,16 +251,16 @@ impl Token {
 /// An AST node for a function call.
 pub struct FuncCall {
     /// The source span of this AST node.
-    pub range: SourceRange,
+    pub(crate) range: SourceRange,
     
     /// The function name which this node represents a call to.
-    pub func: Name,
+    pub(crate) func: Name,
     
     /// The arguments of this function call.
-    pub args: Box<[Arg]>,
+    pub(crate) args: Box<[Arg]>,
     
     /// The "contents" argument of this function call.
-    pub content: AST
+    pub(crate) content: AST
 }
 
 #[derive(Debug)]
@@ -277,14 +283,14 @@ pub enum TemplatePart {
 /// An AST node for a `@match` expression.
 pub struct Match {
     /// The source span of this `@match` expression.
-    pub range: SourceRange,
+    pub(crate) range: SourceRange,
     
     /// The value to be matched against.
-    pub value: AST,
+    pub(crate) value: AST,
     
     /// The branches of this `@match` expression; each has a pattern and a
     /// handler to be evaluated if the pattern is matched.
-    pub branches: Box<[(MatchPattern, AST)]>,
+    pub(crate) branches: Box<[(MatchPattern, AST)]>,
 }
 
 #[derive(Debug)]
@@ -307,28 +313,27 @@ pub enum MatchPattern {
     
     /// A pattern which matches if the value is equal to the value of an
     /// expression.
-    EqualsValue(SourceRange, AST),
+    EqualsValue(AST),
     
-    /// An `&` pattern, which matches if both child patterns match.
-    And(SourceRange, Box<(MatchPattern, MatchPattern)>),
+    /// An `&` pattern, which matches if both child patterns match. This is
+    /// also used for patterns with type annotations.
+    And(Box<(MatchPattern, MatchPattern)>),
     
     /// An `|` pattern, which matches if either of the child patterns match.
-    /// Any names bound only by the unmatched branch will be bound to a unit
-    /// value.
-    Or(SourceRange, Box<(MatchPattern, MatchPattern)>, Box<[NameID]>),
+    /// Any names bound only by one branch will be bound to a unit value when
+    /// the other branch is matched.
+    Or(Box<(MatchPattern, MatchPattern)>, Box<[NameID]>),
     
     /// A pattern which matches a string according to a regular expression,
     /// binding its capturing groups to variables. Any capturing groups which
     /// do not match will be bound to a unit value.
-    Regex(SourceRange, regex::Regex, Box<[SimpleName]>),
+    Regex(SourceRange, Box<RegexMatchPattern>),
     
-    /// A pattern which matches if the child pattern matches and the value has
-    /// the correct type. The value may be coerced in order to match.
-    Typed(SourceRange, Box<MatchPattern>, TypeAnnotation),
+    /// A pattern which matches if the value has the correct type.
+    Typed(TypeAnnotation),
     
-    /// A pattern which matches if the child pattern matches, and also binds
-    /// the value's type (as a string) to a variable.
-    TypeOf(SourceRange, Box<MatchPattern>, SimpleName),
+    /// A pattern which binds the value's type (as a string) to a variable.
+    TypeOf(SimpleName),
     
     /// A pattern which matches a list, if the list's length equals the number
     /// of child patterns and each list element matches the corresponding child
@@ -338,7 +343,7 @@ pub enum MatchPattern {
     /// A pattern which matches a list, with a positional spread pattern which
     /// matches any excess elements. The third component of this variant is the
     /// index of the spread pattern in the boxed slice of child patterns.
-    SpreadList(SourceRange, Box<[MatchPattern]>, usize),
+    SpreadList(SourceRange, Box<[MatchPattern]>, u32),
     
     /// A pattern which matches a dictionary, with an optional named spread
     /// pattern which matches any excess elements.
@@ -352,7 +357,17 @@ pub enum MatchPattern {
     
     /// A pattern which matches a sequence of HTML content, with a positional
     /// spread pattern which matches any excess content.
-    SpreadHTMLSeq(SourceRange, Box<[MatchPattern]>, usize),
+    SpreadHTMLSeq(SourceRange, Box<[MatchPattern]>, u32),
+}
+
+#[derive(Debug)]
+/// An AST node for a regular expression pattern.
+pub struct RegexMatchPattern {
+    /// The regular expression which this pattern matches.
+    pub(crate) regex: regex::Regex,
+    
+    /// The names bound by this regular expression pattern.
+    pub(crate) names: Box<[SimpleName]>,
 }
 
 #[derive(Debug)]
@@ -360,36 +375,31 @@ pub enum MatchPattern {
 pub struct DictMatchPattern {
     /// A collection of (name, pattern) pairs for matching individual tag
     /// attributes.
-    pub attrs: IndexMap<NameID, MatchPattern>,
+    pub(crate) attrs: IndexMap<NameID, MatchPattern>,
     
     /// An optional pattern for matching the remaining tag attributes, as a
     /// dictionary.
-    pub spread: Option<MatchPattern>,
+    pub(crate) spread: Option<MatchPattern>,
 }
 
 #[derive(Debug)]
 /// An AST node for an HTML tag pattern.
 pub struct TagMatchPattern {
     /// A pattern for matching an HTML tag's name.
-    pub name: MatchPattern,
+    pub(crate) name: MatchPattern,
     
     /// A pattern for matching an HTML tag's attributes, as a dictionary.
-    pub attrs: MatchPattern,
+    pub(crate) attrs: MatchPattern,
     
     /// A pattern for matching an HTML tag's contents, as an HTML sequence.
-    pub content: MatchPattern,
+    pub(crate) content: MatchPattern,
 }
 
 impl MatchPattern {
     /// Returns the source span corresponding to this match pattern.
-    pub fn range(&self) -> &SourceRange {
+    pub(crate) fn range(&self) -> SourceRange {
         match self {
             MatchPattern::Ignore(range) |
-            MatchPattern::And(range, ..) |
-            MatchPattern::Or(range, ..) |
-            MatchPattern::EqualsValue(range, ..) |
-            MatchPattern::Typed(range, ..) |
-            MatchPattern::TypeOf(range, ..) |
             MatchPattern::ExactList(range, ..) |
             MatchPattern::SpreadList(range, ..) |
             MatchPattern::Dict(range, ..) |
@@ -400,28 +410,30 @@ impl MatchPattern {
             MatchPattern::LiteralNone(range) |
             MatchPattern::LiteralName(range, ..) |
             MatchPattern::Literal(Token {range, ..}) |
-            MatchPattern::VarName(SimpleName {range, ..}) => range,
+            MatchPattern::TypeOf(SimpleName {range, ..}) |
+            MatchPattern::VarName(SimpleName {range, ..}) => range.clone(),
+            MatchPattern::Typed(t) => t.range(),
+            MatchPattern::EqualsValue(node) => node.range().clone(),
+            MatchPattern::And(pair, ..) |
+            MatchPattern::Or(pair, ..) => pair.0.range().to_end(pair.1.range().end),
         }
     }
     
     pub(super) fn get_name_ids(&self, out: &mut IndexSet<NameID>) {
         match self {
             MatchPattern::VarName(name) |
-            MatchPattern::TypeOf(_, _, name) => {
+            MatchPattern::TypeOf(name) => {
                 out.insert(name.name_id);
             },
-            MatchPattern::And(_, pair) => {
+            MatchPattern::And(pair) => {
                 pair.0.get_name_ids(out);
                 pair.1.get_name_ids(out);
             },
             MatchPattern::Or(.., name_ids) => {
                 out.extend(name_ids.iter());
             },
-            MatchPattern::Regex(_, _, names) => {
-                out.extend(names.iter().map(|name| name.name_id));
-            },
-            MatchPattern::Typed(_, child, _) => {
-                child.get_name_ids(out);
+            MatchPattern::Regex(_, r) => {
+                out.extend(r.names.iter().map(|name| name.name_id));
             },
             MatchPattern::Tag(_, tag_pattern) => {
                 tag_pattern.name.get_name_ids(out);
@@ -450,22 +462,18 @@ impl MatchPattern {
     
     /// Indicates whether this pattern is allowed in a position where only HTML
     /// content is expected.
-    pub fn can_match_html(&self) -> bool {
+    pub(super) fn can_match_html(&self) -> bool {
         match self {
-            MatchPattern::Ignore(..) |
-            MatchPattern::LiteralNone(..) |
-            MatchPattern::VarName(..) |
-            MatchPattern::Tag(..) |
-            MatchPattern::ExactHTMLSeq(..) |
-            MatchPattern::SpreadHTMLSeq(..) => true,
+            MatchPattern::Literal(tok) => matches!(tok.kind, TokenKind::Name | TokenKind::Verbatim),
             
-            MatchPattern::Typed(_, child, _) |
-            MatchPattern::TypeOf(_, child, _) => child.can_match_html(),
+            MatchPattern::And(pair) |
+            MatchPattern::Or(pair, _) => pair.0.can_match_html() && pair.1.can_match_html(),
             
-            MatchPattern::And(_, pair) |
-            MatchPattern::Or(_, pair, _) => pair.0.can_match_html() && pair.1.can_match_html(),
+            MatchPattern::ExactList(..) |
+            MatchPattern::SpreadList(..) |
+            MatchPattern::Dict(..) => false,
             
-            _ => false,
+            _ => true,
         }
     }
 }
@@ -480,7 +488,7 @@ pub enum Name {
 
 impl Name {
     /// Returns the source span of this name expression.
-    pub fn range(&self) -> &SourceRange {
+    pub(crate) fn range(&self) -> &SourceRange {
         match self {
             Name::SimpleName(name) => &name.range,
             Name::AttrName(attr) => &attr.range,
@@ -490,7 +498,7 @@ impl Name {
     /// Indicates whether any attribute access in this name expression is
     /// coalescing, i.e. whether a missing attribute may resolve to the unit
     /// value rather than raising an error.
-    pub fn is_coalescing(&self) -> bool {
+    pub(crate) fn is_coalescing(&self) -> bool {
         let mut name = self;
         while let Name::AttrName(attr) = name {
             if attr.is_coalescing { return true; }
@@ -502,7 +510,7 @@ impl Name {
 
 impl AttrName {
     /// Returns the simple name at the root of this name expression.
-    pub fn get_root(self) -> SimpleName {
+    pub(super) fn get_root(self) -> SimpleName {
         let mut attr = self;
         loop {
             match attr.subject {
@@ -517,26 +525,26 @@ impl AttrName {
 /// An occurrence of a simple variable name in a Papyri source file.
 pub struct SimpleName {
     /// The ID of the interned variable name.
-    pub name_id: NameID,
+    pub(crate) name_id: NameID,
     
     /// The source span at which this variable name occurs.
-    pub range: SourceRange,
+    pub(crate) range: SourceRange,
 }
 
 #[derive(Debug)]
 /// An attribute access expression, e.g. `$foo::bar`.
 pub struct AttrName {
     /// The left-hand-side of this attribute access expression.
-    pub subject: Name,
+    pub(crate) subject: Name,
     
     /// If `true`, this expression coalesces a unit value on the left-hand-side.
-    pub is_coalescing: bool,
+    pub(crate) is_coalescing: bool,
     
     /// The attribute name.
-    pub attr_name_id: NameID,
+    pub(crate) attr_name_id: NameID,
     
     /// The source span of this attribute access expression.
-    pub range: SourceRange,
+    pub(crate) range: SourceRange,
 }
 
 #[derive(Debug)]
@@ -591,7 +599,7 @@ pub enum AST {
 
 impl AST {
     /// Returns the source span corresponding to this AST node.
-    pub fn range(&self) -> &SourceRange {
+    pub(crate) fn range(&self) -> &SourceRange {
         match self {
             AST::FuncCall(call) => &call.range,
             AST::FuncDef(def) => &def.range,
@@ -613,7 +621,7 @@ impl AST {
     }
     
     /// Indicates whether this AST node is whitespace or a paragraph break.
-    pub fn is_whitespace(&self) -> bool {
+    pub(crate) fn is_whitespace(&self) -> bool {
         matches!(self, AST::Whitespace(..) | AST::ParagraphBreak(..))
     }
 }

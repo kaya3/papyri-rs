@@ -13,7 +13,7 @@ use super::token::{Token, TokenKind};
 
 /// Decodes a string containing an HTML entity to the character that entity
 /// represents. If the string is not a valid entity, a syntax error is reported.
-pub fn decode_entity(range: &SourceRange, diagnostics: &mut Diagnostics) -> String {
+pub(crate) fn decode_entity(range: &SourceRange, diagnostics: &mut Diagnostics) -> String {
     let s = range.as_str();
     let decoded = entity::decode(s).iter().collect();
     if s == decoded { diagnostics.syntax_error(SyntaxError::TokenInvalidEntity, range); }
@@ -23,7 +23,7 @@ pub fn decode_entity(range: &SourceRange, diagnostics: &mut Diagnostics) -> Stri
 /// Decodes an escape sequence, such as `\xA0` or `\n`. If the escape sequence
 /// does not define a valid Unicode character, then a syntax error is reported
 /// through `diagnostics` and a Unicode replacement character is returned.
-pub fn unescape_char(range: &SourceRange, diagnostics: &mut Diagnostics) -> String {
+pub(crate) fn unescape_char(range: &SourceRange, diagnostics: &mut Diagnostics) -> String {
     let s = range.as_str();
     match s.chars().nth(1).unwrap() {
         'x' | 'u' | 'U' => {
@@ -69,7 +69,7 @@ static TEXT_SUBS: Lazy<AhoCorasick> = Lazy::new(
 /// Performs a set of text substitutions, replacing certain substrings which
 /// represent dashes, arrows or other symbols with the corresponding Unicode
 /// characters.
-pub fn substitutions(s: &str) -> String {
+pub(crate) fn substitutions(s: &str) -> String {
     TEXT_SUBS.replace_all(s, &[
         // minus signs
         "\u{2212}0", "\u{2212}1", "\u{2212}2", "\u{2212}3", "\u{2212}4",

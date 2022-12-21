@@ -84,18 +84,22 @@
 @fn dict_new(**$kwargs: any dict). -> $kwargs
 
 @export(
+    bool=@dict_new(
+        negate=@fn bool_negate $b: bool -> $b::negate,
+        and=@fn bool_and($_0: bool, $_1: bool). -> @match $_0 {True -> $_1, False -> False},
+        or=@fn bool_or($_0: bool, $_1: bool). -> @match $_0 {True -> True, False -> $_1},
+    ).,
+    int=@dict_new(
+        **$int,
+        negate=@fn int_negate $i: int -> $i::negate,
+    ).,
     str=@dict_new(
         **$str,
         from=@fn str_from $s: str -> $s,
         is_empty=@fn str_is_empty $s: str -> $s::is_empty,
         is_whitespace=@fn str_is_whitespace $s: str -> $s::is_whitespace,
         len=@fn str_len $s: str -> $s::len,
-        trim=@fn str_trim $s: str -> @match $s {
-            " $s " -> $s,
-            " $s" -> $s,
-            "$s " -> $s,
-            _ -> $s,
-        },
+        trim=@let(_trim_regex=@regex::compile `^\s*(.*?)\s*$`) @fn str_trim $s: str -> @match @_trim_regex::find $s {[_, $r] -> $r, _ -> .},
     ).,
     function=@dict_new(
         **$function,
@@ -108,6 +112,10 @@
     ).,
     list=@dict_new(
         **$list,
+        all=@fn list_all($_f: function) $v: any list -> @match $v {[] -> True, [$a, *$b] -> @match @_f $a {True -> @list::all($_f) $b, False -> False}},
+        any=@fn list_any($_f: function) $v: any list -> @match $v {[] -> False, [$a, *$b] -> @match @_f $a {True -> True, False -> @list::any($_f) $b}},
+        contains=@fn list_contains($_v) $v: any list -> @match $v {[] -> False, [=$_v, *_] -> True, [_, *$r] -> @list::contains($_v) $r},
+        find=@fn list_find($_f: function) $v: any list -> @match $v {[] -> ., [$a, *$b] -> @match @_f $a {True -> $a, False -> @list::find($_f) $b}},
         flat=@fn list_flat $v: any list -> $v::flat,
         is_empty=@fn list_is_empty $v: any list -> $v::is_empty,
         len=@fn list_len $v: any list -> $v::len,

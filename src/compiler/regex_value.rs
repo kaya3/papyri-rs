@@ -7,7 +7,7 @@ use super::value::{Value, ValueMap};
 
 #[derive(Debug)]
 enum RegexKind {
-    NoGroups,
+    Simple,
     NumberedGroups,
     NamedGroups(Box<[NameID]>),
 }
@@ -15,7 +15,7 @@ enum RegexKind {
 impl RegexKind {
     fn captures_to_value(&self, m: regex::Captures) -> Value {
         match self {
-            RegexKind::NoGroups => {
+            RegexKind::Simple => {
                 m.get(0).map_or(
                     Value::UNIT,
                     |s| s.as_str().into(),
@@ -71,7 +71,7 @@ impl <'a> Compiler<'a> {
             .ok()?;
         
         let kind = if regex.captures_len() == 1 {
-            RegexKind::NoGroups
+            RegexKind::Simple
         } else if regex.capture_names().skip(1).all(|n| n.is_none()) {
             RegexKind::NumberedGroups
         } else if regex.capture_names().skip(1).all(|n| n.is_some()) {

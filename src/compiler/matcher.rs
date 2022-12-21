@@ -41,11 +41,11 @@ impl <'a> Compiler<'a> {
                 self.bind_one(var, value);
                 true
             },
-            ast::MatchPattern::And(_, pair) => {
+            ast::MatchPattern::And(pair) => {
                 self.bind_pattern(&pair.0, value.clone())
                     && self.bind_pattern(&pair.1, value)
             },
-            ast::MatchPattern::Or(_, pair, name_ids) => {
+            ast::MatchPattern::Or(pair, name_ids) => {
                 let r = self.bind_pattern(&pair.0, value.clone())
                     || {self.frame().unset_all(name_ids); self.bind_pattern(&pair.1, value)};
                 if r {
@@ -53,21 +53,20 @@ impl <'a> Compiler<'a> {
                 }
                 r
             },
-            ast::MatchPattern::EqualsValue(_, child) => {
+            ast::MatchPattern::EqualsValue(child) => {
                 self.evaluate_node(child, &Type::Any)
                     .map_or(false, |other| value == other)
             },
-            ast::MatchPattern::Typed(_, child, type_) => {
+            ast::MatchPattern::Typed(type_) => {
                 Type::compile(type_).check_value(value.clone())
-                    && self.bind_pattern(child, value)
             },
             
-            ast::MatchPattern::TypeOf(_, child, t_var) => {
+            ast::MatchPattern::TypeOf(t_var) => {
                 let t = value.get_type()
                     .to_string()
                     .into();
                 self.bind_one(t_var, t);
-                self.bind_pattern(child, value)
+                true
             },
             
             ast::MatchPattern::ExactList(_, child_patterns) => {
@@ -168,14 +167,14 @@ impl <'a> Compiler<'a> {
                     && self.bind_pattern(&tag_pattern.content, tag_value.content.clone().into())
             },
             
-            ast::MatchPattern::Regex(pattern_range, regex, name_ids) => {
+            ast::MatchPattern::Regex(pattern_range, regex_pattern) => {
                 let Value::Str(value_str) = value else { return false; };
-                let Some(match_) = regex.captures(value_str.as_ref()) else { return false; };
+                let Some(match_) = regex_pattern.regex.captures(value_str.as_ref()) else { return false; };
                 
-                if match_.len() != name_ids.len() + 1 { ice_at("incorrect number of capture groups", pattern_range); }
+                if match_.len() != regex_pattern.names.len() + 1 { ice_at("incorrect number of capture groups", pattern_range); }
                 let match_ = match_.iter()
                     .skip(1)
-                    .zip(name_ids.iter());
+                    .zip(regex_pattern.names.iter());
                 
                 for (s, var) in match_ {
                     let v = s.map_or(Value::UNIT, |m| m.as_str().into());
@@ -189,14 +188,14 @@ impl <'a> Compiler<'a> {
     fn bind_all_with_spread(
         &mut self,
         patterns: &[ast::MatchPattern],
-        spread_index: usize,
+        spread_index: u32,
         values_len: usize,
         f_one: impl Fn(usize) -> Value,
         f_slice: impl Fn(usize, usize) -> Value,
     ) -> bool {
         if values_len + 1 < patterns.len() { return false; }
         
-        let i = spread_index;
+        let i = spread_index as usize;
         let pre_patterns = &patterns[..i];
         let spread_pattern = &patterns[i];
         let post_patterns = &patterns[i + 1..];

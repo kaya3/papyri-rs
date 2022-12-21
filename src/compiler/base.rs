@@ -15,8 +15,7 @@ pub struct CompileResult {
     /// file used the `@write_file` function to produce its output.
     pub out: HTML,
     
-    /// The values exported by this Papyri source file, using the `@export`
-    /// function.
+    /// The values exported by this Papyri source file.
     pub exports: ValueMap,
 }
 
@@ -28,10 +27,11 @@ pub(super) struct Compiler<'a> {
 
 impl <'a> Compiler<'a> {
     pub(super) fn new(ctx: &'a mut Context) -> Compiler<'a> {
-        let frame = ctx.get_initial_frame();
+        let mut call_stack = Vec::with_capacity(16);
+        call_stack.push(ctx.get_initial_frame());
         Compiler {
             ctx,
-            call_stack: vec![frame],
+            call_stack,
             exports: ValueMap::new(),
         }
     }
