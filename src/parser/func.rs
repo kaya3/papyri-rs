@@ -4,8 +4,8 @@ use indexmap::IndexSet;
 use crate::errors::SyntaxError;
 use crate::utils::str_ids;
 use super::ast::*;
-use super::queue::Parser;
-use super::token::{Token, TokenKind};
+use super::base::Parser;
+use super::token::{Token, TokenKind, Keyword};
 
 impl <'a> Parser<'a> {
     pub(super) fn parse_func_def(&mut self, at: Token) -> Option<FuncDef> {
@@ -13,7 +13,7 @@ impl <'a> Parser<'a> {
         let name_id = self.poll_if_kind(TokenKind::Name)
             .map_or(
                 str_ids::ANONYMOUS,
-                |t| self.string_pool.insert(t.as_str()),
+                |t| self.tok_name_id(&t, false),
             );
         let signature = self.parse_signature()?;
         self.skip_whitespace();
@@ -27,16 +27,30 @@ impl <'a> Parser<'a> {
         })
     }
     
-    pub(super) fn parse_func_call(&mut self, at: Token) -> Option<FuncCall> {
+    pub(super) fn parse_func_call(&mut self, at: Token) -> Option<AST> {
         let func = self.parse_name(at)?;
         let args = self.parse_args()?.into_boxed_slice();
         let content = self.parse_value_or_ellipsis()?;
-        Some(FuncCall {
+        let call = FuncCall {
             range: func.range().to_end(content.range().end),
             func,
             args,
             content,
-        })
+        };
+        Some(AST::FuncCall(Box::new(call)))
+    }
+    
+    pub(super) fn poll_if_spread(&mut self, allow_pos: bool, allow_named: bool) -> Option<Token> {
+        let tok = self.poll_if(|_self, t| matches!(t.kind, TokenKind::Asterisk | TokenKind::DoubleAsterisk))?;
+        match tok.kind {
+            TokenKind::Asterisk if allow_pos => Some(tok),
+            TokenKind::DoubleAsterisk if allow_named => Some(tok),
+            _ => {
+                let e = if tok.kind == TokenKind::Asterisk { SyntaxError::SpreadPositionalNotAllowed } else { SyntaxError::SpreadNamedNotAllowed };
+                self.syntax_error(e, tok.range);
+                None
+            },
+        }
     }
     
     fn parse_signature(&mut self) -> Option<Signature> {
@@ -71,20 +85,20 @@ impl <'a> Parser<'a> {
                 
                 if !names_used.insert(param.name_id) {
                     let name = self.string_pool.get(param.name_id).to_string();
-                    self.diagnostics.syntax_error(SyntaxError::ParamDuplicateName(name), &param.range);
+                    self.syntax_error(SyntaxError::ParamDuplicateName(name), param.range);
                 } else if is_positional && any_named_params {
-                    self.diagnostics.syntax_error(SyntaxError::ParamPositionalAfterNamed, &param.range);
+                    self.syntax_error(SyntaxError::ParamPositionalAfterNamed, param.range);
                 } else if is_required && (if is_positional { any_optional_params } else { any_optional_named_params }) {
-                    self.diagnostics.syntax_error(SyntaxError::ParamRequiredAfterOptional, &param.range);
+                    self.syntax_error(SyntaxError::ParamRequiredAfterOptional, param.range);
                 } else if is_positional && param.is_implicit {
-                    self.diagnostics.syntax_error(SyntaxError::ParamPositionalImplicit, &param.range);
+                    self.syntax_error(SyntaxError::ParamPositionalImplicit, param.range);
                 } else if is_spread && param.is_implicit {
-                    self.diagnostics.syntax_error(SyntaxError::ParamSpreadImplicit, &param.range);
+                    self.syntax_error(SyntaxError::ParamSpreadImplicit, param.range);
                 } else if param.is_implicit && param.default_value.is_some() {
-                    self.diagnostics.syntax_error(SyntaxError::ParamDefaultImplicit, &param.range);
+                    self.syntax_error(SyntaxError::ParamDefaultImplicit, param.range);
                 } else if (is_positional && positional_spread) || (!is_positional && named_spread) {
                     let msg = if is_spread { SyntaxError::ParamMultipleSpread } else { SyntaxError::ParamAfterSpread };
-                    self.diagnostics.syntax_error(msg, &param.range);
+                    self.syntax_error(msg, param.range);
                 }
                 
                 match (is_positional, is_spread) {
@@ -99,14 +113,14 @@ impl <'a> Parser<'a> {
                     },
                     (false, true) => {
                         if is_underscore {
-                            self.diagnostics.syntax_error(SyntaxError::ParamNamedSpreadUnderscore, &param.range);
+                            self.syntax_error(SyntaxError::ParamNamedSpreadUnderscore, param.range);
                         }
                         any_named_params = true;
                         named_spread = true;
                     },
                     (true, true) => {
                         if !is_underscore {
-                            self.diagnostics.syntax_error(SyntaxError::ParamPositionalSpreadNoUnderscore, &param.range);
+                            self.syntax_error(SyntaxError::ParamPositionalSpreadNoUnderscore, param.range);
                         }
                         positional_spread = true;
                     },
@@ -121,11 +135,11 @@ impl <'a> Parser<'a> {
         } else {
             let (c, spread, _) = self.parse_param()?;
             if let Some(spread) = spread {
-                self.diagnostics.syntax_error(SyntaxError::ParamContentSpread, &spread.range);
+                self.syntax_error(SyntaxError::ParamContentSpread, spread.range);
             } else if let Some(value) = c.default_value.as_ref() {
-                self.diagnostics.syntax_error(SyntaxError::ParamContentDefault, value.range());
+                self.syntax_error(SyntaxError::ParamContentDefault, value.range());
             }
-            let range = c.range.clone();
+            let range = c.range;
             params.push(c);
             (true, range)
         };
@@ -163,13 +177,13 @@ impl <'a> Parser<'a> {
             if !arg.name_id.is_anonymous() {
                 if !names_used.insert(arg.name_id) {
                     let name = self.string_pool.get(arg.name_id).to_string();
-                    self.diagnostics.syntax_error(SyntaxError::ArgDuplicateName(name), &arg.range);
+                    self.syntax_error(SyntaxError::ArgDuplicateName(name), arg.range);
                 }
                 any_named = true;
             } else if arg.spread_kind == SpreadKind::Named {
                 any_named = true;
             } else if any_named {
-                self.diagnostics.syntax_error(SyntaxError::ArgPositionalAfterNamed, &arg.range);
+                self.syntax_error(SyntaxError::ArgPositionalAfterNamed, arg.range);
             }
         };
         
@@ -178,19 +192,18 @@ impl <'a> Parser<'a> {
     
     fn parse_param(&mut self) -> Option<(Param, Option<Token>, bool)> {
         self.skip_whitespace();
-        let spread = self.poll_if_kind(TokenKind::Asterisk);
+        let spread = self.poll_if_spread(true, true);
         self.skip_whitespace();
-        let name = self.expect_poll_kind(TokenKind::VarName)?;
-        let var_name = name.get_var_name();
-        let name_id = self.string_pool.insert(var_name);
-        let underscore = var_name.starts_with('_');
+        let name_tok = self.expect_poll_kind(TokenKind::VarName)?;
+        let name_id = self.tok_name_id(&name_tok, false);
+        let underscore = self.tok_str(&name_tok).starts_with("$_");
         
         self.skip_whitespace();
         let question_mark = self.poll_if_kind(TokenKind::QuestionMark);
         self.skip_whitespace();
         let (is_implicit, type_annotation) = if self.poll_if_kind(TokenKind::Colon).is_some() {
             self.skip_whitespace();
-            (self.poll_if(|t| t.as_str() == "implicit").is_some(), self.parse_type())
+            (self.poll_if_kind(TokenKind::Keyword(Keyword::Implicit)).is_some(), self.parse_type())
         } else {
             (false, None)
         };
@@ -202,17 +215,17 @@ impl <'a> Parser<'a> {
             None
         };
         if default_value.is_some() && spread.is_some() {
-            self.diagnostics.syntax_error(SyntaxError::ParamSpreadDefault, default_value.as_ref().unwrap().range());
+            self.syntax_error(SyntaxError::ParamSpreadDefault, default_value.as_ref().unwrap().range());
         }
         
         let end = default_value.as_ref()
             .map(|v| v.range().end)
             .or_else(|| type_annotation.as_ref().map(|t| t.range_end()))
             .or_else(|| question_mark.as_ref().map(|t| t.range.end))
-            .unwrap_or(name.range.end);
+            .unwrap_or(name_tok.range.end);
         let range = match spread.as_ref() {
             Some(t) => t.range.to_end(end),
-            None => name.range.to_end(end),
+            None => name_tok.range.to_end(end),
         };
         
         Some((
@@ -231,38 +244,38 @@ impl <'a> Parser<'a> {
     
     pub(super) fn parse_arg(&mut self) -> Option<Arg> {
         self.skip_whitespace();
-        let spread = self.poll_if_kind(TokenKind::Asterisk);
+        let spread = self.poll_if_spread(true, true);
         let spread_kind = spread.as_ref()
             .map_or(SpreadKind::NoSpread, Token::spread_kind);
         
         self.skip_whitespace();
-        let Some(name) = self.poll_if_kind(TokenKind::Name) else {
+        let Some(name_tok) = self.poll_if_kind(TokenKind::Name) else {
             let value = self.parse_value()?;
             let v_range = value.range();
             let range = match spread.as_ref() {
                 Some(t) => t.range.to_end(v_range.end),
-                None => v_range.clone(),
+                None => v_range,
             };
             return Some(Arg {range, spread_kind, name_id: str_ids::ANONYMOUS, value});
         };
         
         let range_start = match spread.as_ref() {
-            Some(t) => t.range.clone(),
-            None => name.range.clone(),
+            Some(t) => t.range,
+            None => name_tok.range,
         };
         
         self.skip_whitespace();
         Some(if self.poll_if_kind(TokenKind::Equals).is_some() {
             if let Some(spread) = &spread {
-                self.diagnostics.syntax_error(SyntaxError::ArgSpreadNamed, &spread.range);
+                self.syntax_error(SyntaxError::ArgSpreadNamed, spread.range);
             }
-            let name_id = self.string_pool.insert(name.as_str());
+            let name_id = self.tok_name_id(&name_tok, false);
             let value = self.parse_value()?;
             let range = range_start.to_end(value.range().end);
             Arg {range, spread_kind: SpreadKind::NoSpread, name_id, value}
         } else {
-            let range = range_start.to_end(name.range.end);
-            Arg {range, spread_kind, name_id: str_ids::ANONYMOUS, value: AST::LiteralValue(name)}
+            let range = range_start.to_end(name_tok.range.end);
+            Arg {range, spread_kind, name_id: str_ids::ANONYMOUS, value: AST::LiteralValue(name_tok)}
         })
     }
 }

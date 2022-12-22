@@ -1,34 +1,11 @@
 use std::rc::Rc;
 
 use crate::errors::{Diagnostics, SyntaxError};
-use crate::utils::{SourceFile, StringPool, SourceRange};
+use crate::utils::StringPool;
+use crate::utils::sourcefile::SourceFile;
+use super::base::Parser;
 use super::token::{Token, TokenKind};
 use super::tokenizer::tokenize;
-
-impl Diagnostics {
-    /// Reports a syntax error caused by an unexpected token.
-    pub(super) fn err_unexpected_token(&mut self, tok: &Token) {
-        self.syntax_error(SyntaxError::TokenUnexpected(tok.clone()), &tok.range);
-    }
-    
-    /// Reports a syntax error caused by an unmatched opening or closing token.
-    pub(super) fn err_unmatched(&mut self, tok: &Token) {
-        let e = if tok.kind == TokenKind::CloseTag {
-            SyntaxError::TagUnmatchedClose
-        } else {
-            SyntaxError::TokenUnmatched(tok.clone())
-        };
-        self.syntax_error(e, &tok.range);
-    }
-}
-
-/// Holds the mutable state of the parser.
-pub(super) struct Parser<'a> {
-    src: Rc<SourceFile>,
-    pub(super) diagnostics: &'a mut Diagnostics,
-    pub(super) string_pool: &'a mut StringPool,
-    tokens: Vec<Token>,
-}
 
 impl <'a> Parser<'a> {
     /// Creates a new token queue for parsing.
@@ -48,8 +25,7 @@ impl <'a> Parser<'a> {
     pub(super) fn expect_poll(&mut self) -> Option<Token> {
         let t = self.poll();
         if t.is_none() {
-            let eof_range = SourceRange::eof(self.src.clone());
-            self.diagnostics.syntax_error(SyntaxError::UnexpectedEOF, &eof_range);
+            self.syntax_error(SyntaxError::UnexpectedEOF, self.src.eof_range());
         }
         t
     }
@@ -59,7 +35,7 @@ impl <'a> Parser<'a> {
     pub(super) fn expect_poll_kind(&mut self, kind: TokenKind) -> Option<Token> {
         match self.tokens.last() {
             Some(tok) if tok.kind != kind => {
-                self.diagnostics.syntax_error(SyntaxError::TokenExpectedWas(kind, tok.clone()), &tok.range);
+                self.syntax_error(SyntaxError::TokenExpectedWas(kind, tok.kind), tok.range);
                 None
             },
             _ => self.expect_poll(),
@@ -68,9 +44,9 @@ impl <'a> Parser<'a> {
     
     /// Removes and returns the next token from the queue, if it exists and
     /// satisfies the given predicate function.
-    pub(super) fn poll_if(&mut self, mut predicate: impl FnMut(&Token) -> bool) -> Option<Token> {
+    pub(super) fn poll_if(&mut self, mut predicate: impl FnMut(&Parser, &Token) -> bool) -> Option<Token> {
         match self.tokens.last() {
-            Some(tok) if predicate(tok) => self.poll(),
+            Some(tok) if predicate(self, tok) => self.poll(),
             _ => None,
         }
     }
@@ -85,12 +61,12 @@ impl <'a> Parser<'a> {
     pub(super) fn skip_whitespace(&mut self) {
         // only need to poll once, since multiple whitespace tokens are never
         // consecutive.
-        self.poll_if(Token::is_whitespace);
+        self.poll_if(|_self, t| t.is_whitespace());
     }
     
     /// Removes and returns the next token in the queue, if it exists and
     /// matches the given kind.
     pub(super) fn poll_if_kind(&mut self, kind: TokenKind) -> Option<Token> {
-        self.poll_if(|tok| tok.kind == kind)
+        self.poll_if(|_self, tok| tok.kind == kind)
     }
 }

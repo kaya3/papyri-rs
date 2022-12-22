@@ -1,8 +1,9 @@
 use std::rc::Rc;
 
 use crate::errors;
-use crate::utils::{SourceRange, SourceFile, text};
-use super::token::{Token, TokenKind, QuoteDir, QuoteKind};
+use crate::utils::sourcefile::{SourceFile, SourceRange};
+use crate::utils::text;
+use super::token::{Token, TokenKind, QuoteDir, QuoteKind, VerbatimKind, Keyword};
 
 /// Tokenizes the given Papyri source file.
 pub fn tokenize(src: Rc<SourceFile>, strip_comments: bool, diagnostics: &mut errors::Diagnostics) -> Vec<Token> {
@@ -32,14 +33,14 @@ pub fn tokenize(src: Rc<SourceFile>, strip_comments: bool, diagnostics: &mut err
         let tok = Token {
             kind,
             range: SourceRange {
-                src: src.clone(),
+                src_id: src.id,
                 start: cur as u32,
                 end: end as u32,
             }
         };
         
         if let Some(msg) = std::mem::take(&mut error_kind) {
-            diagnostics.syntax_error(msg, &tok.range);
+            diagnostics.syntax_error(msg, src.clone(), tok.range);
         }
         
         quote_dir = match kind {
@@ -91,7 +92,8 @@ fn next_token(src: &str, mut on_error: impl FnMut(errors::SyntaxError)) -> (usiz
         c if text::is_ident_start(c) => {
             let len = 1 + scan_while(&src[1..], text::is_ident_cont);
             let kind = match &src[..len] {
-                "True" | "False" => TokenKind::Boolean,
+                "True" => TokenKind::Boolean(true),
+                "False" => TokenKind::Boolean(false),
                 _ => TokenKind::Name,
             };
             (len, kind)
@@ -103,7 +105,18 @@ fn next_token(src: &str, mut on_error: impl FnMut(errors::SyntaxError)) -> (usiz
         
         '$' | '@' if matches!(chars.next(), Some(c) if text::is_ident_start(c)) => {
             let len = 1 + scan_while(&src[1..], text::is_ident_cont);
-            let kind = if first_char == '$' { TokenKind::VarName } else { TokenKind::FuncName };
+            let kind = if first_char == '$' {
+                TokenKind::VarName
+            } else {
+                match &src[1..len] {
+                    "export" => TokenKind::Keyword(Keyword::Export),
+                    "fn" => TokenKind::Keyword(Keyword::Fn),
+                    "implicit" => TokenKind::Keyword(Keyword::Implicit),
+                    "let" => TokenKind::Keyword(Keyword::Let),
+                    "match" => TokenKind::Keyword(Keyword::Match),
+                    _ => TokenKind::FuncName,
+                }
+            };
             (len, kind)
         },
         
@@ -161,7 +174,8 @@ fn next_token(src: &str, mut on_error: impl FnMut(errors::SyntaxError)) -> (usiz
                     src.len()
                 },
             };
-            (len, TokenKind::Verbatim)
+            let is_multiline = if src.starts_with("```") { VerbatimKind::Multiline } else { VerbatimKind::Simple };
+            (len, TokenKind::Verbatim(is_multiline))
         },
         
         '<' => match chars.next() {
@@ -212,10 +226,10 @@ fn next_token(src: &str, mut on_error: impl FnMut(errors::SyntaxError)) -> (usiz
         ',' => (1, TokenKind::Comma),
         '=' => (1, TokenKind::Equals),
         '!' => (1, TokenKind::ExclamationMark),
-        '.' => if src.starts_with("...") { (3, TokenKind::Ellipsis) } else { (1, TokenKind::Dot) },
+        '*' => if src.starts_with("**") { (2, TokenKind::DoubleAsterisk) } else { (1, TokenKind::Asterisk) },
         ':' => if src.starts_with("::") { (2, TokenKind::DoubleColon) } else { (1, TokenKind::Colon) },
-        '?' => if src.starts_with("?::") { (3, TokenKind::DoubleColon) } else { (1, TokenKind::QuestionMark) },
-        '*' => (if src.starts_with("**") { 2 } else { 1 }, TokenKind::Asterisk),
+        '?' => if src.starts_with("?::") { (3, TokenKind::QuestionMarkDoubleColon) } else { (1, TokenKind::QuestionMark) },
+        '.' => if src.starts_with("...") { (3, TokenKind::Ellipsis) } else { (1, TokenKind::Dot) },
         '\'' => (1, TokenKind::Quote(QuoteKind::Single, QuoteDir::Left)),
         '"' => (1, TokenKind::Quote(QuoteKind::Double, QuoteDir::Left)),
         
@@ -247,7 +261,7 @@ fn is_raw_text(c: char) -> bool {
 
 #[cfg(test)]
 mod test {
-    use super::{TokenKind, next_token};
+    use super::{TokenKind, VerbatimKind, next_token};
     use crate::errors::SyntaxError;
     
     fn assert_tok(src: &str, len: usize, kind: TokenKind) {
@@ -346,18 +360,18 @@ mod test {
     
     #[test]
     fn boolean() {
-        assert_tok("True bar", 4, TokenKind::Boolean);
-        assert_tok("False bar", 5, TokenKind::Boolean);
+        assert_tok("True bar", 4, TokenKind::Boolean(true));
+        assert_tok("False bar", 5, TokenKind::Boolean(false));
     }
     
     #[test]
     fn string_literal() {
-        assert_tok("`foo` bar", 5, TokenKind::Verbatim);
-        assert_tok("``foo ` bar`` baz", 13, TokenKind::Verbatim);
-        assert_tok("```foo\nbar\nbaz``` qux", 17, TokenKind::Verbatim);
-        assert_tok(r"`\` bar", 3, TokenKind::Verbatim);
-        assert_tok("`#foo` bar", 6, TokenKind::Verbatim);
-        assert_tok("`<!-- foo` bar", 10, TokenKind::Verbatim);
+        assert_tok("`foo` bar", 5, TokenKind::Verbatim(VerbatimKind::Simple));
+        assert_tok("``foo ` bar`` baz", 13, TokenKind::Verbatim(VerbatimKind::Simple));
+        assert_tok("```foo\nbar\nbaz``` qux", 17, TokenKind::Verbatim(VerbatimKind::Multiline));
+        assert_tok(r"`\` bar", 3, TokenKind::Verbatim(VerbatimKind::Simple));
+        assert_tok("`#foo` bar", 6, TokenKind::Verbatim(VerbatimKind::Simple));
+        assert_tok("`<!-- foo` bar", 10, TokenKind::Verbatim(VerbatimKind::Simple));
         
         assert_error("`foo bar", |e| matches!(e, SyntaxError::TokenVerbatimEOF));
         assert_error("`foo bar``", |e| matches!(e, SyntaxError::TokenVerbatimTooManyBackticks));
@@ -395,12 +409,12 @@ mod test {
         assert_tok("= bar", 1, TokenKind::Equals);
         assert_tok(": bar", 1, TokenKind::Colon);
         assert_tok(":: bar", 2, TokenKind::DoubleColon);
-        assert_tok("?:: bar", 3, TokenKind::DoubleColon);
+        assert_tok("?:: bar", 3, TokenKind::QuestionMarkDoubleColon);
         assert_tok("-> bar", 2, TokenKind::Arrow);
         assert_tok("& bar", 1, TokenKind::Ampersand);
         assert_tok("| bar", 1, TokenKind::Bar);
         assert_tok("* bar", 1, TokenKind::Asterisk);
-        assert_tok("** bar", 2, TokenKind::Asterisk);
+        assert_tok("** bar", 2, TokenKind::DoubleAsterisk);
         assert_tok("! bar", 1, TokenKind::ExclamationMark);
         assert_tok("? bar", 1, TokenKind::QuestionMark);
     }

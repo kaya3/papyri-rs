@@ -1,4 +1,4 @@
-use crate::parser::{TokenKind, Token};
+use crate::parser::token::TokenKind;
 
 #[derive(Debug)]
 #[allow(missing_docs)]
@@ -6,10 +6,10 @@ use crate::parser::{TokenKind, Token};
 pub enum SyntaxError {
     TokenExpected(TokenKind),
     TokenExpectedDoctype,
-    TokenExpectedWas(TokenKind, Token),
+    TokenExpectedWas(TokenKind, TokenKind),
     TokenExpectedWasEOF(TokenKind),
-    TokenUnexpected(Token),
-    TokenUnmatched(Token),
+    TokenUnexpected(TokenKind),
+    TokenUnmatched(TokenKind),
     TokenInvalidNumber(std::num::ParseIntError),
     TokenEntityMissingSemicolon,
     TokenInvalidEntity,
@@ -24,10 +24,8 @@ pub enum SyntaxError {
     
     TagCloseMalformed,
     TagUnmatchedOpen,
-    TagUnmatchedClose,
     TagDuplicateAttr(String),
     
-    SpreadNotAllowed,
     SpreadPositionalNotAllowed,
     SpreadNamedNotAllowed,
     
@@ -87,9 +85,7 @@ impl std::fmt::Display for SyntaxError {
             SyntaxError::UnexpectedEOF => f.write_str("unexpected end of source"),
             SyntaxError::TagCloseMalformed => f.write_str("malformed closing tag"),
             SyntaxError::TagUnmatchedOpen => f.write_str("unmatched opening tag"),
-            SyntaxError::TagUnmatchedClose => f.write_str("unmatched closing tag"),
             SyntaxError::TagDuplicateAttr(name) => write!(f, "duplicate attribute name '{name}'"),
-            SyntaxError::SpreadNotAllowed => f.write_str("spread not allowed here"),
             SyntaxError::SpreadPositionalNotAllowed => f.write_str("positional spread not allowed here"),
             SyntaxError::SpreadNamedNotAllowed => f.write_str("named spread not allowed here"),
             SyntaxError::ParamDuplicateName(name) => write!(f, "duplicate parameter name '{name}'"),

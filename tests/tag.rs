@@ -95,7 +95,7 @@ assert_err! {
     
     unmatched_closing_tag(
         "</span>",
-        SyntaxError::TagUnmatchedClose,
+        SyntaxError::TokenUnmatched,
     );
     
     incorrect_closing_tag(
@@ -110,7 +110,7 @@ assert_err! {
     
     unmatched_self_closing(
         "<br></br>",
-        SyntaxError::TagUnmatchedClose,
+        SyntaxError::TokenUnmatched,
     );
     
     duplicate_attribute(

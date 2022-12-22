@@ -1,4 +1,6 @@
-use crate::utils::SourceRange;
+use std::rc::Rc;
+
+use crate::utils::sourcefile::{SourceRange, SourceFile};
 use super::sink_base::{DiagnosticSink, Severity, StackTrace};
 use super::module_error::ModuleError;
 use super::runtime_error::{RuntimeError, NameError};
@@ -39,43 +41,43 @@ pub type Diagnostics = DiagnosticSink<PapyriError>;
 
 impl Diagnostics {
     /// Reports a syntax error in a Papyri source file.
-    pub fn syntax_error(&mut self, e: SyntaxError, range: &SourceRange) {
-        self.add(Severity::Error, PapyriError::SyntaxError(e), range, None);
+    pub fn syntax_error(&mut self, e: SyntaxError, src: Rc<SourceFile>, range: SourceRange) {
+        self.add(Severity::Error, PapyriError::SyntaxError(e), src, range, None);
     }
     
     /// Reports a type error in a Papyri source file.
-    pub fn type_error(&mut self, e: TypeError, trace: StackTrace, range: &SourceRange) {
-        self.add(Severity::Error, PapyriError::TypeError(e), range, Some(trace));
+    pub fn type_error(&mut self, e: TypeError, trace: StackTrace, src: Rc<SourceFile>, range: SourceRange) {
+        self.add(Severity::Error, PapyriError::TypeError(e), src, range, Some(trace));
     }
     
     /// Reports an error which occurs while loading a Papyri module.
-    pub fn module_error<P: AsRef<std::path::Path>>(&mut self, path: P, e: ModuleError, range: &SourceRange) {
+    pub fn module_error<P: AsRef<std::path::Path>>(&mut self, path: P, e: ModuleError, src: Rc<SourceFile>, range: SourceRange) {
         let path = path.as_ref().into();
-        self.add(Severity::Error, PapyriError::ModuleError(path, e), range, None);
+        self.add(Severity::Error, PapyriError::ModuleError(path, e), src, range, None);
     }
     
     /// Reports a name error which occurs during compilation of a Papyri source
     /// file. A name error indicates that a variable or parameter of some name
     /// has not been declared.
-    pub fn name_error(&mut self, e: NameError, trace: StackTrace, range: &SourceRange) {
-        self.add(Severity::Error, PapyriError::NameError(e), range, Some(trace));
+    pub fn name_error(&mut self, e: NameError, trace: StackTrace, src: Rc<SourceFile>, range: SourceRange) {
+        self.add(Severity::Error, PapyriError::NameError(e), src, range, Some(trace));
     }
     
     /// Reports a runtime error by adding it to the collection. This occurs
     /// only when the Papyri program itself uses the native `@raise` function
     /// to raise an error.
-    pub fn runtime_error(&mut self, e: RuntimeError, trace: StackTrace, range: &SourceRange) {
-        self.add(Severity::Error, PapyriError::RuntimeError(e), range, Some(trace));
+    pub fn runtime_error(&mut self, e: RuntimeError, trace: StackTrace, src: Rc<SourceFile>, range: SourceRange) {
+        self.add(Severity::Error, PapyriError::RuntimeError(e), src, range, Some(trace));
     }
     
     /// Reports a warning.
-    pub fn warning(&mut self, e: Warning, range: &SourceRange) {
-        self.add(Severity::Warning, PapyriError::Warning(e), range, None);
+    pub fn warning(&mut self, e: Warning, src: Rc<SourceFile>, range: SourceRange) {
+        self.add(Severity::Warning, PapyriError::Warning(e), src, range, None);
     }
     
     /// Reports a warning with a stack trace.
-    pub fn runtime_warning(&mut self, e: RuntimeWarning, trace: StackTrace, range: &SourceRange) {
-        self.add(Severity::Warning, PapyriError::RuntimeWarning(e), range, Some(trace));
+    pub fn runtime_warning(&mut self, e: RuntimeWarning, trace: StackTrace, src: Rc<SourceFile>, range: SourceRange) {
+        self.add(Severity::Warning, PapyriError::RuntimeWarning(e), src, range, Some(trace));
     }
 }
 

@@ -1,7 +1,8 @@
 use std::rc::Rc;
 
 use crate::errors::{ice, ice_at, RuntimeError, RuntimeWarning, ModuleError, TypeError};
-use crate::utils::{str_ids, text, NameID, SourceRange, relpath, SliceRef};
+use crate::utils::{str_ids, text, NameID, relpath, SliceRef};
+use crate::utils::sourcefile::SourceRange;
 use super::base::Compiler;
 use super::frame::ActiveFrame;
 use super::func::Func;
@@ -228,7 +229,7 @@ impl NativeFunc {
 }
 
 impl <'a> Compiler<'a> {
-    pub(super) fn evaluate_native_func(&mut self, f: NativeFunc, bindings: ValueMap, call_range: &SourceRange) -> Option<Value> {
+    pub(super) fn evaluate_native_func(&mut self, f: NativeFunc, bindings: ValueMap, call_range: SourceRange) -> Option<Value> {
         let mut bindings = Bindings(bindings);
         match f {
             NativeFunc::Add => {
@@ -284,7 +285,11 @@ impl <'a> Compiler<'a> {
                 let path_str = bindings.take_str(str_ids::PARAM);
                 
                 // compute path relative to current source file
-                let mut path = call_range.src.path.to_path_buf();
+                let mut path = self.ctx.source_files
+                    .get(call_range.src_id)
+                    .path
+                    .to_path_buf();
+                
                 path.pop();
                 if f == NativeFunc::ListFiles || path_str.ends_with(".papyri") {
                     path.push(path_str.as_ref());
@@ -496,7 +501,7 @@ impl <'a> Compiler<'a> {
         }
     }
     
-    fn native_code_impl(&mut self, language: Option<&str>, is_block: bool, first_line_no: i64, src: &str, call_range: &SourceRange) -> Option<Value> {
+    fn native_code_impl(&mut self, language: Option<&str>, is_block: bool, first_line_no: i64, src: &str, call_range: SourceRange) -> Option<Value> {
         use super::highlight::{syntax_highlight, enumerate_lines, no_highlighting};
         
         let mut tag = Tag::new(str_ids::CODE, HTML::Empty);
@@ -534,7 +539,7 @@ impl <'a> Compiler<'a> {
         Some(tag.into())
     }
     
-    fn eval_callback(&mut self, callback: Func, arg: Value, call_range: &SourceRange) -> Option<Value> {
+    fn eval_callback(&mut self, callback: Func, arg: Value, call_range: SourceRange) -> Option<Value> {
         let bindings = callback.bind_synthetic_call(self, false, arg, call_range)?;
         self.evaluate_func_call_with_bindings(
             callback,

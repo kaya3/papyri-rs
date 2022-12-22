@@ -14,7 +14,7 @@ pub use warning::{Warning, RuntimeWarning};
 
 mod sink;
 mod sink_base;
-pub use sink_base::{StackTrace, ReportingLevel};
+pub use sink_base::{StackTrace, ReportingLevel, DiagSourceRange};
 pub use sink::{Diagnostics, PapyriError};
 
 /// Reports an internal compiler error, indicating a bug or mistake in the
@@ -27,6 +27,6 @@ pub fn ice(msg: &str) -> ! {
 /// Reports an internal compiler error, indicating a bug or mistake in the
 /// Papyri compiler. Use `ice` instead if the error does not correspond with
 /// any particular code in a Papyri source file.
-pub fn ice_at(msg: &str, range: &crate::utils::SourceRange) -> ! {
+pub fn ice_at(msg: &str, range: crate::utils::sourcefile::SourceRange) -> ! {
     panic!("Internal compiler error: {msg} at {range:?}");
 }

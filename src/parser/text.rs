@@ -5,44 +5,10 @@ use aho_corasick::{AhoCorasick, MatchKind, AhoCorasickBuilder};
 use htmlentity::entity;
 use once_cell::sync::Lazy;
 
-use crate::errors::{Diagnostics, ice_at, SyntaxError};
-use crate::utils::SourceRange;
+use crate::errors;
 use super::ast::*;
-use super::queue::Parser;
-use super::token::{Token, TokenKind};
-
-/// Decodes a string containing an HTML entity to the character that entity
-/// represents. If the string is not a valid entity, a syntax error is reported.
-pub(crate) fn decode_entity(range: &SourceRange, diagnostics: &mut Diagnostics) -> String {
-    let s = range.as_str();
-    let decoded = entity::decode(s).iter().collect();
-    if s == decoded { diagnostics.syntax_error(SyntaxError::TokenInvalidEntity, range); }
-    decoded
-}
-
-/// Decodes an escape sequence, such as `\xA0` or `\n`. If the escape sequence
-/// does not define a valid Unicode character, then a syntax error is reported
-/// through `diagnostics` and a Unicode replacement character is returned.
-pub(crate) fn unescape_char(range: &SourceRange, diagnostics: &mut Diagnostics) -> String {
-    let s = range.as_str();
-    match s.chars().nth(1).unwrap() {
-        'x' | 'u' | 'U' => {
-            let Ok(char_code) = u32::from_str_radix(&s[2..], 16) else {
-                ice_at("failed to parse hex digits", range);
-            };
-            match char::from_u32(char_code) {
-                Some(c) => c,
-                None => {
-                    diagnostics.syntax_error(SyntaxError::TokenInvalidEscape, range);
-                    char::REPLACEMENT_CHARACTER
-                },
-            }
-        },
-        'n' => '\n',
-        't' => '\t',
-        c => c,
-    }.to_string()
-}
+use super::base::Parser;
+use super::token::{Token, TokenKind, QuoteKind, QuoteDir};
 
 static TEXT_SUBS: Lazy<AhoCorasick> = Lazy::new(
     || AhoCorasickBuilder::new()
@@ -90,26 +56,101 @@ pub(crate) fn substitutions(s: &str) -> String {
 }
 
 impl <'a> Parser<'a> {
+    /// Decodes a string containing an HTML entity to the character that entity
+    /// represents. If the string is not a valid entity, a syntax error is reported.
+    pub(super) fn decode_entity(&mut self, tok: &Token) -> String {
+        let s = self.tok_str(tok);
+        let decoded = entity::decode(s).iter().collect();
+        if s == decoded { self.syntax_error(errors::SyntaxError::TokenInvalidEntity, tok.range); }
+        decoded
+    }
+    
+    /// Decodes an escape sequence, such as `\xA0` or `\n`. If the escape sequence
+    /// does not define a valid Unicode character, then a syntax error is reported
+    /// and a Unicode replacement character is returned.
+    pub(super) fn unescape_char(&mut self, tok: &Token) -> String {
+        let s = self.tok_str(tok);
+        match s.chars().nth(1).unwrap() {
+            'x' | 'u' | 'U' => {
+                let Ok(char_code) = u32::from_str_radix(&s[2..], 16) else {
+                    errors::ice("failed to parse hex digits");
+                };
+                match char::from_u32(char_code) {
+                    Some(c) => c,
+                    None => {
+                        self.syntax_error(errors::SyntaxError::TokenInvalidEscape, tok.range);
+                        char::REPLACEMENT_CHARACTER
+                    },
+                }
+            },
+            'n' => '\n',
+            't' => '\t',
+            c => c,
+        }.to_string()
+    }
+    
     /// Parses literal text starting at `first_token`, until just before the
     /// next token without text, or the next `LAngle` token, whichever is
     /// first. Text substitutions are applied here.
     /// 
     /// `first_token` must be a token with text.
     pub(super) fn parse_text(&mut self, first_token: Token) -> AST {
-        let Some(text) = first_token.text() else {
-            ice_at("invalid text token", &first_token.range)
+        let Some(text) = self.token_text(&first_token) else {
+            errors::ice_at("invalid text token", first_token.range)
         };
         
         let mut text = text.to_string();
         let mut range = first_token.range;
-        while let Some(tok) = self.poll_if(|tok| match tok.kind {
+        while let Some(tok) = self.poll_if(|_self, tok| match tok.kind {
             TokenKind::LAngle => false,
-            _ => if let Some(t) = tok.text() { text += t; true } else { false },
+            _ => if let Some(t) = _self.token_text(tok) { text += t; true } else { false },
         }) {
             range.end = tok.range.end;
         }
         
         text = substitutions(&text);
         AST::Text(Rc::from(text), range)
+    }
+    
+    /// Returns the representation of this token as normal text, if it has one.
+    fn token_text(&self, tok: &Token) -> Option<&str> {
+        match tok.kind {
+            TokenKind::Name |
+            TokenKind::Number |
+            TokenKind::Boolean(..) |
+            TokenKind::LPar |
+            TokenKind::RPar |
+            TokenKind::LAngle |
+            TokenKind::RAngle |
+            TokenKind::Ampersand |
+            TokenKind::Arrow |
+            TokenKind::Asterisk |
+            TokenKind::Colon |
+            TokenKind::Comma |
+            TokenKind::Dot |
+            TokenKind::DoubleAsterisk |
+            TokenKind::DoubleColon |
+            TokenKind::Equals |
+            TokenKind::ExclamationMark |
+            TokenKind::QuestionMark |
+            TokenKind::QuestionMarkDoubleColon |
+            TokenKind::RawText => Some(self.tok_str(tok)),
+            
+            TokenKind::Ellipsis => Some("\u{2026}"),
+            
+            TokenKind::Quote(q, d) => Some(match (q, d) {
+                // single quotes
+                (QuoteKind::Single, QuoteDir::Left) => "\u{2018}",
+                (QuoteKind::Single, QuoteDir::Right) => "\u{2019}",
+                // double quotes
+                (QuoteKind::Double, QuoteDir::Left) => "\u{201C}",
+                (QuoteKind::Double, QuoteDir::Right) => "\u{201D}",
+            }),
+            
+            // word joiner
+            TokenKind::Bar => Some("\u{2060}"),
+            
+            _ => None,
+        }
     }
 }

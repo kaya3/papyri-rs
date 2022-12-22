@@ -65,7 +65,7 @@
 @export @fn h5 $v: inline -> <h5>$v</>
 @export @fn h6 $v: inline -> <h6>$v</>
 
-@export @fn code_block($language?: implicit str, $first_line_no: int = 1) $v: str -> {
+@export @fn code_block($language?: @implicit str, $first_line_no: int = 1) $v: str -> {
     <pre class="panel listing">
         @code(language=$language, code_block=True, first_line_no=$first_line_no) $v
     </>

@@ -2,8 +2,9 @@ use std::rc::Rc;
 use indexmap::IndexMap;
 
 use crate::errors;
-use crate::parser::{ast, AST, Token, TokenKind, text};
-use crate::utils::{NameID, str_ids, SliceRef, SourceRange};
+use crate::parser::{ast, AST, token, text};
+use crate::utils::{NameID, str_ids, SliceRef};
+use crate::utils::sourcefile::SourceRange;
 use super::base::Compiler;
 use super::func::Func;
 use super::html::HTML;
@@ -149,7 +150,7 @@ impl Value {
     /// Convenience method for coercing a value to an optional string. Returns
     /// `Some` if this value is a string, or `None` if this is `Value::UNIT`;
     /// the value must not be of any other type.
-    pub(super) fn to_optional_rc_str(&self, range: &SourceRange) -> Option<Rc<str>> {
+    pub(super) fn to_optional_rc_str(&self, range: SourceRange) -> Option<Rc<str>> {
         match self {
             Value::Str(s) => Some(s.clone()),
             v if v.is_unit() => None,
@@ -227,11 +228,9 @@ impl <'a> Compiler<'a> {
     /// dictionaries become tables, functions and regexes are represented as
     /// code.
     pub(super) fn compile_value(&self, value: Value) -> HTML {
-        use crate::parser;
-        
         match value {
-            Value::Bool(b) => parser::Token::bool_to_string(b).into(),
-            Value::Int(t) => parser::text::substitutions(&t.to_string()).into(),
+            Value::Bool(b) => token::Token::bool_to_string(b).into(),
+            Value::Int(t) => text::substitutions(&t.to_string()).into(),
             Value::Str(t) => t.into(),
             Value::Dict(vs) => {
                 let rows: Vec<HTML> = vs.iter()
@@ -270,13 +269,14 @@ impl <'a> Compiler<'a> {
     /// occurs.
     pub(super) fn evaluate_node(&mut self, node: &AST, type_hint: &Type) -> Option<Value> {
         let v = match node {
-            AST::LiteralValue(tok) => if tok.kind == TokenKind::Dot {
+            AST::LiteralValue(tok) => if tok.kind == token::TokenKind::Dot {
                 Value::UNIT
             } else if type_hint.is_html() {
                 // This is a shortcut, to avoid parsing ints and bools and then
                 // converting back to text. It also avoids the possibility of a
                 // parse error if an integer is not in the signed 64-bit range.
-                text::substitutions(tok.text().unwrap()).into()
+                let s = self.ctx.get_source_str(tok.range);
+                text::substitutions(s).into()
             } else {
                 self.evaluate_literal(tok)?
             },
@@ -293,7 +293,7 @@ impl <'a> Compiler<'a> {
             AST::FuncDef(def) => {
                 let v = Value::Func(self.compile_func_def(def));
                 if type_hint.is_html() {
-                    self.err_expected_type(type_hint.clone(), v.get_type(), &def.range);
+                    self.err_expected_type(type_hint.clone(), v.get_type(), def.range);
                     return None;
                 }
                 v
@@ -304,14 +304,14 @@ impl <'a> Compiler<'a> {
             AST::Template(parts, ..) => self.evaluate_template(parts),
             
             AST::Group(..) | AST::Tag(..) => self.compile_node(node).into(),
-            AST::List(list, range) => self.evaluate_list(list, type_hint, range)?,
+            AST::List(list, range) => self.evaluate_list(list, type_hint, *range)?,
             
             _ => errors::ice_at("invalid AST value", node.range()),
         };
         self.coerce(v, type_hint, node.range())
     }
     
-    fn evaluate_list(&mut self, list: &[(AST, bool)], type_hint: &Type, range: &SourceRange) -> Option<Value> {
+    fn evaluate_list(&mut self, list: &[(AST, bool)], type_hint: &Type, range: SourceRange) -> Option<Value> {
         let child_type_hint = type_hint.component_type();
         let mut children = Vec::new();
         for &(ref child, is_spread) in list.iter() {
@@ -332,8 +332,8 @@ impl <'a> Compiler<'a> {
         let mut out = "".to_string();
         for part in parts.iter() {
             match part {
-                ast::TemplatePart::Literal(t) => {
-                    out += t.as_str();
+                ast::TemplatePart::Literal(range) => {
+                    out += self.ctx.get_source_str(*range);
                 }
                 ast::TemplatePart::LiteralStr(s) => {
                     out += s;
@@ -356,21 +356,22 @@ impl <'a> Compiler<'a> {
     /// Evaluates a literal token to a value, or returns `None` if a parse
     /// error occurs. The token must be either a `Boolean`, `Number`, `Name` or
     /// `Verbatim`.
-    pub(super) fn evaluate_literal(&mut self, tok: &Token) -> Option<Value> {
+    pub(super) fn evaluate_literal(&mut self, tok: &token::Token) -> Option<Value> {
+        let s = self.ctx.get_source_str(tok.range);
         match tok.kind {
-            TokenKind::Boolean => Some(Value::Bool(tok.get_bool_value())),
-            TokenKind::Name => Some(tok.as_str().into()),
-            TokenKind::Verbatim => Some(tok.get_verbatim_text().into()),
+            token::TokenKind::Boolean(b) => Some(b.into()),
+            token::TokenKind::Name => Some(s.into()),
+            token::TokenKind::Verbatim(..) => Some(token::Token::get_verbatim_text(s).into()),
             
-            TokenKind::Number => match tok.as_str().parse::<i64>() {
-                Ok(value) => Some(Value::Int(value)),
+            token::TokenKind::Number => match s.parse::<i64>() {
+                Ok(value) => Some(value.into()),
                 Err(err) => {
-                    self.ctx.diagnostics.syntax_error(errors::SyntaxError::TokenInvalidNumber(err), &tok.range);
+                    self.syntax_error(errors::SyntaxError::TokenInvalidNumber(err), tok.range);
                     None
                 },
             },
             
-            _ => errors::ice_at("illegal token kind", &tok.range),
+            _ => errors::ice_at("illegal token kind", tok.range),
         }
     }
     
@@ -389,15 +390,15 @@ impl <'a> Compiler<'a> {
         })
     }
     
-    fn evaluate_code_or_code_block(&mut self, tok: &Token, type_hint: &Type) -> Option<Value> {
+    fn evaluate_code_or_code_block(&mut self, tok: &token::Token, type_hint: &Type) -> Option<Value> {
         let f_name = if tok.is_multiline_verbatim() { str_ids::CODE_BLOCK } else { str_ids::CODE };
-        let func = self.get_var(f_name, &tok.range)?;
-        let Value::Func(f) = self.coerce(func, &Type::Function, &tok.range)? else {
-            errors::ice_at("failed to coerce", &tok.range);
+        let func = self.get_var(f_name, tok.range)?;
+        let Value::Func(f) = self.coerce(func, &Type::Function, tok.range)? else {
+            errors::ice_at("failed to coerce", tok.range);
         };
         
-        let content = tok.get_verbatim_text().into();
-        let bindings = f.bind_synthetic_call(self, true, content, &tok.range)?;
-        self.evaluate_func_call_with_bindings(f, bindings, type_hint, &tok.range)
+        let content = token::Token::get_verbatim_text(self.ctx.get_source_str(tok.range)).into();
+        let bindings = f.bind_synthetic_call(self, true, content, tok.range)?;
+        self.evaluate_func_call_with_bindings(f, bindings, type_hint, tok.range)
     }
 }

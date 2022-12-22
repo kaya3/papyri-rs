@@ -2,8 +2,9 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use indexmap::IndexSet;
 
-use crate::errors::{NameError, RuntimeError, Warning, StackTrace, RuntimeWarning};
-use crate::utils::{SourceRange, NameID};
+use crate::errors::{NameError, RuntimeError, Warning, StackTrace, RuntimeWarning, DiagSourceRange};
+use crate::utils::NameID;
+use crate::utils::sourcefile::SourceRange;
 use super::base::Compiler;
 use super::func::Func;
 use super::value::{Value, ValueMap};
@@ -73,11 +74,11 @@ impl ActiveFrame {
 }
 
 impl InactiveFrame {
-    pub(super) fn new_child_frame(&self, locals: ValueMap, func: Func, call_range: &SourceRange) -> ActiveFrame {
+    pub(super) fn new_child_frame(&self, locals: ValueMap, func: Func, call_range: SourceRange) -> ActiveFrame {
         ActiveFrame::new(
             Some(self.clone()),
             locals,
-            Some((func, call_range.clone())),
+            Some((func, call_range)),
         )
     }
     
@@ -132,14 +133,18 @@ impl <'a> Compiler<'a> {
     pub(super) fn stack_trace(&self) -> StackTrace {
         self.call_stack.iter()
             .filter_map(|frame| frame.call.as_ref())
-            .map(|(func, call_range)| {
+            .map(|&(ref func, call_range)| {
                 let func_name = format!("@{}", self.get_name(func.name_id()));
-                (func_name, call_range.clone())
+                DiagSourceRange::at_func(
+                    self.get_source_file(call_range),
+                    call_range,
+                    &func_name,
+                )
             })
             .collect()
     }
     
-    pub(super) fn get_var(&mut self, name_id: NameID, range: &SourceRange) -> Option<Value> {
+    pub(super) fn get_var(&mut self, name_id: NameID, range: SourceRange) -> Option<Value> {
         let r = self.frame().get(name_id, false);
         if r.is_none() {
             let name = self.get_name(name_id).to_string();
@@ -148,7 +153,7 @@ impl <'a> Compiler<'a> {
         r
     }
     
-    pub(super) fn get_implicit(&mut self, name_id: NameID, default_value: Option<Value>, range: &SourceRange) -> Option<Value> {
+    pub(super) fn get_implicit(&mut self, name_id: NameID, default_value: Option<Value>, range: SourceRange) -> Option<Value> {
         let r = self.frame().get(name_id, true);
         if r.is_none() {
             if default_value.is_none() {
@@ -163,14 +168,14 @@ impl <'a> Compiler<'a> {
         r.or(default_value)
     }
     
-    pub(super) fn set_var(&mut self, name_id: NameID, value: Value, implicit: bool, range: &SourceRange) {
+    pub(super) fn set_var(&mut self, name_id: NameID, value: Value, implicit: bool, range: SourceRange) {
         if self.frame().set(name_id, value, implicit) {
             let name = self.get_name(name_id).to_string();
             self.warning(Warning::NameAlreadyDeclared(name), range);
         }
     }
     
-    pub(super) fn set_vars(&mut self, dict: &ValueMap, implicit: bool, range: &SourceRange) {
+    pub(super) fn set_vars(&mut self, dict: &ValueMap, implicit: bool, range: SourceRange) {
         for (&k, v) in dict {
             self.set_var(k, v.clone(), implicit, range);
         }

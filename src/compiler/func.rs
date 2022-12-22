@@ -2,7 +2,8 @@ use std::rc::Rc;
 
 use crate::errors;
 use crate::parser::ast;
-use crate::utils::{SourceRange, NameID};
+use crate::utils::NameID;
+use crate::utils::sourcefile::SourceRange;
 use super::base::Compiler;
 use super::frame::InactiveFrame;
 use super::native::NativeFunc;
@@ -41,7 +42,7 @@ impl Func {
         }
     }
     
-    pub(super) fn bind_content(&self, compiler: &mut Compiler, content_arg: Value, range: &SourceRange) -> Option<Func> {
+    pub(super) fn bind_content(&self, compiler: &mut Compiler, content_arg: Value, range: SourceRange) -> Option<Func> {
         let mut binder = self.get_partials()
             .open(compiler, self.signature());
         
@@ -49,7 +50,7 @@ impl Func {
         binder.close_into_bound_function(self.clone(), range)
     }
     
-    pub(super) fn bind_pos_arg(&self, compiler: &mut Compiler, arg: Value, range: &SourceRange) -> Option<Func> {
+    pub(super) fn bind_pos_arg(&self, compiler: &mut Compiler, arg: Value, range: SourceRange) -> Option<Func> {
         let mut binder = self.get_partials()
             .open(compiler, self.signature());
         
@@ -57,7 +58,7 @@ impl Func {
         binder.close_into_bound_function(self.clone(), range)
     }
     
-    pub(super) fn bind_partial(&self, compiler: &mut Compiler, positional_args: &[Value], named_args: &ValueMap, content_arg: Value, call_range: &SourceRange) -> Option<Func> {
+    pub(super) fn bind_partial(&self, compiler: &mut Compiler, positional_args: &[Value], named_args: &ValueMap, content_arg: Value, call_range: SourceRange) -> Option<Func> {
         let mut binder = self.get_partials()
             .open(compiler, self.signature());
         
@@ -74,7 +75,7 @@ impl Func {
         binder.close_into_bound_function(self.clone(), call_range)
     }
     
-    pub(super) fn bind_synthetic_call(&self, compiler: &mut Compiler, bind_implicits: bool, content_value: Value, call_range: &SourceRange) -> Option<ValueMap> {
+    pub(super) fn bind_synthetic_call(&self, compiler: &mut Compiler, bind_implicits: bool, content_value: Value, call_range: SourceRange) -> Option<ValueMap> {
         let mut binder = self.get_partials()
             .open(compiler, self.signature());
         if bind_implicits {
@@ -95,9 +96,9 @@ impl Func {
                 binder.compile_named_arg(arg);
             }
         }
-        binder.bind_implicit_args(&call.range);
+        binder.bind_implicit_args(call.range);
         binder.compile_content_arg(&call.content);
-        binder.build(&call.range)
+        binder.build(call.range)
     }
 }
 
@@ -126,14 +127,14 @@ impl <'a> Compiler<'a> {
         match self.evaluate_name(&call.func, &func_type)? {
             Value::Func(f) => {
                 let bindings = f.bind_call(self, call)?;
-                self.evaluate_func_call_with_bindings(f, bindings, type_hint, &call.range)
+                self.evaluate_func_call_with_bindings(f, bindings, type_hint, call.range)
             },
             f if f.is_unit() => Some(Value::UNIT),
             _ => errors::ice_at("failed to coerce", call.func.range()),
         }
     }
     
-    pub(super) fn evaluate_func_call_with_bindings(&mut self, func: Func, bindings: ValueMap, type_hint: &Type, call_range: &SourceRange) -> Option<Value> {
+    pub(super) fn evaluate_func_call_with_bindings(&mut self, func: Func, bindings: ValueMap, type_hint: &Type, call_range: SourceRange) -> Option<Value> {
         match func {
             Func::NonNative(ref f) => {
                 let frame = f.closure.new_child_frame(bindings, func.clone(), call_range);

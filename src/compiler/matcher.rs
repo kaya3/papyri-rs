@@ -22,7 +22,7 @@ impl <'a> Compiler<'a> {
             if let Ok(r) = r { return r; }
         }
         
-        self.warning(Warning::NoMatchingBranch, &match_.range);
+        self.warning(Warning::NoMatchingBranch, match_.range);
         Some(Value::UNIT)
     }
     
@@ -58,7 +58,7 @@ impl <'a> Compiler<'a> {
                     .map_or(false, |other| value == other)
             },
             ast::MatchPattern::Typed(type_) => {
-                Type::compile(type_).check_value(value.clone())
+                self.compile_type(type_).check_value(value.clone())
             },
             
             ast::MatchPattern::TypeOf(t_var) => {
@@ -171,7 +171,7 @@ impl <'a> Compiler<'a> {
                 let Value::Str(value_str) = value else { return false; };
                 let Some(match_) = regex_pattern.regex.captures(value_str.as_ref()) else { return false; };
                 
-                if match_.len() != regex_pattern.names.len() + 1 { ice_at("incorrect number of capture groups", pattern_range); }
+                if match_.len() != regex_pattern.names.len() + 1 { ice_at("incorrect number of capture groups", *pattern_range); }
                 let match_ = match_.iter()
                     .skip(1)
                     .zip(regex_pattern.names.iter());
@@ -216,7 +216,7 @@ impl <'a> Compiler<'a> {
     fn bind_one(&mut self, var: &ast::SimpleName, value: Value) {
         if self.frame().set(var.name_id, value, false) {
             let name = self.get_name(var.name_id).to_string();
-            self.warning(Warning::PatternNameAlreadyBound(name), &var.range);
+            self.warning(Warning::PatternNameAlreadyBound(name), var.range);
         }
     }
 }

@@ -1,6 +1,7 @@
 use crate::errors::{self, TypeError};
-use crate::utils::{SourceRange, str_ids};
-use crate::parser::{ast, Token};
+use crate::utils::sourcefile::SourceRange;
+use crate::utils::str_ids;
+use crate::parser::{ast, token};
 use super::base::Compiler;
 use super::html::HTML;
 use super::value::Value;
@@ -130,35 +131,6 @@ impl Type {
         }
     }
     
-    /// Compiles an AST type annotation into the Papyri type it represents.
-    pub(super) fn compile(type_annotation: &ast::TypeAnnotation) -> Type {
-        match type_annotation {
-            ast::TypeAnnotation::Primitive(range) => match range.as_str() {
-                "any" => Type::Any,
-                "html" => Type::HTML,
-                "block" => Type::Block,
-                "inline" => Type::Inline,
-                "none" => Type::Unit,
-                "bool" => Type::Bool,
-                "int" => Type::Int,
-                "str" => Type::Str,
-                "function" => Type::Function,
-                "regex" => Type::Regex,
-                _ => errors::ice_at("not a primitive type", range),
-            },
-            ast::TypeAnnotation::Group(g) => {
-                let (child, range) = g.as_ref();
-                let child = child.as_ref().map_or(Type::Any, Type::compile);
-                match range.as_str() {
-                    "dict" => child.dict(),
-                    "list" => child.list(),
-                    "?" => child.option(),
-                    _ => errors::ice_at("not a group type", range),
-                }
-            },
-        }
-    }
-    
     /// Determines whether the given value is assignable to this type. Values
     /// which are not assignable may still be coercible.
     pub(super) fn check_value(&self, value: Value) -> bool {
@@ -211,7 +183,7 @@ impl Type {
             (Type::Function, Value::Func(..)) |
             (Type::Regex, Value::Regex(..)) => return Ok(value),
             
-            (Type::Str, &Value::Bool(b)) => return Ok(Token::bool_to_string(b).into()),
+            (Type::Str, &Value::Bool(b)) => return Ok(token::Token::bool_to_string(b).into()),
             (Type::Str, &Value::Int(i)) => return Ok(i.to_string().into()),
             
             (Type::Dict(t), Value::Dict(vs)) => {
@@ -287,7 +259,36 @@ impl std::fmt::Debug for Type {
 }
 
 impl <'a> Compiler<'a> {
-    pub(super) fn coerce(&mut self, value: Value, expected: &Type, range: &SourceRange) -> Option<Value> {
+    /// Compiles an AST type annotation into the Papyri type it represents.
+    pub(super) fn compile_type(&self, type_annotation: &ast::TypeAnnotation) -> Type {
+        match type_annotation {
+            ast::TypeAnnotation::Primitive(range) => match self.ctx.get_source_str(*range) {
+                "any" => Type::Any,
+                "html" => Type::HTML,
+                "block" => Type::Block,
+                "inline" => Type::Inline,
+                "none" => Type::Unit,
+                "bool" => Type::Bool,
+                "int" => Type::Int,
+                "str" => Type::Str,
+                "function" => Type::Function,
+                "regex" => Type::Regex,
+                _ => errors::ice_at("not a primitive type", *range),
+            },
+            ast::TypeAnnotation::Group(g) => {
+                let &(ref child, range) = g.as_ref();
+                let child = child.as_ref().map_or(Type::Any, |t| self.compile_type(t));
+                match self.ctx.get_source_str(range) {
+                    "dict" => child.dict(),
+                    "list" => child.list(),
+                    "?" => child.option(),
+                    _ => errors::ice_at("not a group type", range),
+                }
+            },
+        }
+    }
+    
+    pub(super) fn coerce(&mut self, value: Value, expected: &Type, range: SourceRange) -> Option<Value> {
         expected.coerce_value(value, &|v| self.compile_value(v))
             .map_err(|e| self.type_error(e, range))
             .ok()

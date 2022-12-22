@@ -1,6 +1,7 @@
 use regex::Regex;
 
-use crate::utils::{SourceRange, NameID, text};
+use crate::utils::{NameID, text};
+use crate::utils::sourcefile::SourceRange;
 use crate::errors;
 use super::base::Compiler;
 use super::value::{Value, ValueMap};
@@ -65,7 +66,7 @@ impl RegexValue {
 }
 
 impl <'a> Compiler<'a> {
-    pub(super) fn compile_regex(&mut self, regex_str: &str, range: &SourceRange) -> Option<RegexValue> {
+    pub(super) fn compile_regex(&mut self, regex_str: &str, range: SourceRange) -> Option<RegexValue> {
         let regex = Regex::new(regex_str)
             .map_err(|e| self.runtime_error(errors::RuntimeError::RegexSyntaxError(e), range))
             .ok()?;

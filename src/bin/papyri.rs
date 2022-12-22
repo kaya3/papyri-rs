@@ -132,7 +132,7 @@ impl Main {
                 for entry in paths {
                     let path = entry
                         .map_err(|e| format!("File error: {e} at \"{path_str}\""))?;
-                    if utils::is_papyri_file(&path) {
+                    if utils::sourcefile::is_papyri_file(&path) {
                         source_paths.insert(path);
                     }
                 }
@@ -149,7 +149,7 @@ impl Main {
                             source_paths.insert(path.join(p));
                         }
                     }
-                } else if utils::is_papyri_file(&path) {
+                } else if utils::sourcefile::is_papyri_file(&path) {
                     // source file
                     source_paths.insert(path);
                 } else {
@@ -164,7 +164,7 @@ impl Main {
     fn process_source_file(&mut self, src_path: &Path, in_dir: &Path) -> Result<SourceFileResult, String> {
         let src_path_str = src_path.to_string_lossy();
         
-        if utils::is_papyri_library(src_path) {
+        if utils::sourcefile::is_papyri_library(src_path) {
             if !self.options.silent {
                 println!("{src_path_str} (library, skipping)");
             }
@@ -193,7 +193,7 @@ impl Main {
         }
         
         let diagnostics = &mut self.ctx.diagnostics;
-        diagnostics.print();
+        diagnostics.print_to_stderr();
         
         if !diagnostics.is_empty() {
             eprintln!("{src_path_str} ({})", diagnostics.summary());

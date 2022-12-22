@@ -4,7 +4,7 @@ use indexmap::IndexMap;
 
 use crate::errors::ModuleError;
 use crate::parser;
-use crate::utils::{SourceFile, taginfo};
+use crate::utils::{sourcefile, taginfo};
 use super::base::{Compiler, CompileResult};
 use super::context::Context;
 use super::frame::{InactiveFrame, ActiveFrame};
@@ -78,7 +78,7 @@ impl Context {
     }
     
     /// Compiles a Papyri source file.
-    pub fn compile(&mut self, src: Rc<SourceFile>) -> CompileResult {
+    pub fn compile(&mut self, src: Rc<sourcefile::SourceFile>) -> CompileResult {
         self._compile(src, taginfo::ContentKind::REQUIRE_P)
     }
     
@@ -86,7 +86,7 @@ impl Context {
     /// only fails if the source file cannot be read; any other errors which
     /// occur during compilation are reported through `self.diagnostics`.
     pub fn load_uncached(&mut self, path: &path::Path) -> Result<CompileResult, ModuleError> {
-        SourceFile::from_path(path)
+        self.source_files.load_from_path(path)
             .map(|src| self.compile(src))
             .map_err(ModuleError::IOError)
     }
@@ -133,7 +133,7 @@ impl Context {
     pub(super) fn compile_stdlib(&mut self) {
         use crate::errors;
         
-        let src = SourceFile::synthetic("stdlib", include_str!("../std.papyri"));
+        let src = self.source_files.load_synthetic("stdlib", include_str!("../std.papyri"));
         let result = self._compile(src, taginfo::ContentKind::RequireEmpty);
         let frame = ActiveFrame::new(
             Some(self.natives_frame.clone()),
@@ -143,12 +143,12 @@ impl Context {
         self.module_cache.stdlib = Some(frame.to_inactive());
         
         if !self.diagnostics.is_empty() {
-            self.diagnostics.print();
+            self.diagnostics.print_to_stderr();
             errors::ice("Standard library had errors or warnings");
         }
     }
     
-    fn _compile(&mut self, src: Rc<SourceFile>, content_kind: taginfo::ContentKind) -> CompileResult {
+    fn _compile(&mut self, src: Rc<sourcefile::SourceFile>, content_kind: taginfo::ContentKind) -> CompileResult {
         let root = parser::parse(src, &mut self.diagnostics, &mut self.string_pool);
         let mut compiler = Compiler::new(self);
         let out = compiler.compile_sequence(&root, content_kind);

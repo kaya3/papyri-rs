@@ -3,7 +3,8 @@
 use std::rc::Rc;
 use indexmap::{IndexMap, IndexSet};
 
-use crate::utils::{SourceRange, NameID};
+use crate::utils::NameID;
+use crate::utils::sourcefile::SourceRange;
 use crate::errors;
 use super::token::{Token, TokenKind};
 
@@ -75,11 +76,11 @@ impl TypeAnnotation {
     /// Returns the source span of this type annotation.
     pub(crate) fn range(&self) -> SourceRange {
         match self {
-            TypeAnnotation::Primitive(range) => range.clone(),
+            TypeAnnotation::Primitive(range) => *range,
             TypeAnnotation::Group(g) => {
-                let (child, range) = g.as_ref();
-                child.as_ref().map_or_else(
-                    || range.clone(),
+                let &(ref child, range) = g.as_ref();
+                child.as_ref().map_or(
+                    range,
                     |t| t.range().to_end(range.end),
                 )
             },
@@ -133,7 +134,7 @@ pub struct Signature {
     pub(crate) named_count: u16,
     pub(crate) named_spread: bool,
     
-    /// If true, the final parameter is the content parameter. Otherwise, the
+    /// If true, the final parameter is the contents parameter. Otherwise, the
     /// contents parameter is anonymous and of type `none`.
     pub(crate) has_content: bool,
 }
@@ -184,11 +185,11 @@ pub enum Export {
 }
 
 impl Export {
-    fn range(&self) -> &SourceRange {
+    fn range(&self) -> SourceRange {
         match self {
             Export::Names(range, ..) |
             Export::LetIn(range, ..) |
-            Export::FuncDef(range, ..) => range,
+            Export::FuncDef(range, ..) => *range,
         }
     }
 }
@@ -205,7 +206,7 @@ pub struct Arg {
     
     /// Indicates whether this argument is a simple argument, a positional
     /// spread argument, or a named spread argument.
-    pub(crate) spread_kind: SpreadKind,
+    pub(super) spread_kind: SpreadKind,
     
     /// The argument's value.
     pub(crate) value: AST,
@@ -229,16 +230,15 @@ impl Arg {
 #[allow(missing_docs)]
 /// Indicates whether an argument or parameter is spread, and if so whether it
 /// is a positional spread `*v` or named spread `**kw`.
-pub enum SpreadKind {NoSpread, Positional, Named}
+pub(super) enum SpreadKind {NoSpread, Positional, Named}
 
 impl Token {
     /// Determines the spread kind of this asterisk token.
-    pub(crate) fn spread_kind(&self) -> SpreadKind {
-        if self.kind != TokenKind::Asterisk { errors::ice_at("Not an Asterisk", &self.range); }
-        if self.as_str().len() == 1 {
-            SpreadKind::Positional
-        } else {
-            SpreadKind::Named
+    pub(super) fn spread_kind(&self) -> SpreadKind {
+        match self.kind {
+            TokenKind::Asterisk => SpreadKind::Positional,
+            TokenKind::DoubleAsterisk => SpreadKind::Named,
+            _ => errors::ice_at("Not an Asterisk", self.range),
         }
     }
 }
@@ -407,7 +407,7 @@ impl MatchPattern {
             MatchPattern::LiteralName(range, ..) |
             MatchPattern::Literal(Token {range, ..}) |
             MatchPattern::TypeOf(SimpleName {range, ..}) |
-            MatchPattern::VarName(SimpleName {range, ..}) => range.clone(),
+            MatchPattern::VarName(SimpleName {range, ..}) => *range,
             MatchPattern::Typed(t) => t.range(),
             MatchPattern::EqualsValue(node) => node.range().clone(),
             MatchPattern::And(pair, ..) |
@@ -460,7 +460,7 @@ impl MatchPattern {
     /// content is expected.
     pub(super) fn can_match_html(&self) -> bool {
         match self {
-            MatchPattern::Literal(tok) => matches!(tok.kind, TokenKind::Name | TokenKind::Verbatim),
+            MatchPattern::Literal(tok) => matches!(tok.kind, TokenKind::Name | TokenKind::Verbatim(..)),
             
             MatchPattern::And(pair) |
             MatchPattern::Or(pair, _) => pair.0.can_match_html() && pair.1.can_match_html(),
@@ -484,10 +484,10 @@ pub enum Name {
 
 impl Name {
     /// Returns the source span of this name expression.
-    pub(crate) fn range(&self) -> &SourceRange {
+    pub(crate) fn range(&self) -> SourceRange {
         match self {
-            Name::SimpleName(name) => &name.range,
-            Name::AttrName(attr) => &attr.range,
+            Name::SimpleName(name) => name.range,
+            Name::AttrName(attr) => attr.range,
         }
     }
     
@@ -595,13 +595,13 @@ pub enum AST {
 
 impl AST {
     /// Returns the source span corresponding to this AST node.
-    pub(crate) fn range(&self) -> &SourceRange {
+    pub(crate) fn range(&self) -> SourceRange {
         match self {
-            AST::FuncCall(call) => &call.range,
-            AST::FuncDef(def) => &def.range,
-            AST::LetIn(l) => &l.range,
-            AST::Match(m) => &m.range,
-            AST::Tag(tag) => &tag.range,
+            AST::FuncCall(call) => call.range,
+            AST::FuncDef(def) => def.range,
+            AST::LetIn(l) => l.range,
+            AST::Match(m) => m.range,
+            AST::Tag(tag) => tag.range,
             AST::Export(e) => e.range(),
             AST::Name(name) => name.range(),
             
@@ -612,7 +612,7 @@ impl AST {
             AST::Template(.., range) |
             AST::Text(.., range) |
             AST::Whitespace(range) |
-            AST::ParagraphBreak(range) => range,
+            AST::ParagraphBreak(range) => *range,
         }
     }
     

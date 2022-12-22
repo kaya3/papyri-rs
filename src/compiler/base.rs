@@ -40,7 +40,7 @@ impl <'a> Compiler<'a> {
         match node {
             AST::FuncDef(def) => {
                 if def.name_id.is_anonymous() {
-                    self.warning(errors::Warning::AnonymousFunctionNotExpected, &def.signature.range);
+                    self.warning(errors::Warning::AnonymousFunctionNotExpected, def.signature.range);
                 } else {
                     let f = self.compile_func_def(def);
                     self.set_var(def.name_id, Value::Func(f), false, node.range());
@@ -59,9 +59,9 @@ impl <'a> Compiler<'a> {
             AST::Text(text, ..) => text.clone().into(),
             AST::Whitespace(..) => HTML::Whitespace,
             
-            AST::LiteralValue(tok) => errors::ice_at("literal value should not appear in non-value context", &tok.range),
-            AST::ParagraphBreak(range) => errors::ice_at("paragraph break should be handled in SequenceCompiler", range),
-            AST::Template(.., range) => errors::ice_at("template should not occur in non-value context", range),
+            AST::LiteralValue(tok) => errors::ice_at("literal value should not appear in non-value context", tok.range),
+            AST::ParagraphBreak(range) => errors::ice_at("paragraph break should be handled in SequenceCompiler", *range),
+            AST::Template(.., range) => errors::ice_at("template should not occur in non-value context", *range),
             
             _ => {
                 self.evaluate_node(node, &Type::HTML)

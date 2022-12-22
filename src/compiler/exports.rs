@@ -1,12 +1,13 @@
 use crate::errors;
 use crate::parser::ast;
-use crate::utils::{NameID, SourceRange};
+use crate::utils::NameID;
+use crate::utils::sourcefile::SourceRange;
 use super::base::Compiler;
 use super::types::Type;
 use super::value::Value;
 
 impl <'a> Compiler<'a> {
-    pub(super) fn export(&mut self, name_id: NameID, value: Value, range: &SourceRange) {
+    pub(super) fn export(&mut self, name_id: NameID, value: Value, range: SourceRange) {
         if self.exports.insert(name_id, value).is_some() {
             let name = self.get_name(name_id).to_string();
             self.warning(errors::Warning::NameAlreadyExported(name), range);
@@ -28,7 +29,7 @@ impl <'a> Compiler<'a> {
             ast::Export::FuncDef(_, func_def) => {
                 let f = self.compile_func_def(func_def);
                 let name_id = f.name_id();
-                let range = &func_def.signature.range;
+                let range = func_def.signature.range;
                 if name_id.is_anonymous() {
                     self.warning(errors::Warning::AnonymousFunctionNotExpected, range);
                 } else {

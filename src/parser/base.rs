@@ -1,11 +1,18 @@
 use std::rc::Rc;
 
 use crate::errors::{Diagnostics, ice_at, SyntaxError};
-use crate::utils::{SourceFile, StringPool, SourceRange, NameID};
+use crate::utils::{StringPool, NameID};
+use crate::utils::sourcefile::{SourceFile, SourceRange};
 use super::ast::*;
-use super::queue::Parser;
-use super::text;
-use super::token::{TokenKind, Token};
+use super::token::{TokenKind, Token, Keyword};
+
+/// Holds the mutable state of the parser.
+pub(super) struct Parser<'a> {
+    pub(super) src: Rc<SourceFile>,
+    pub(super) diagnostics: &'a mut Diagnostics,
+    pub(super) string_pool: &'a mut StringPool,
+    pub(super) tokens: Vec<Token>,
+}
 
 /// Parses a Papyri source file into an abstract syntax tree.
 pub fn parse(src: Rc<SourceFile>, diagnostics: &mut Diagnostics, string_pool: &mut StringPool) -> Vec<AST> {
@@ -15,11 +22,31 @@ pub fn parse(src: Rc<SourceFile>, diagnostics: &mut Diagnostics, string_pool: &m
 
 impl <'a> Parser<'a> {
     fn parse_root(&mut self) -> Vec<AST> {
-        let (nodes, _) = self.parse_nodes_until(|_tok| false);
+        let (nodes, _) = self.parse_nodes_until(|_self, _tok| false);
         nodes
     }
     
-    pub(super) fn parse_nodes_until(&mut self, closer: impl Fn(&Token) -> bool) -> (Vec<AST>, Option<Token>) {
+    pub(super) fn tok_str(&self, tok: &Token) -> &str {
+        self.src.get_span(tok.range)
+    }
+    
+    /// Returns the name from this VarName or FuncName token.
+    pub(super) fn get_var_name(&self, tok: &Token) -> &str {
+        if !matches!(tok.kind, TokenKind::VarName | TokenKind::FuncName) { ice_at("token is not VarName or FuncName", tok.range); }
+        &self.tok_str(tok)[1..]
+    }
+    
+    pub(super) fn tok_name_id(&mut self, tok: &Token, lowercase: bool) -> NameID {
+        let mut s = match tok.kind {
+            TokenKind::Name => self.tok_str(tok),
+            TokenKind::FuncName | TokenKind::VarName => self.get_var_name(tok),
+            _ => ice_at(&format!("token {} does not have name", tok.kind), tok.range),
+        }.to_string();
+        if lowercase { s.make_ascii_lowercase(); }
+        self.string_pool.insert(&s)
+    }
+    
+    pub(super) fn parse_nodes_until(&mut self, closer: impl Fn(&Parser, &Token) -> bool) -> (Vec<AST>, Option<Token>) {
         self.skip_whitespace();
         
         let mut nodes = Vec::new();
@@ -27,7 +54,7 @@ impl <'a> Parser<'a> {
             let Some(tok) = self.poll() else {
                 break None;
             };
-            if closer(&tok) {
+            if closer(self, &tok) {
                 break Some(tok);
             } else if let Some(child) = self.parse_node(tok) {
                 nodes.push(child);
@@ -53,8 +80,8 @@ impl <'a> Parser<'a> {
             if let Some(child) = parse(self) {
                 children.push(child);
             } else {
-                self.diagnostics.err_unmatched(open);
-                self.diagnostics.syntax_error(SyntaxError::TokenExpectedWasEOF(close_kind), &SourceRange::eof(open.range.src.clone()));
+                self.err_unmatched(open);
+                self.syntax_error(SyntaxError::TokenExpectedWasEOF(close_kind), self.src.eof_range());
                 return None;
             }
             self.skip_whitespace();
@@ -79,20 +106,18 @@ impl <'a> Parser<'a> {
         
         match tok.kind {
             TokenKind::Dot |
-            TokenKind::Boolean |
+            TokenKind::Boolean(..) |
             TokenKind::Name |
             TokenKind::Number => Some(AST::LiteralValue(tok)),
             
-            TokenKind::Verbatim => Some(AST::Verbatim(tok)),
+            TokenKind::Verbatim(..) => Some(AST::Verbatim(tok)),
             TokenKind::VarName => self.parse_name(tok).map(AST::Name),
-            TokenKind::FuncName => {
-                let f = self.parse_func(tok)?;
-                if matches!(f, AST::Export(..)) {
-                    self.diagnostics.syntax_error(SyntaxError::ExportNotAllowed, f.range());
-                    None
-                } else {
-                    Some(f)
+            TokenKind::FuncName => self.parse_func_call(tok),
+            TokenKind::Keyword(k) => {
+                if k == Keyword::Export {
+                    self.syntax_error(SyntaxError::ExportNotAllowed, tok.range);
                 }
+                self.parse_keyword(tok)
             },
             TokenKind::LBrace => Some(self.parse_group(tok)),
             TokenKind::LSqb => self.parse_list(tok),
@@ -103,7 +128,7 @@ impl <'a> Parser<'a> {
             },
             
             _ => {
-                self.diagnostics.syntax_error(SyntaxError::ExpectedValue, &tok.range);
+                self.syntax_error(SyntaxError::ExpectedValue, tok.range);
                 None
             }
         }
@@ -111,9 +136,10 @@ impl <'a> Parser<'a> {
     
     fn parse_node(&mut self, tok: Token) -> Option<AST> {
         match tok.kind {
-            TokenKind::Verbatim => Some(AST::Verbatim(tok)),
+            TokenKind::Verbatim(..) => Some(AST::Verbatim(tok)),
             TokenKind::VarName => self.parse_name(tok).map(AST::Name),
-            TokenKind::FuncName => self.parse_func(tok),
+            TokenKind::FuncName => self.parse_func_call(tok),
+            TokenKind::Keyword(..) => self.parse_keyword(tok),
             
             TokenKind::LBrace => Some(self.parse_group(tok)),
             TokenKind::LSqb => self.parse_list(tok),
@@ -122,22 +148,22 @@ impl <'a> Parser<'a> {
             TokenKind::CloseTag |
             TokenKind::RBrace |
             TokenKind::RSqb => {
-                self.diagnostics.err_unmatched(&tok);
+                self.err_unmatched(&tok);
                 None
             },
             
             TokenKind::Comment => {
-                ice_at("comment should not occur here", &tok.range);
+                ice_at("comment should not occur here", tok.range);
             },
             
             TokenKind::Whitespace => Some(AST::Whitespace(tok.range)),
             TokenKind::Newline => Some(AST::ParagraphBreak(tok.range)),
             TokenKind::Escape => {
-                let s = text::unescape_char(&tok.range, self.diagnostics);
+                let s = self.unescape_char(&tok);
                 Some(AST::Text(Rc::from(s), tok.range))
             },
             TokenKind::Entity => {
-                let s = text::decode_entity(&tok.range, self.diagnostics);
+                let s = self.decode_entity(&tok);
                 Some(AST::Text(Rc::from(s), tok.range))
             },
             _ => Some(self.parse_text(tok)),
@@ -146,39 +172,37 @@ impl <'a> Parser<'a> {
     
     pub(super) fn parse_name(&mut self, token: Token) -> Option<Name> {
         let mut name = Name::SimpleName(SimpleName {
-            name_id: self.string_pool.insert(token.get_var_name()),
+            name_id: self.tok_name_id(&token, false),
             range: token.range,
         });
-        while let Some(tok) = self.poll_if_kind(TokenKind::DoubleColon) {
+        while let Some(tok) = self.poll_if(|_self, t| matches!(t.kind, TokenKind::DoubleColon | TokenKind::QuestionMarkDoubleColon)) {
             let attr_name = self.expect_poll_kind(TokenKind::Name)?;
             let range = name.range().to_end(attr_name.range.end);
             name = Name::AttrName(Box::new(AttrName {
                 subject: name,
-                is_coalescing: tok.as_str().starts_with('?'),
-                attr_name_id: self.string_pool.insert(attr_name.as_str()),
+                is_coalescing: tok.kind == TokenKind::QuestionMarkDoubleColon,
+                attr_name_id: self.tok_name_id(&attr_name, false),
                 range,
             }));
         }
         Some(name)
     }
     
-    fn parse_func(&mut self, at: Token) -> Option<AST> {
-        match at.as_str() {
-            "@export" => self.parse_export(at)
+    fn parse_keyword(&mut self, at: Token) -> Option<AST> {
+        match at.get_keyword() {
+            Keyword::Export => self.parse_export(at)
                 .map(Box::new)
                 .map(AST::Export),
-            "@fn" => self.parse_func_def(at)
+            Keyword::Fn => self.parse_func_def(at)
                 .map(Box::new)
                 .map(AST::FuncDef),
-            "@implicit" | "@let" => self.parse_let_in(at, false)
+            Keyword::Implicit |
+            Keyword::Let => self.parse_let_in(at, false)
                 .map(Box::new)
                 .map(AST::LetIn),
-            "@match" => self.parse_match(at)
+            Keyword::Match => self.parse_match(at)
                 .map(Box::new)
                 .map(AST::Match),
-            _ => self.parse_func_call(at)
-                .map(Box::new)
-                .map(AST::FuncCall),
         }
     }
     
@@ -193,7 +217,7 @@ impl <'a> Parser<'a> {
     
     pub(super) fn parse_ellipsis_group(&mut self, open: Token) -> AST {
         let mut children = Vec::new();
-        while let Some(tok) = self.poll_if(|tok| !matches!(tok.kind, TokenKind::CloseTag | TokenKind::RBrace)) {
+        while let Some(tok) = self.poll_if(|_self, tok| !matches!(tok.kind, TokenKind::CloseTag | TokenKind::RBrace)) {
             if let Some(child) = self.parse_node(tok) {
                 children.push(child);
             }
@@ -204,9 +228,9 @@ impl <'a> Parser<'a> {
     }
     
     fn parse_group(&mut self, open: Token) -> AST {
-        let (children, close) = self.parse_nodes_until(|tok| tok.kind == TokenKind::RBrace);
+        let (children, close) = self.parse_nodes_until(|_self, tok| tok.kind == TokenKind::RBrace);
         if close.is_none() {
-            self.diagnostics.err_unmatched(&open);
+            self.err_unmatched(&open);
         }
         
         let range = Parser::seq_range(open, &children, close);
@@ -219,9 +243,9 @@ impl <'a> Parser<'a> {
             |_self| {
                 let arg = _self.parse_arg()?;
                 if arg.spread_kind == SpreadKind::Named {
-                    _self.diagnostics.syntax_error(SyntaxError::SpreadNamedNotAllowed, &arg.range);
+                    _self.syntax_error(SyntaxError::SpreadNamedNotAllowed, arg.range);
                 } else if !arg.is_positional() {
-                    _self.diagnostics.syntax_error(SyntaxError::ArgNamedNotAllowed, &arg.range);
+                    _self.syntax_error(SyntaxError::ArgNamedNotAllowed, arg.range);
                 }
                 Some((arg.value, arg.spread_kind == SpreadKind::Positional))
             },
@@ -237,12 +261,12 @@ impl <'a> Parser<'a> {
     
     fn parse_export(&mut self, at: Token) -> Option<Export> {
         self.skip_whitespace();
-        if let Some(fn_tok) = self.poll_if(|t| t.as_str() == "@fn") {
+        if let Some(fn_tok) = self.poll_if_kind(TokenKind::Keyword(Keyword::Fn)) {
             // @export @fn ...
             let f = self.parse_func_def(fn_tok)?;
             let range = at.range.to_end(f.range.end);
             Some(Export::FuncDef(range, f))
-        } else if let Some(let_tok) = self.poll_if(|t| t.as_str() == "@let") {
+        } else if let Some(let_tok) = self.poll_if_kind(TokenKind::Keyword(Keyword::Let)) {
             // @export @let ...
             let let_in = self.parse_let_in(let_tok, true)?;
             let range = at.range.to_end(let_in.range.end);
@@ -263,13 +287,13 @@ impl <'a> Parser<'a> {
         
         match &child {
             AST::LiteralValue(tok) |
-            AST::Verbatim(tok) if !is_export => self.diagnostics.syntax_error(SyntaxError::LetInLiteral, &tok.range),
+            AST::Verbatim(tok) if !is_export => self.syntax_error(SyntaxError::LetInLiteral, tok.range),
             _ => {},
         }
         
         Some(LetIn {
             range: at.range.to_end(child.range().end),
-            is_implicit: at.as_str() == "@implicit",
+            is_implicit: self.tok_str(&at) == "@implicit",
             vars,
             child,
         })
@@ -279,7 +303,7 @@ impl <'a> Parser<'a> {
         let args = match self.parse_args() {
             Some(args) if !args.is_empty() => args,
             _ => {
-                self.diagnostics.syntax_error(SyntaxError::DeclMissingArgs, &at.range);
+                self.syntax_error(SyntaxError::DeclMissingArgs, at.range);
                 return None;
             },
         };
@@ -287,10 +311,11 @@ impl <'a> Parser<'a> {
         Some(args.into_iter()
             .filter_map(|arg| {
                 if arg.is_spread() {
-                    self.diagnostics.syntax_error(SyntaxError::SpreadNotAllowed, &arg.range);
+                    let e = if arg.is_positional() { SyntaxError::SpreadPositionalNotAllowed } else { SyntaxError::SpreadNamedNotAllowed };
+                    self.syntax_error(e, arg.range);
                     None
                 } else if arg.is_positional() {
-                    self.diagnostics.syntax_error(SyntaxError::DeclPositionalArg, &arg.range);
+                    self.syntax_error(SyntaxError::DeclPositionalArg, arg.range);
                     None
                 } else {
                     Some((arg.name_id, arg.value))

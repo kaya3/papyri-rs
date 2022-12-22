@@ -1,7 +1,8 @@
 use std::rc::Rc;
 use indexmap::IndexMap;
 
-use crate::utils::{NameID, SourceRange, str_ids};
+use crate::utils::{NameID, str_ids};
+use crate::utils::sourcefile::SourceRange;
 use crate::errors;
 use crate::parser::ast;
 use super::base::Compiler;
@@ -145,13 +146,13 @@ pub(super) struct ParamBinder<'a, 'b> {
 }
 
 impl <'a, 'b> ParamBinder<'a, 'b> {
-    pub(super) fn close_partial(mut self, call_range: &SourceRange) -> Option<PartialParams> {
+    pub(super) fn close_partial(mut self, call_range: SourceRange) -> Option<PartialParams> {
         self.check_pos_count(call_range);
         (!self.any_errors)
             .then_some(self.bound)
     }
     
-    pub(super) fn close_into_bound_function(self, f: Func, call_range: &SourceRange) -> Option<Func> {
+    pub(super) fn close_into_bound_function(self, f: Func, call_range: SourceRange) -> Option<Func> {
         self.close_partial(call_range)
             .map(|b| Func::Bound(Rc::new((f, b))))
     }
@@ -210,7 +211,7 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
         }
     }
     
-    pub(super) fn bind_implicit_args(&mut self, call_range: &SourceRange) {
+    pub(super) fn bind_implicit_args(&mut self, call_range: SourceRange) {
         let sig = self.sig.as_ref();
         
         for param in sig.named_params.values() {
@@ -243,7 +244,7 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
         }
     }
     
-    pub(super) fn add_positional_arg(&mut self, value: Value, range: &SourceRange) {
+    pub(super) fn add_positional_arg(&mut self, value: Value, range: SourceRange) {
         let sig = self.sig.as_ref();
         
         if let Some(param) = sig.positional_params.get(self.bound.positional_arg_count) {
@@ -262,7 +263,7 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
         self.bound.positional_arg_count += 1;
     }
     
-    pub(super) fn add_named_arg(&mut self, name_id: NameID, value: Value, range: &SourceRange) {
+    pub(super) fn add_named_arg(&mut self, name_id: NameID, value: Value, range: SourceRange) {
         let sig = self.sig.as_ref();
         
         let (type_, map) = if let Some(param) = sig.named_params.get(&name_id) {
@@ -287,7 +288,7 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
         }
     }
     
-    pub(super) fn add_content_arg(&mut self, content_value: Value, range: &SourceRange) {
+    pub(super) fn add_content_arg(&mut self, content_value: Value, range: SourceRange) {
         let sig = self.sig.as_ref();
         let name_id = sig.content_param.name_id;
         
@@ -308,7 +309,7 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
         }
     }
     
-    fn check_pos_count(&mut self, call_range: &SourceRange) {
+    fn check_pos_count(&mut self, call_range: SourceRange) {
         let sig = self.sig.as_ref();
         
         if sig.spread_param.is_none() && self.bound.positional_arg_count > sig.positional_params.len() {
@@ -323,7 +324,7 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
         }
     }
     
-    pub(super) fn build(mut self, call_range: &SourceRange) -> Option<ValueMap> {
+    pub(super) fn build(mut self, call_range: SourceRange) -> Option<ValueMap> {
         self.check_pos_count(call_range);
         if self.any_errors { return None; }
         
@@ -398,7 +399,7 @@ impl <'a> Compiler<'a> {
     
     pub(super) fn compile_param(&mut self, param: &ast::Param) -> FuncParam {
         let type_ = param.type_annotation.as_ref()
-            .map_or(Type::Any, Type::compile)
+            .map_or(Type::Any, |t| self.compile_type(t))
             .option_if(param.question_mark);
         
         let default_value = param.default_value.as_ref()

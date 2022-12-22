@@ -3,7 +3,8 @@ use indexmap::IndexMap;
 
 use crate::errors::{ice, ice_at, NameError, RuntimeError};
 use crate::parser::ast;
-use crate::utils::{str_ids, NameID, taginfo, text, SourceRange};
+use crate::utils::{str_ids, NameID, taginfo, text};
+use crate::utils::sourcefile::SourceRange;
 use super::base::Compiler;
 use super::html::HTML;
 use super::types::Type;
@@ -82,7 +83,7 @@ impl <'a> Compiler<'a> {
         for attr in tag.attrs.iter() {
             match attr {
                 ast::TagAttrOrSpread::Attr(attr) => {
-                    let range = &attr.range;
+                    let range = attr.range;
                     match attr.value.as_ref() {
                         Some(node) => {
                             let expected_type = Type::Str.option_if(attr.question_mark);
@@ -118,7 +119,7 @@ impl <'a> Compiler<'a> {
         }
     }
     
-    fn add_attr(&mut self, attrs: &mut AttrMap, name_id: NameID, value: Option<Rc<str>>, range: &SourceRange) {
+    fn add_attr(&mut self, attrs: &mut AttrMap, name_id: NameID, value: Option<Rc<str>>, range: SourceRange) {
         if attrs.insert(name_id, value).is_some() {
             let name = self.get_name(name_id).to_string();
             self.runtime_error(RuntimeError::AttrMultipleValues(name), range);

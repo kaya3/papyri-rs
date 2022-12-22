@@ -1,29 +1,28 @@
 use crate::errors::ice_at;
-use crate::utils::SourceRange;
+use crate::utils::sourcefile::SourceRange;
 use super::ast::*;
-use super::queue::Parser;
-use super::text;
+use super::base::Parser;
 use super::token::{Token, TokenKind};
 
 impl <'a> Parser<'a> {
     pub(super) fn parse_template_parts(&mut self, open: Token) -> Option<(Vec<TemplatePart>, SourceRange)> {
         let TokenKind::Quote(open_kind, _) = open.kind else {
-            ice_at("invalid template token", &open.range);
+            ice_at("invalid template token", open.range);
         };
         
         let mut parts: Vec<TemplatePart> = Vec::new();
         let mut brace_stack: Vec<Token> = Vec::new();
         let close = loop {
             let Some(tok) = self.expect_poll() else {
-                self.diagnostics.err_unmatched(&open);
+                self.err_unmatched(&open);
                 return None;
             };
             match tok.kind {
                 TokenKind::Quote(k, _) if k == open_kind => break tok,
                 
                 TokenKind::Newline |
-                TokenKind::Verbatim => {
-                    self.diagnostics.err_unexpected_token(&tok);
+                TokenKind::Verbatim(..) => {
+                    self.err_unexpected_token(&tok);
                 },
                 
                 TokenKind::LBrace => {
@@ -32,7 +31,7 @@ impl <'a> Parser<'a> {
                 },
                 TokenKind::RBrace => {
                     if brace_stack.pop().is_none() {
-                        self.diagnostics.err_unexpected_token(&tok);
+                        self.err_unexpected_token(&tok);
                     } else if matches!(parts.last(), Some(TemplatePart::Whitespace)) {
                         parts.pop();
                     }
@@ -44,12 +43,12 @@ impl <'a> Parser<'a> {
                     }
                 },
                 TokenKind::Escape => {
-                    let s = text::unescape_char(&tok.range, self.diagnostics)
+                    let s = self.unescape_char(&tok)
                         .into_boxed_str();
                     parts.push(TemplatePart::LiteralStr(s));
                 },
                 TokenKind::Entity => {
-                    let s = text::decode_entity(&tok.range, self.diagnostics)
+                    let s = self.decode_entity(&tok)
                         .into_boxed_str();
                     parts.push(TemplatePart::LiteralStr(s));
                 },
@@ -67,7 +66,7 @@ impl <'a> Parser<'a> {
         };
         
         for tok in brace_stack {
-            self.diagnostics.err_unmatched(&tok);
+            self.err_unmatched(&tok);
         }
         
         Some((

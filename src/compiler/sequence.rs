@@ -24,7 +24,7 @@ impl <'a> Compiler<'a> {
         for child in sequence {
             if let AST::ParagraphBreak(range) = child {
                 if forbid_breaks {
-                    self.type_error(TypeError::InlineParagraphBreak, range);
+                    self.type_error(TypeError::InlineParagraphBreak, *range);
                 }
                 comp.newline();
             } else {
@@ -41,7 +41,7 @@ impl <'a> Compiler<'a> {
         
         let html = comp.into_html();
         if matches!(content_kind, ContentKind::RequireEmpty) && !html.is_empty() {
-            let range = &sequence[0].range().to_end(sequence.last().unwrap().range().end);
+            let range = sequence[0].range().to_end(sequence.last().unwrap().range().end);
             self.type_error(TypeError::NoContentAllowed, range);
         }
         html
