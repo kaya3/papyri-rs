@@ -13,7 +13,7 @@ impl <'a> Parser<'a> {
         let name_id = self.poll_if_kind(TokenKind::Name)
             .map_or(
                 str_ids::ANONYMOUS,
-                |t| self.tok_name_id(&t, false),
+                |t| self.tok_name_id(&t),
             );
         let signature = self.parse_signature()?;
         self.skip_whitespace();
@@ -195,7 +195,7 @@ impl <'a> Parser<'a> {
         let spread = self.poll_if_spread(true, true);
         self.skip_whitespace();
         let name_tok = self.expect_poll_kind(TokenKind::VarName)?;
-        let name_id = self.tok_name_id(&name_tok, false);
+        let name_id = self.tok_name_id(&name_tok);
         let underscore = self.tok_str(&name_tok).starts_with("$_");
         
         self.skip_whitespace();
@@ -269,7 +269,7 @@ impl <'a> Parser<'a> {
             if let Some(spread) = &spread {
                 self.syntax_error(SyntaxError::ArgSpreadNamed, spread.range);
             }
-            let name_id = self.tok_name_id(&name_tok, false);
+            let name_id = self.tok_name_id(&name_tok);
             let value = self.parse_value()?;
             let range = range_start.to_end(value.range().end);
             Arg {range, spread_kind: SpreadKind::NoSpread, name_id, value}

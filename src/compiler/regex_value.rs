@@ -14,6 +14,8 @@ enum RegexKind {
 }
 
 impl RegexKind {
+    /// Converts the regex capture groups to a value - either a string, list or
+    /// dict depending on this regex's kind.
     fn captures_to_value(&self, m: regex::Captures) -> Value {
         match self {
             RegexKind::Simple => {

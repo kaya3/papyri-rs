@@ -30,20 +30,22 @@ impl <'a> Parser<'a> {
         self.src.get_span(tok.range)
     }
     
-    /// Returns the name from this VarName or FuncName token.
-    pub(super) fn get_var_name(&self, tok: &Token) -> &str {
-        if !matches!(tok.kind, TokenKind::VarName | TokenKind::FuncName) { ice_at("token is not VarName or FuncName", tok.range); }
-        &self.tok_str(tok)[1..]
+    pub(super) fn tok_name_id(&mut self, tok: &Token) -> NameID {
+        // must use self.src.get_span instead of self.tok_str here, to satisfy the borrow checker
+        let s = match tok.kind {
+            TokenKind::Name => self.src.get_span(tok.range),
+            TokenKind::FuncName | TokenKind::VarName => &self.src.get_span(tok.range)[1..],
+            _ => ice_at(&format!("token {} is not Name, FuncName or VarName", tok.kind), tok.range),
+        };
+        self.string_pool.insert(s)
     }
     
-    pub(super) fn tok_name_id(&mut self, tok: &Token, lowercase: bool) -> NameID {
-        let mut s = match tok.kind {
-            TokenKind::Name => self.tok_str(tok),
-            TokenKind::FuncName | TokenKind::VarName => self.get_var_name(tok),
-            _ => ice_at(&format!("token {} does not have name", tok.kind), tok.range),
-        }.to_string();
-        if lowercase { s.make_ascii_lowercase(); }
-        self.string_pool.insert(&s)
+    pub(super) fn tok_lowercase_name_id(&mut self, tok: &Token) -> (NameID, String) {
+        let s = match tok.kind {
+            TokenKind::Name => self.tok_str(tok).to_ascii_lowercase(),
+            _ => ice_at(&format!("token {} is not Name", tok.kind), tok.range),
+        };
+        (self.string_pool.insert(&s), s)
     }
     
     pub(super) fn parse_nodes_until(&mut self, closer: impl Fn(&Parser, &Token) -> bool) -> (Vec<AST>, Option<Token>) {
@@ -172,7 +174,7 @@ impl <'a> Parser<'a> {
     
     pub(super) fn parse_name(&mut self, token: Token) -> Option<Name> {
         let mut name = Name::SimpleName(SimpleName {
-            name_id: self.tok_name_id(&token, false),
+            name_id: self.tok_name_id(&token),
             range: token.range,
         });
         while let Some(tok) = self.poll_if(|_self, t| matches!(t.kind, TokenKind::DoubleColon | TokenKind::QuestionMarkDoubleColon)) {
@@ -181,7 +183,7 @@ impl <'a> Parser<'a> {
             name = Name::AttrName(Box::new(AttrName {
                 subject: name,
                 is_coalescing: tok.kind == TokenKind::QuestionMarkDoubleColon,
-                attr_name_id: self.tok_name_id(&attr_name, false),
+                attr_name_id: self.tok_name_id(&attr_name),
                 range,
             }));
         }
@@ -293,7 +295,7 @@ impl <'a> Parser<'a> {
         
         Some(LetIn {
             range: at.range.to_end(child.range().end),
-            is_implicit: self.tok_str(&at) == "@implicit",
+            is_implicit: at.kind == TokenKind::Keyword(Keyword::Implicit),
             vars,
             child,
         })

@@ -85,7 +85,7 @@ impl <'a> Parser<'a> {
         self.skip_whitespace();
         let tok = self.expect_poll()?;
         match tok.kind {
-            _ if self.tok_str(&tok) == "_" => {
+            TokenKind::Name if self.tok_str(&tok) == "_" => {
                 let p = MatchPattern::Ignore(tok.range);
                 self.parse_optional_typed_pattern(p)
             },
@@ -150,7 +150,7 @@ impl <'a> Parser<'a> {
         }
         self.skip_whitespace();
         let equals = if allow_lone_name { self.poll_if_kind(TokenKind::Equals) } else { self.expect_poll_kind(TokenKind::Equals) };
-        let name_id = self.tok_name_id(&name_tok, false);
+        let name_id = self.tok_name_id(&name_tok);
         let pattern = if equals.is_some() { self.parse_match_pattern()? } else { MatchPattern::LiteralNone(name_tok.range) };
         Some(NamedMatchPattern::One(name_id, pattern))
     }
@@ -222,8 +222,7 @@ impl <'a> Parser<'a> {
                 if self.tok_str(&name_tok) == "_" {
                     (MatchPattern::Ignore(name_tok.range), None)
                 } else {
-                    let name_str = self.tok_str(&name_tok).to_ascii_lowercase();
-                    let name_id = self.string_pool.insert(&name_str);
+                    let (name_id, name_str) = self.tok_lowercase_name_id(&name_tok);
                     (MatchPattern::LiteralName(name_tok.range, name_id), Some(name_str))
                 }
             },

@@ -133,7 +133,7 @@ impl Context {
     pub(super) fn compile_stdlib(&mut self) {
         use crate::errors;
         
-        let src = self.source_files.load_synthetic("stdlib", include_str!("../std.papyri"));
+        let src = self.source_files.load_synthetic("<stdlib>", include_str!("../std.papyri"));
         let result = self._compile(src, taginfo::ContentKind::RequireEmpty);
         let frame = ActiveFrame::new(
             Some(self.natives_frame.clone()),

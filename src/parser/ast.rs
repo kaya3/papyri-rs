@@ -409,7 +409,7 @@ impl MatchPattern {
             MatchPattern::TypeOf(SimpleName {range, ..}) |
             MatchPattern::VarName(SimpleName {range, ..}) => *range,
             MatchPattern::Typed(t) => t.range(),
-            MatchPattern::EqualsValue(node) => node.range().clone(),
+            MatchPattern::EqualsValue(node) => node.range(),
             MatchPattern::And(pair, ..) |
             MatchPattern::Or(pair, ..) => pair.0.range().to_end(pair.1.range().end),
         }

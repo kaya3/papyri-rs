@@ -23,14 +23,12 @@ pub fn is_papyri_library(path: &path::Path) -> bool {
 pub(crate) struct SourceFileID(NonMaxU32);
 
 impl SourceFileID {
+    pub(crate) const ANONYMOUS: SourceFileID = SourceFileID::of(u32::MAX - 1);
+    
     const fn of(id: u32) -> SourceFileID {
         let Some(id) = NonMaxU32::new(id) else { panic!() };
         SourceFileID(id)
     }
-}
-
-impl SourceFileID {
-    pub(crate) const ANONYMOUS: SourceFileID = SourceFileID::of(0);
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -50,7 +48,7 @@ pub struct SourceRange {
 impl SourceRange {
     /// Returns a new span, starting at the same position as this one, with a
     /// new end index.
-    pub(crate) fn to_end(&self, end: u32) -> SourceRange {
+    pub(crate) fn to_end(self, end: u32) -> SourceRange {
         SourceRange {
             src_id: self.src_id,
             start: self.start,
@@ -97,7 +95,7 @@ impl SourceFile {
         SourceFile::new(
             SourceFileID::ANONYMOUS,
             path::PathBuf::new().into_boxed_path(),
-            format!("<anonymous>").into_boxed_str(),
+            Box::from("<anonymous>"),
             Box::from(src),
         )
     }
@@ -167,7 +165,7 @@ impl SourceFileCache {
         let s = Rc::new(SourceFile::new(
             self.next_id(),
             path::PathBuf::new().into_boxed_path(),
-            format!("<{path_str}>").into_boxed_str(),
+            Box::from(path_str),
             Box::from(src),
         ));
         self.files.push(s.clone());
@@ -177,11 +175,10 @@ impl SourceFileCache {
     /// Loads a source file from the given path.
     pub(crate) fn load_from_path(&mut self, path: &path::Path) -> Result<Rc<SourceFile>, std::io::Error> {
         let src = fs::read_to_string(path)?;
-        let path_str: Box<str> = path.to_string_lossy().into();
         let s = Rc::new(SourceFile::new(
             self.next_id(),
             Box::from(path),
-            path_str,
+            path.to_string_lossy().into(),
             src.into_boxed_str(),
         ));
         self.files.push(s.clone());

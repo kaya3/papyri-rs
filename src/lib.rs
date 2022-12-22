@@ -14,7 +14,7 @@ pub mod utils;
 /// instead.
 pub fn compile_str(src: &str) -> Result<String, errors::Diagnostics> {
     let mut ctx = compiler::Context::new(errors::ReportingLevel::Warning, None);
-    let src = ctx.source_files.load_synthetic("string", src);
+    let src = ctx.source_files.load_synthetic("<string>", src);
     let result = ctx.compile(src);
     
     if ctx.diagnostics.is_empty() {
