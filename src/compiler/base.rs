@@ -32,7 +32,7 @@ impl <'a> Compiler<'a> {
         Compiler {
             ctx,
             call_stack,
-            exports: ValueMap::new(),
+            exports: ValueMap::default(),
         }
     }
     

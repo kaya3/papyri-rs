@@ -26,6 +26,7 @@ default = ["syntect"]
 aho-corasick = "0.7.19"
 arg = {version = "0.3.1", features = ["std"]}
 deunicode = "1.3.2"
+fxhash = "0.2.1"
 glob = "0.3.0"
 htmlentity = "1.2.0"
 indexmap = "1.9.1"

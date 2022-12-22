@@ -1,7 +1,7 @@
-use indexmap::{IndexMap, IndexSet};
+use indexmap::IndexMap;
 
 use crate::errors::{ice_at, SyntaxError};
-use crate::utils::{taginfo, NameID};
+use crate::utils::{taginfo, NameID, NameIDSet};
 use crate::utils::sourcefile::SourceRange;
 use super::ast::*;
 use super::base::Parser;
@@ -61,7 +61,7 @@ impl <'a> Parser<'a> {
         while {self.skip_whitespace(); self.poll_if_kind(TokenKind::Bar).is_some()} {
             let q = self.parse_and_match_pattern()?;
             
-            let mut name_ids = IndexSet::new();
+            let mut name_ids = NameIDSet::default();
             p.get_name_ids(&mut name_ids);
             q.get_name_ids(&mut name_ids);
             let name_ids = name_ids.into_iter().collect();
@@ -319,7 +319,7 @@ impl <'a> Parser<'a> {
     }
     
     fn make_dict_pattern(&mut self, parts: Vec<NamedMatchPattern>, range: SourceRange, simplify: bool) -> Option<MatchPattern> {
-        let mut attrs = IndexMap::new();
+        let mut attrs = IndexMap::default();
         let mut spread = None;
         
         for part in parts.into_iter() {

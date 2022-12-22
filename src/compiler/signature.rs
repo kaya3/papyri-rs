@@ -48,7 +48,7 @@ impl FuncParam {
 pub struct FuncSignature {
     positional_params: Vec<FuncParam>,
     spread_param: Option<Box<FuncParam>>,
-    named_params: IndexMap<NameID, FuncParam>,
+    named_params: IndexMap<NameID, FuncParam, fxhash::FxBuildHasher>,
     spread_named_param: Option<Box<FuncParam>>,
     content_param: FuncParam,
 }
@@ -68,7 +68,7 @@ impl FuncSignature {
         FuncSignature {
             positional_params: Vec::new(),
             spread_param: None,
-            named_params: IndexMap::new(),
+            named_params: IndexMap::default(),
             spread_named_param: None,
             content_param: FuncParam::new(str_ids::ANONYMOUS, Type::Unit),
         }
@@ -123,8 +123,8 @@ impl PartialParams {
         PartialParams {
             positional_arg_count: 0,
             spread_pos: Vec::new(),
-            spread_named: ValueMap::new(),
-            map: ValueMap::new(),
+            spread_named: ValueMap::default(),
+            map: ValueMap::default(),
         }
     }
     

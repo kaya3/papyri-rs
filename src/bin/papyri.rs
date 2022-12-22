@@ -121,8 +121,8 @@ impl Main {
         }
     }
     
-    fn get_source_paths(&self) -> Result<IndexSet<PathBuf>, String> {
-        let mut source_paths = IndexSet::new();
+    fn get_source_paths(&self) -> Result<IndexSet<PathBuf, fxhash::FxBuildHasher>, String> {
+        let mut source_paths = IndexSet::default();
         for path_str in self.options.paths.iter() {
             if utils::text::looks_like_glob(path_str) {
                 // glob pattern

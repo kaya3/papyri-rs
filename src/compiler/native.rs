@@ -155,12 +155,11 @@ impl NativeDefs {
             }
         }
         
-        fn dict_entry<T>(name_id: NameID, map: T) -> (NameID, Value)
-        where ValueMap: From<T> {
-            (name_id, ValueMap::from(map).into())
+        fn dict_entry<const N: usize>(name_id: NameID, entries: [(NameID, Value); N]) -> (NameID, Value) {
+            (name_id, ValueMap::from_iter(entries).into())
         }
         
-        let bindings = ValueMap::from([
+        let bindings = ValueMap::from_iter([
             dict_entry(str_ids::INT, [
                 self.add.entry(),
             ]),
@@ -321,7 +320,9 @@ impl <'a> Compiler<'a> {
                     Some(if f == NativeFunc::Import {
                         Value::Dict(module_exports)
                     } else {
-                        self.set_vars(module_exports.as_ref(), false, call_range);
+                        for (&k, v) in module_exports.as_ref().iter() {
+                            self.set_var(k, v.clone(), false, call_range);
+                        }
                         module_out.into()
                     })
                 }
@@ -335,13 +336,10 @@ impl <'a> Compiler<'a> {
                     Some(f) => {
                         let mut out = Vec::new();
                         for v in content.as_ref() {
-                            match self.eval_callback(f.clone(), v.clone(), call_range)? {
+                            match self.eval_callback(f.clone(), v.clone(), &Type::Bool, call_range)? {
                                 Value::Bool(true) => out.push(v.clone()),
                                 Value::Bool(false) => {},
-                                _ => {
-                                    self.err_expected_type(Type::Bool, v.get_type(), call_range);
-                                    return None;
-                                },
+                                _ => ice_at("failed to coerce", call_range),
                             }
                         }
                         out
@@ -376,7 +374,7 @@ impl <'a> Compiler<'a> {
                 
                 let mut out = Vec::new();
                 for v in content.as_ref() {
-                    let r = self.eval_callback(callback.clone(), v.clone(), call_range)?;
+                    let r = self.eval_callback(callback.clone(), v.clone(), &Type::Any, call_range)?;
                     out.push(r);
                 }
                 Some(out.into())
@@ -435,7 +433,7 @@ impl <'a> Compiler<'a> {
                     let k = key_func.clone()
                         .map_or_else(
                             || Some(v.clone()),
-                            |f| self.eval_callback(f, v.clone(), call_range),
+                            |f| self.eval_callback(f, v.clone(), &Type::Any, call_range),
                         )?;
                     
                     if !matches!(k, Value::Int(_) | Value::Str(_)) {
@@ -539,12 +537,12 @@ impl <'a> Compiler<'a> {
         Some(tag.into())
     }
     
-    fn eval_callback(&mut self, callback: Func, arg: Value, call_range: SourceRange) -> Option<Value> {
+    fn eval_callback(&mut self, callback: Func, arg: Value, expected_type: &Type, call_range: SourceRange) -> Option<Value> {
         let bindings = callback.bind_synthetic_call(self, false, arg, call_range)?;
         self.evaluate_func_call_with_bindings(
             callback,
             bindings,
-            &Type::Any,
+            expected_type,
             call_range,
         )
     }

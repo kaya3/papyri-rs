@@ -1,9 +1,8 @@
 use std::cell::RefCell;
 use std::rc::Rc;
-use indexmap::IndexSet;
 
 use crate::errors::{NameError, RuntimeError, Warning, StackTrace, RuntimeWarning, DiagSourceRange};
-use crate::utils::NameID;
+use crate::utils::{NameID, NameIDSet};
 use crate::utils::sourcefile::SourceRange;
 use super::base::Compiler;
 use super::func::Func;
@@ -24,7 +23,7 @@ pub(super) struct InactiveFrame {
 struct Frame {
     lexical_parent: Option<InactiveFrame>,
     locals: ValueMap,
-    implicit: IndexSet<NameID>,
+    implicit: NameIDSet,
 }
 
 impl ActiveFrame {
@@ -33,7 +32,7 @@ impl ActiveFrame {
             f: Rc::new(RefCell::new(Frame {
                 lexical_parent,
                 locals,
-                implicit: IndexSet::new(),
+                implicit: NameIDSet::default(),
             })),
             call,
         }
@@ -85,7 +84,7 @@ impl InactiveFrame {
     pub(super) fn new_empty_child_frame(&self) -> ActiveFrame {
         ActiveFrame::new(
             Some(self.clone()),
-            ValueMap::new(),
+            ValueMap::default(),
             None,
         )
     }
@@ -172,12 +171,6 @@ impl <'a> Compiler<'a> {
         if self.frame().set(name_id, value, implicit) {
             let name = self.get_name(name_id).to_string();
             self.warning(Warning::NameAlreadyDeclared(name), range);
-        }
-    }
-    
-    pub(super) fn set_vars(&mut self, dict: &ValueMap, implicit: bool, range: SourceRange) {
-        for (&k, v) in dict {
-            self.set_var(k, v.clone(), implicit, range);
         }
     }
     

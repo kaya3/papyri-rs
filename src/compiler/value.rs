@@ -43,7 +43,7 @@ pub enum Value {
     Regex(Rc<RegexValue>),
 }
 
-pub type ValueMap = IndexMap<NameID, Value>;
+pub type ValueMap = IndexMap<NameID, Value, fxhash::FxBuildHasher>;
 
 impl From<bool> for Value {
     fn from(b: bool) -> Value {

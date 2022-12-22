@@ -21,7 +21,7 @@ pub struct ModuleCache {
     stdlib: Option<InactiveFrame>,
     
     /// The cache of compiled modules.
-    cache: IndexMap<Box<path::Path>, ModuleState>,
+    cache: IndexMap<Box<path::Path>, ModuleState, fxhash::FxBuildHasher>,
 }
 
 type CachedCompileResult = (HTML, Rc<ValueMap>);
@@ -46,7 +46,7 @@ impl ModuleCache {
     pub fn new() -> ModuleCache {
         ModuleCache {
             stdlib: None,
-            cache: IndexMap::new(),
+            cache: IndexMap::default(),
         }
     }
     

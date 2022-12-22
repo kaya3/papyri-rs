@@ -1,7 +1,5 @@
-use indexmap::IndexSet;
-
 use crate::errors::{ice_at, SyntaxError};
-use crate::utils::{NameID, taginfo, str_ids};
+use crate::utils::{taginfo, str_ids, NameIDSet};
 use super::ast::*;
 use super::base::Parser;
 use super::token::{Token, TokenKind};
@@ -36,7 +34,7 @@ impl <'a> Parser<'a> {
             TokenKind::RAngle,
         )?;
         
-        let mut names_used: IndexSet<NameID> = IndexSet::new();
+        let mut names_used = NameIDSet::default();
         for attr in attrs.iter() {
             if let TagAttrOrSpread::Attr(attr) = attr {
                 if !names_used.insert(attr.name_id) {

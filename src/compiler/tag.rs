@@ -10,7 +10,7 @@ use super::html::HTML;
 use super::types::Type;
 use super::value::Value;
 
-pub(super) type AttrMap = IndexMap<NameID, Option<Rc<str>>>;
+pub(super) type AttrMap = IndexMap<NameID, Option<Rc<str>>, fxhash::FxBuildHasher>;
 
 #[derive(Debug, Clone)]
 pub struct Tag {
@@ -21,7 +21,7 @@ pub struct Tag {
 
 impl Tag {
     pub(super) fn new(name_id: NameID, content: HTML) -> Tag {
-        Tag::new_with_attrs(name_id, AttrMap::new(), content)
+        Tag::new_with_attrs(name_id, AttrMap::default(), content)
     }
     
     pub(super) fn new_with_attrs(name_id: NameID, attributes: AttrMap, content: HTML) -> Tag {
@@ -79,7 +79,7 @@ impl <'a> Compiler<'a> {
             },
         };
         
-        let mut attrs = AttrMap::new();
+        let mut attrs = AttrMap::default();
         for attr in tag.attrs.iter() {
             match attr {
                 ast::TagAttrOrSpread::Attr(attr) => {

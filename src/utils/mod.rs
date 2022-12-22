@@ -13,4 +13,4 @@ pub mod text;
 pub(crate) use const_strs::str_ids;
 pub use outfiles::OutFiles;
 pub use sliceref::SliceRef;
-pub use string_pool::{StringPool, NameID};
+pub use string_pool::{StringPool, NameID, NameIDSet};

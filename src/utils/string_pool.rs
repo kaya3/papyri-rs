@@ -22,9 +22,12 @@ impl NameID {
     }
 }
 
+/// A set of NameIDs.
+pub type NameIDSet = IndexSet<NameID, fxhash::FxBuildHasher>;
+
 /// A pool of interned string names, which assigns unique IDs to names, and can
 /// be used to look up names by ID. The pool's maximum capacity is `u32::MAX`.
-pub struct StringPool(IndexSet<Box<str>>);
+pub struct StringPool(IndexSet<Box<str>, fxhash::FxBuildHasher>);
 
 impl Default for StringPool {
     fn default() -> StringPool {

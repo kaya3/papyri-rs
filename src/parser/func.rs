@@ -1,8 +1,7 @@
 use std::rc::Rc;
-use indexmap::IndexSet;
 
 use crate::errors::SyntaxError;
-use crate::utils::str_ids;
+use crate::utils::{str_ids, NameIDSet};
 use super::ast::*;
 use super::base::Parser;
 use super::token::{Token, TokenKind, Keyword};
@@ -71,7 +70,7 @@ impl <'a> Parser<'a> {
             )?;
             
             let mut any_named_params = false;
-            let mut names_used = IndexSet::new();
+            let mut names_used = NameIDSet::default();
             let mut any_optional_params = false;
             let mut any_optional_named_params = false;
             
@@ -171,7 +170,7 @@ impl <'a> Parser<'a> {
         )?;
         
         let mut any_named = false;
-        let mut names_used = IndexSet::new();
+        let mut names_used = NameIDSet::default();
         
         for arg in args.iter() {
             if !arg.name_id.is_anonymous() {

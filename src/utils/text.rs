@@ -124,7 +124,7 @@ pub fn get_source_language_hint(src: &str) -> Option<(&str, &str)> {
 /// identifiers; IDs generated will be distinct until the `clear()` method is
 /// called.
 pub struct UniqueIDGenerator {
-    ids_used: IndexSet<Rc<str>>,
+    ids_used: IndexSet<Rc<str>, fxhash::FxBuildHasher>,
 }
 
 impl Default for UniqueIDGenerator {
@@ -137,7 +137,7 @@ impl UniqueIDGenerator {
     /// Creates a new unique ID generator.
     pub fn new() -> UniqueIDGenerator {
         UniqueIDGenerator {
-            ids_used: IndexSet::new(),
+            ids_used: IndexSet::default(),
         }
     }
     

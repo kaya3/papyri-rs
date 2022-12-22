@@ -1,9 +1,9 @@
 //! This module contains type declarations for AST nodes.
 
 use std::rc::Rc;
-use indexmap::{IndexMap, IndexSet};
+use indexmap::IndexMap;
 
-use crate::utils::NameID;
+use crate::utils::{NameID, NameIDSet};
 use crate::utils::sourcefile::SourceRange;
 use crate::errors;
 use super::token::{Token, TokenKind};
@@ -371,7 +371,7 @@ pub struct RegexMatchPattern {
 pub struct DictMatchPattern {
     /// A collection of (name, pattern) pairs for matching individual tag
     /// attributes.
-    pub(crate) attrs: IndexMap<NameID, MatchPattern>,
+    pub(crate) attrs: IndexMap<NameID, MatchPattern, fxhash::FxBuildHasher>,
     
     /// An optional pattern for matching the remaining tag attributes, as a
     /// dictionary.
@@ -415,7 +415,7 @@ impl MatchPattern {
         }
     }
     
-    pub(super) fn get_name_ids(&self, out: &mut IndexSet<NameID>) {
+    pub(super) fn get_name_ids(&self, out: &mut NameIDSet) {
         match self {
             MatchPattern::VarName(name) |
             MatchPattern::TypeOf(name) => {
