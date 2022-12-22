@@ -81,7 +81,7 @@
     |<a class="footnote-ref"/><span class="footnote panel">$v</>
 }
 
-@fn dict_new(**$kwargs: any dict). -> $kwargs
+@fn dict_new(**$kwargs). -> $kwargs
 
 @export(
     bool=@dict_new(
@@ -112,14 +112,14 @@
     ).,
     list=@dict_new(
         **$list,
-        all=@fn list_all($_f: function) $v: any list -> @match $v {[] -> True, [$a, *$b] -> @match @_f $a {True -> @list::all($_f) $b, False -> False}},
-        any=@fn list_any($_f: function) $v: any list -> @match $v {[] -> False, [$a, *$b] -> @match @_f $a {True -> True, False -> @list::any($_f) $b}},
-        contains=@fn list_contains($_v) $v: any list -> @match $v {[] -> False, [=$_v, *_] -> True, [_, *$r] -> @list::contains($_v) $r},
-        find=@fn list_find($_f: function) $v: any list -> @match $v {[] -> ., [$a, *$b] -> @match @_f $a {True -> $a, False -> @list::find($_f) $b}},
-        flat=@fn list_flat $v: any list -> $v::flat,
-        is_empty=@fn list_is_empty $v: any list -> $v::is_empty,
-        len=@fn list_len $v: any list -> $v::len,
-        reversed=@fn list_reversed $v: any list -> $v::reversed,
+        all=@fn list_all($_f: function) $v: list -> @match $v {[] -> True, [$a, *$b] -> @match @_f $a {True -> @list::all($_f) $b, False -> False}},
+        any=@fn list_any($_f: function) $v: list -> @match $v {[] -> False, [$a, *$b] -> @match @_f $a {True -> True, False -> @list::any($_f) $b}},
+        contains=@fn list_contains($_v) $v: list -> @match $v {[] -> False, [=$_v, *_] -> True, [_, *$r] -> @list::contains($_v) $r},
+        find=@fn list_find($_f: function) $v: list -> @match $v {[] -> ., [$a, *$b] -> @match @_f $a {True -> $a, False -> @list::find($_f) $b}},
+        flat=@fn list_flat $v: list -> $v::flat,
+        is_empty=@fn list_is_empty $v: list -> $v::is_empty,
+        len=@fn list_len $v: list -> $v::len,
+        reversed=@fn list_reversed $v: list -> $v::reversed,
     ).,
     dict=@dict_new(
         new=$dict_new,

@@ -1,17 +1,24 @@
 use indexmap::IndexSet;
+use nonmax::NonMaxU32;
 
 use crate::errors;
 use super::const_strs::CONST_STRS;
+use super::str_ids;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 /// Represents an interned name. Two names in the same `StringPool` will have
 /// the same ID if and only if they are equal as strings.
-pub struct NameID(pub u32);
+pub struct NameID(NonMaxU32);
 
 impl NameID {
+    pub(super) const fn of(id: u32) -> NameID {
+        let Some(id) = NonMaxU32::new(id) else { panic!() };
+        NameID(id)
+    }
+    
     /// Indicates whether this name ID represents the absence of a name.
     pub fn is_anonymous(self) -> bool {
-        self.0 == 0
+        self == str_ids::ANONYMOUS
     }
 }
 
@@ -39,11 +46,11 @@ impl StringPool {
     /// its unique ID.
     pub(crate) fn insert(&mut self, s: &str) -> NameID {
         match self.0.get_index_of(s) {
-            Some(id) => NameID(id as u32),
+            Some(id) => NameID::of(id as u32),
             None => {
                 let s_owned: Box<str> = Box::from(s);
                 let (id, _) = self.0.insert_full(s_owned);
-                NameID(id as u32)
+                NameID::of(id as u32)
             },
         }
     }
@@ -52,7 +59,7 @@ impl StringPool {
     /// be called with IDs assigned by this pool, or constant IDs assigned in
     /// the `str_ids` module.
     pub fn get(&self, id: NameID) -> &str {
-        let id = id.0 as usize;
+        let id = id.0.get() as usize;
         let Some(s) = self.0.get_index(id) else {
             errors::ice(&format!("no string with ID {id}"));
         };

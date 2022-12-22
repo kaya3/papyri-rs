@@ -2,6 +2,7 @@
 
 use std::{fs, path};
 use std::rc::Rc;
+use nonmax::NonMaxU32;
 use once_cell::unsync::OnceCell;
 
 use crate::errors;
@@ -19,10 +20,17 @@ pub fn is_papyri_library(path: &path::Path) -> bool {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct SourceFileID(u32);
+pub(crate) struct SourceFileID(NonMaxU32);
 
 impl SourceFileID {
-    pub(crate) const ANONYMOUS: SourceFileID = SourceFileID(u32::MAX);
+    const fn of(id: u32) -> SourceFileID {
+        let Some(id) = NonMaxU32::new(id) else { panic!() };
+        SourceFileID(id)
+    }
+}
+
+impl SourceFileID {
+    pub(crate) const ANONYMOUS: SourceFileID = SourceFileID::of(0);
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -140,16 +148,16 @@ impl SourceFileCache {
     }
     
     pub(crate) fn get(&self, id: SourceFileID) -> Rc<SourceFile> {
-        self.files[id.0 as usize].clone()
+        self.files[id.0.get() as usize].clone()
     }
     
     pub(crate) fn get_str(&self, range: SourceRange) -> &str {
-        &self.files[range.src_id.0 as usize]
+        &self.files[range.src_id.0.get() as usize]
             .src[range.start as usize..range.end as usize]
     }
     
     fn next_id(&self) -> SourceFileID {
-        SourceFileID(self.files.len() as u32)
+        SourceFileID::of(self.files.len() as u32)
     }
     
     /// Creates a new synthetic source file which does not exist on the file
