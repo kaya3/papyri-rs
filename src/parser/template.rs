@@ -1,15 +1,10 @@
-use crate::errors::ice_at;
 use crate::utils::sourcefile::SourceRange;
 use super::ast::*;
 use super::base::Parser;
-use super::token::{Token, TokenKind};
+use super::token::{Token, TokenKind, QuoteKind};
 
 impl <'a> Parser<'a> {
-    pub(super) fn parse_template_parts(&mut self, open: Token) -> Option<(Vec<TemplatePart>, SourceRange)> {
-        let TokenKind::Quote(open_kind, _) = open.kind else {
-            ice_at("invalid template token", open.range);
-        };
-        
+    pub(super) fn parse_template_parts(&mut self, open: Token, open_kind: QuoteKind) -> Option<(Vec<TemplatePart>, SourceRange)> {
         let mut parts: Vec<TemplatePart> = Vec::new();
         let mut brace_stack: Vec<Token> = Vec::new();
         let close = loop {

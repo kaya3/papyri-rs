@@ -2,6 +2,7 @@ use std::rc::Rc;
 use indexmap::IndexMap;
 
 use crate::errors;
+use crate::parser::token::VerbatimKind;
 use crate::parser::{ast, AST, token, text};
 use crate::utils::{NameID, str_ids, SliceRef};
 use crate::utils::sourcefile::SourceRange;
@@ -280,14 +281,7 @@ impl <'a> Compiler<'a> {
             } else {
                 self.evaluate_literal(tok)?
             },
-            AST::Verbatim(tok) => if type_hint.is_html() {
-                // This gives a different result to `evaluate_literal` + `coerce`,
-                // but it gives the expected result of formatting code blocks if
-                // they appear where HTML is expected.
-                return self.evaluate_code_or_code_block(tok, type_hint);
-            } else {
-                self.evaluate_literal(tok)?
-            },
+            AST::Verbatim(range, k) => self.evaluate_verbatim(*range, *k, type_hint)?,
             
             AST::FuncCall(call) => return self.evaluate_func_call(call, type_hint),
             AST::FuncDef(def) => {
@@ -390,15 +384,19 @@ impl <'a> Compiler<'a> {
         })
     }
     
-    fn evaluate_code_or_code_block(&mut self, tok: &token::Token, type_hint: &Type) -> Option<Value> {
-        let f_name = if tok.is_multiline_verbatim() { str_ids::CODE_BLOCK } else { str_ids::CODE };
-        let func = self.get_var(f_name, tok.range)?;
-        let Value::Func(f) = self.coerce(func, &Type::Function, tok.range)? else {
-            errors::ice_at("failed to coerce", tok.range);
+    fn evaluate_verbatim(&mut self, range: SourceRange, verbatim_kind: VerbatimKind, type_hint: &Type) -> Option<Value> {
+        let str_value = token::Token::get_verbatim_text(self.ctx.get_source_str(range)).into();
+        if !type_hint.is_html() {
+            return Some(str_value);
+        }
+        
+        let f_name = if verbatim_kind == VerbatimKind::Multiline { str_ids::CODE_BLOCK } else { str_ids::CODE };
+        let func = self.get_var(f_name, range)?;
+        let Value::Func(f) = self.coerce(func, &Type::Function, range)? else {
+            errors::ice_at("failed to coerce", range);
         };
         
-        let content = token::Token::get_verbatim_text(self.ctx.get_source_str(tok.range)).into();
-        let bindings = f.bind_synthetic_call(self, true, content, tok.range)?;
-        self.evaluate_func_call_with_bindings(f, bindings, type_hint, tok.range)
+        let bindings = f.bind_synthetic_call(self, true, str_value, range)?;
+        self.evaluate_func_call_with_bindings(f, bindings, type_hint, range)
     }
 }

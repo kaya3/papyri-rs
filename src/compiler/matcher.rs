@@ -42,12 +42,14 @@ impl <'a> Compiler<'a> {
                 true
             },
             ast::MatchPattern::And(pair) => {
-                self.bind_pattern(&pair.0, value.clone())
-                    && self.bind_pattern(&pair.1, value)
+                let (left, right) = pair.as_ref();
+                self.bind_pattern(left, value.clone())
+                    && self.bind_pattern(right, value)
             },
             ast::MatchPattern::Or(pair, name_ids) => {
-                let r = self.bind_pattern(&pair.0, value.clone())
-                    || {self.frame().unset_all(name_ids); self.bind_pattern(&pair.1, value)};
+                let (left, right) = pair.as_ref();
+                let r = self.bind_pattern(left, value.clone())
+                    || {self.frame().unset_all(name_ids); self.bind_pattern(right, value)};
                 if r {
                     self.frame().set_all_if_not_present(name_ids, Value::UNIT);
                 }

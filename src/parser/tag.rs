@@ -67,7 +67,8 @@ impl <'a> Parser<'a> {
     
     fn parse_tag_attribute(&mut self) -> Option<TagAttrOrSpread> {
         self.skip_whitespace();
-        if self.poll_if_spread(false, true).is_some() {
+        let (spread_kind, _) = self.poll_if_spread(false, true);
+        if spread_kind != SpreadKind::NoSpread {
             return self.parse_value()
                 .map(TagAttrOrSpread::Spread);
         }

@@ -5,8 +5,7 @@ use indexmap::IndexMap;
 
 use crate::utils::{NameID, NameIDSet};
 use crate::utils::sourcefile::SourceRange;
-use crate::errors;
-use super::token::{Token, TokenKind};
+use super::token::{Token, TokenKind, VerbatimKind};
 
 #[derive(Debug)]
 /// An AST node for a single HTML tag attribute.
@@ -231,17 +230,6 @@ impl Arg {
 /// Indicates whether an argument or parameter is spread, and if so whether it
 /// is a positional spread `*v` or named spread `**kw`.
 pub(super) enum SpreadKind {NoSpread, Positional, Named}
-
-impl Token {
-    /// Determines the spread kind of this asterisk token.
-    pub(super) fn spread_kind(&self) -> SpreadKind {
-        match self.kind {
-            TokenKind::Asterisk => SpreadKind::Positional,
-            TokenKind::DoubleAsterisk => SpreadKind::Named,
-            _ => errors::ice_at("Not an Asterisk", self.range),
-        }
-    }
-}
 
 #[derive(Debug)]
 /// An AST node for a function call.
@@ -550,7 +538,7 @@ pub enum AST {
     LiteralValue(Token),
     
     /// A string literal.
-    Verbatim(Token),
+    Verbatim(SourceRange, VerbatimKind),
     
     /// An `@export` declaration.
     Export(Box<Export>),
@@ -606,7 +594,7 @@ impl AST {
             AST::Name(name) => name.range(),
             
             AST::LiteralValue(Token {range, ..}) |
-            AST::Verbatim(Token {range, ..}) |
+            AST::Verbatim(range, ..) |
             AST::Group(.., range) |
             AST::List(.., range) |
             AST::Template(.., range) |

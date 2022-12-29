@@ -112,20 +112,20 @@ impl <'a> Parser<'a> {
             TokenKind::Name |
             TokenKind::Number => Some(AST::LiteralValue(tok)),
             
-            TokenKind::Verbatim(..) => Some(AST::Verbatim(tok)),
+            TokenKind::Verbatim(k) => Some(AST::Verbatim(tok.range, k)),
             TokenKind::VarName => self.parse_name(tok).map(AST::Name),
             TokenKind::FuncName => self.parse_func_call(tok),
             TokenKind::Keyword(k) => {
                 if k == Keyword::Export {
                     self.syntax_error(SyntaxError::ExportNotAllowed, tok.range);
                 }
-                self.parse_keyword(tok)
+                self.parse_keyword(tok, k)
             },
             TokenKind::LBrace => Some(self.parse_group(tok)),
             TokenKind::LSqb => self.parse_list(tok),
             TokenKind::LAngle if self.has_next(|t| matches!(t.kind, TokenKind::Name | TokenKind::VarName)) => self.parse_tag(tok),
-            TokenKind::Quote(..) => {
-                let (parts, range) = self.parse_template_parts(tok)?;
+            TokenKind::Quote(open_kind, _) => {
+                let (parts, range) = self.parse_template_parts(tok, open_kind)?;
                 Some(AST::Template(parts.into_boxed_slice(), range))
             },
             
@@ -138,10 +138,10 @@ impl <'a> Parser<'a> {
     
     fn parse_node(&mut self, tok: Token) -> Option<AST> {
         match tok.kind {
-            TokenKind::Verbatim(..) => Some(AST::Verbatim(tok)),
+            TokenKind::Verbatim(k) => Some(AST::Verbatim(tok.range, k)),
             TokenKind::VarName => self.parse_name(tok).map(AST::Name),
             TokenKind::FuncName => self.parse_func_call(tok),
-            TokenKind::Keyword(..) => self.parse_keyword(tok),
+            TokenKind::Keyword(k) => self.parse_keyword(tok, k),
             
             TokenKind::LBrace => Some(self.parse_group(tok)),
             TokenKind::LSqb => self.parse_list(tok),
@@ -154,9 +154,7 @@ impl <'a> Parser<'a> {
                 None
             },
             
-            TokenKind::Comment => {
-                ice_at("comment should not occur here", tok.range);
-            },
+            TokenKind::Comment => ice_at("comment should not occur here", tok.range),
             
             TokenKind::Whitespace => Some(AST::Whitespace(tok.range)),
             TokenKind::Newline => Some(AST::ParagraphBreak(tok.range)),
@@ -190,8 +188,8 @@ impl <'a> Parser<'a> {
         Some(name)
     }
     
-    fn parse_keyword(&mut self, at: Token) -> Option<AST> {
-        match at.get_keyword() {
+    fn parse_keyword(&mut self, at: Token, keyword: Keyword) -> Option<AST> {
+        match keyword {
             Keyword::Export => self.parse_export(at)
                 .map(Box::new)
                 .map(AST::Export),
@@ -288,8 +286,8 @@ impl <'a> Parser<'a> {
         let child = self.parse_value_or_ellipsis()?;
         
         match &child {
-            AST::LiteralValue(tok) |
-            AST::Verbatim(tok) if !is_export => self.syntax_error(SyntaxError::LetInLiteral, tok.range),
+            AST::LiteralValue(Token {range, ..}) |
+            AST::Verbatim(range, ..) if !is_export => self.syntax_error(SyntaxError::LetInLiteral, *range),
             _ => {},
         }
         

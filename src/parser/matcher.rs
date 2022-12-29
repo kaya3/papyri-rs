@@ -5,7 +5,7 @@ use crate::utils::{taginfo, NameID, NameIDSet};
 use crate::utils::sourcefile::SourceRange;
 use super::ast::*;
 use super::base::Parser;
-use super::token::{Token, TokenKind};
+use super::token::{Token, TokenKind, QuoteKind};
 
 #[derive(Debug)]
 enum PositionalMatchPattern {
@@ -105,7 +105,7 @@ impl <'a> Parser<'a> {
             TokenKind::LSqb => self.parse_seq_pattern(tok, TokenKind::Comma, TokenKind::RSqb).map(|(p, _)| p),
             TokenKind::LPar => self.parse_dict_pattern(tok),
             TokenKind::LBrace => self.parse_seq_pattern(tok, TokenKind::Whitespace, TokenKind::RBrace).map(|(p, _)| p),
-            TokenKind::Quote(..) => self.parse_template_pattern(tok),
+            TokenKind::Quote(open_kind, _) => self.parse_template_pattern(tok, open_kind),
             
             TokenKind::Name => {
                 self.syntax_error(SyntaxError::PatternBareName, tok.range);
@@ -128,18 +128,19 @@ impl <'a> Parser<'a> {
     
     fn parse_positional_match_pattern(&mut self) -> Option<PositionalMatchPattern> {
         self.skip_whitespace();
-        let spread = self.poll_if_spread(true, false).is_some();
+        let (spread_kind, _) = self.poll_if_spread(true, false);
         let pattern = self.parse_match_pattern()?;
-        Some(if spread {
-            PositionalMatchPattern::Spread(pattern)
-        } else {
+        Some(if spread_kind == SpreadKind::NoSpread {
             PositionalMatchPattern::One(pattern)
+        } else {
+            PositionalMatchPattern::Spread(pattern)
         })
     }
     
     fn parse_named_match_pattern(&mut self, allow_lone_name: bool) -> Option<NamedMatchPattern> {
         self.skip_whitespace();
-        if self.poll_if_spread(false, true).is_some() {
+        let (spread_kind, _) = self.poll_if_spread(false, true);
+        if spread_kind != SpreadKind::NoSpread {
             return self.parse_match_pattern()
                .map(NamedMatchPattern::Spread);
         }
@@ -271,8 +272,8 @@ impl <'a> Parser<'a> {
         ))
     }
     
-    fn parse_template_pattern(&mut self, open: Token) -> Option<MatchPattern> {
-        let (parts, range) = self.parse_template_parts(open)?;
+    fn parse_template_pattern(&mut self, open: Token, open_kind: QuoteKind) -> Option<MatchPattern> {
+        let (parts, range) = self.parse_template_parts(open, open_kind)?;
         
         let mut regex_str = "^(?s:".to_string();
         let mut vars = Vec::new();

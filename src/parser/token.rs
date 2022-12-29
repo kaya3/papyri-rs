@@ -1,6 +1,5 @@
 //! This module contains declarations for tokens in the Papyri language grammar.
 
-use crate::errors;
 use crate::utils::sourcefile::SourceRange;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -131,14 +130,6 @@ impl Token {
         self.kind == TokenKind::Whitespace || self.kind == TokenKind::Newline
     }
     
-    /// Indicates whether this token is a keyword function name.
-    pub(crate) fn get_keyword(&self) -> Keyword {
-        let TokenKind::Keyword(k) = self.kind else {
-            errors::ice_at("token is not Keyword", self.range);
-        };
-        k
-    }
-    
     /// Converts a `bool` value to the source of a Boolean literal token. This
     /// is the inverse of `get_bool_value`.
     pub(crate) fn bool_to_string(b: bool) -> &'static str {
@@ -148,13 +139,5 @@ impl Token {
     /// Returns the raw text of a Verbatim token.
     pub(crate) fn get_verbatim_text(s: &str) -> &str {
         s.trim_matches('`')
-    }
-    
-    /// Indicates whether this Verbatim token is a multi-line string literal.
-    pub(crate) fn is_multiline_verbatim(&self) -> bool {
-        let TokenKind::Verbatim(is_multiline) = self.kind else {
-            errors::ice_at("token is not Verbatim", self.range);
-        };
-        is_multiline == VerbatimKind::Multiline
     }
 }
