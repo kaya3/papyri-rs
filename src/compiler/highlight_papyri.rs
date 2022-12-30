@@ -67,7 +67,7 @@ pub(super) fn syntax_highlight_papyri(src: &str) -> Vec<HTML> {
         for part in src.get_span(tok.range).split('\n') {
             if do_close {
                 if &src.src[cur - 1..cur] != "\n" {
-                    ice_at("newline splitting failed", tok.range);
+                    ice_at("newline splitting failed", src.as_ref(), tok.range);
                 }
                 out.push(line.take_line());
             }

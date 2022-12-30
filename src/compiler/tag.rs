@@ -1,7 +1,7 @@
 use std::rc::Rc;
 use indexmap::IndexMap;
 
-use crate::errors::{ice, ice_at, NameError, RuntimeError};
+use crate::errors::{ice, NameError, RuntimeError};
 use crate::parser::{ast, Type};
 use crate::utils::{str_ids, NameID, taginfo, text};
 use crate::utils::sourcefile::SourceRange;
@@ -74,7 +74,7 @@ impl <'a> Compiler<'a> {
                     }
                 },
                 None => str_ids::ANONYMOUS,
-                Some(_) => ice_at("failed to coerce", name.range()),
+                Some(_) => self.ice_at("failed to coerce", name.range()),
             },
         };
         
@@ -87,7 +87,7 @@ impl <'a> Compiler<'a> {
                         Some(node) => {
                             let expected_type = Type::Str.option_if(attr.question_mark);
                             if let Some(v) = self.evaluate_node(node, &expected_type) {
-                                let s = v.to_optional_rc_str(range);
+                                let s = self.unwrap_str_option(v, range);
                                 if s.is_some() { self.add_attr(&mut attrs, attr.name_id, s, range); }
                             }
                         },
@@ -99,12 +99,12 @@ impl <'a> Compiler<'a> {
                     match self.evaluate_node(spread, &Type::Str.option().dict()) {
                         Some(Value::Dict(dict)) => {
                             for (&k, v) in dict.iter() {
-                                let s = v.to_optional_rc_str(range);
+                                let s = self.unwrap_str_option(v.clone(), range);
                                 self.add_attr(&mut attrs, k, s, range);
                             }
                         },
                         None => {},
-                        Some(_) => ice_at("failed to coerce", range),
+                        Some(_) => self.ice_at("failed to coerce", range),
                     }
                 },
             }

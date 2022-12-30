@@ -91,6 +91,10 @@ impl <'a> Compiler<'a> {
         self.ctx.source_files.get(range.src_id)
     }
     
+    pub(super) fn ice_at(&self, msg: &str, range: SourceRange) -> ! {
+        errors::ice_at(msg, self.get_source_file(range).as_ref(), range)
+    }
+    
     pub(super) fn name_error(&mut self, e: errors::NameError, range: SourceRange) {
         self.ctx.diagnostics.name_error(e, self.stack_trace(), self.get_source_file(range), range);
     }

@@ -101,7 +101,7 @@ impl SourceFile {
     }
     
     pub(crate) fn get_span(&self, range: SourceRange) -> &str {
-        if self.id != range.src_id { errors::ice_at("span does not belong to this source file", range); }
+        if self.id != range.src_id { errors::ice_at("span does not belong to this source file", self, range); }
         &self.src[range.start as usize..range.end as usize]
     }
     

@@ -5,7 +5,7 @@ use aho_corasick::{AhoCorasick, MatchKind, AhoCorasickBuilder};
 use htmlentity::entity;
 use once_cell::sync::Lazy;
 
-use crate::errors;
+use crate::errors::SyntaxError;
 use super::ast::*;
 use super::base::Parser;
 use super::token::{Token, TokenKind, QuoteKind, QuoteDir};
@@ -61,7 +61,7 @@ impl <'a> Parser<'a> {
     pub(super) fn decode_entity(&mut self, tok: &Token) -> String {
         let s = self.tok_str(tok);
         let decoded = entity::decode(s).iter().collect();
-        if s == decoded { self.syntax_error(errors::SyntaxError::TokenInvalidEntity, tok.range); }
+        if s == decoded { self.syntax_error(SyntaxError::TokenInvalidEntity, tok.range); }
         decoded
     }
     
@@ -73,12 +73,12 @@ impl <'a> Parser<'a> {
         match s.chars().nth(1).unwrap() {
             'x' | 'u' | 'U' => {
                 let Ok(char_code) = u32::from_str_radix(&s[2..], 16) else {
-                    errors::ice("failed to parse hex digits");
+                    self.ice_at("failed to parse hex digits", tok.range);
                 };
                 match char::from_u32(char_code) {
                     Some(c) => c,
                     None => {
-                        self.syntax_error(errors::SyntaxError::TokenInvalidEscape, tok.range);
+                        self.syntax_error(SyntaxError::TokenInvalidEscape, tok.range);
                         char::REPLACEMENT_CHARACTER
                     },
                 }
@@ -96,7 +96,7 @@ impl <'a> Parser<'a> {
     /// `first_token` must be a token with text.
     pub(super) fn parse_text(&mut self, first_token: Token) -> AST {
         let Some(text) = self.token_text(&first_token) else {
-            errors::ice_at("invalid text token", first_token.range)
+            self.ice_at("invalid text token", first_token.range)
         };
         
         let mut text = text.to_string();

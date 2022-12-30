@@ -1,6 +1,6 @@
 use indexmap::IndexMap;
 
-use crate::errors::{ice_at, SyntaxError};
+use crate::errors::SyntaxError;
 use crate::utils::{taginfo, NameID, NameIDSet};
 use crate::utils::sourcefile::SourceRange;
 use super::ast::*;
@@ -304,7 +304,7 @@ impl <'a> Parser<'a> {
                 let p = RegexMatchPattern {regex, names: vars.into_boxed_slice()};
                 Some(MatchPattern::Regex(range, Box::new(p)))
             },
-            Err(e) => ice_at(&format!("regex {regex_str} failed to parse: {e}"), range),
+            Err(e) => self.ice_at(&format!("regex {regex_str} failed to parse: {e}"), range),
         }
     }
     

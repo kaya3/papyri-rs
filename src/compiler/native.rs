@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use crate::errors::{ice, ice_at, RuntimeError, RuntimeWarning, ModuleError, TypeError};
+use crate::errors::{ice, RuntimeError, RuntimeWarning, ModuleError, TypeError};
 use crate::utils::{str_ids, text, NameID, relpath, SliceRef};
 use crate::utils::sourcefile::SourceRange;
 use crate::parser::Type;
@@ -238,7 +238,7 @@ impl <'a> Compiler<'a> {
                 for arg in args.as_ref().iter() {
                     match arg {
                         Value::Int(i) => total += i,
-                        _ => ice_at("failed to coerce", call_range),
+                        _ => self.ice_at("failed to coerce", call_range),
                     }
                 }
                 Some(total.into())
@@ -305,7 +305,7 @@ impl <'a> Compiler<'a> {
                         .into_iter()
                         .map(|p| format!("{base_path}/{}", p.to_string_lossy())
                             .strip_suffix(".papyri")
-                            .unwrap_or_else(|| ice_at("Failed to strip .papyri extension", call_range))
+                            .unwrap_or_else(|| self.ice_at("Failed to strip .papyri extension", call_range))
                             .into()
                         )
                         .collect();
@@ -339,7 +339,7 @@ impl <'a> Compiler<'a> {
                             match self.eval_callback(f.clone(), v.clone(), &Type::Bool, call_range)? {
                                 Value::Bool(true) => out.push(v.clone()),
                                 Value::Bool(false) => {},
-                                _ => ice_at("failed to coerce", call_range),
+                                _ => self.ice_at("failed to coerce", call_range),
                             }
                         }
                         out
@@ -455,13 +455,13 @@ impl <'a> Compiler<'a> {
                 match decorated.first().unwrap().0 {
                     Value::Int(_) => decorated.sort_by_key(|p| match p.0 {
                         Value::Int(k) => k,
-                        _ => ice_at("failed to unwrap int sort key", call_range),
+                        _ => self.ice_at("failed to unwrap int sort key", call_range),
                     }),
                     Value::Str(_) => decorated.sort_by_key(|p| match &p.0 {
                         Value::Str(k) => k.clone(),
-                        _ => ice_at("failed to unwrap str sort key", call_range),
+                        _ => self.ice_at("failed to unwrap str sort key", call_range),
                     }),
-                    _ => ice_at("failed to unwrap sort key", call_range),
+                    _ => self.ice_at("failed to unwrap sort key", call_range),
                 }
                 
                 let mut undecorated: Vec<Value> = decorated.into_iter()

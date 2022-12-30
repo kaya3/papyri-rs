@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use crate::errors::{Diagnostics, ice_at, SyntaxError};
+use crate::errors::{Diagnostics, SyntaxError};
 use crate::utils::{StringPool, NameID};
 use crate::utils::sourcefile::{SourceFile, SourceRange};
 use super::ast::*;
@@ -35,16 +35,16 @@ impl <'a> Parser<'a> {
         let s = match tok.kind {
             TokenKind::Name => self.src.get_span(tok.range),
             TokenKind::FuncName | TokenKind::VarName => &self.src.get_span(tok.range)[1..],
-            _ => ice_at(&format!("token {} is not Name, FuncName or VarName", tok.kind), tok.range),
+            _ => self.ice_at(&format!("token {} is not Name, FuncName or VarName", tok.kind), tok.range),
         };
         self.string_pool.insert(s)
     }
     
     pub(super) fn tok_lowercase_name_id(&mut self, tok: &Token) -> (NameID, String) {
-        let s = match tok.kind {
-            TokenKind::Name => self.tok_str(tok).to_ascii_lowercase(),
-            _ => ice_at(&format!("token {} is not Name", tok.kind), tok.range),
-        };
+        if tok.kind != TokenKind::Name {
+            self.ice_at(&format!("token {} is not Name", tok.kind), tok.range);
+        }
+        let s = self.tok_str(tok).to_ascii_lowercase();
         (self.string_pool.insert(&s), s)
     }
     
@@ -208,7 +208,7 @@ impl <'a> Parser<'a> {
                 None
             },
             
-            TokenKind::Comment => ice_at("comment should not occur here", tok.range),
+            TokenKind::Comment => self.ice_at("comment should not occur here", tok.range),
             
             TokenKind::Whitespace => Some(AST::Whitespace(tok.range)),
             TokenKind::Newline => Some(AST::ParagraphBreak(tok.range)),

@@ -27,6 +27,7 @@ pub fn ice(msg: &str) -> ! {
 /// Reports an internal compiler error, indicating a bug or mistake in the
 /// Papyri compiler. Use `ice` instead if the error does not correspond with
 /// any particular code in a Papyri source file.
-pub fn ice_at(msg: &str, range: crate::utils::sourcefile::SourceRange) -> ! {
-    panic!("Internal compiler error: {msg} at {range:?}");
+pub fn ice_at(msg: &str, src_file: &crate::utils::sourcefile::SourceFile, range: crate::utils::sourcefile::SourceRange) -> ! {
+    let (line, col) = src_file.index_to_line_col(range.start);
+    panic!("Internal compiler error: {msg}\n    File \"{}\", line {line}, col {col}", src_file.path_str);
 }

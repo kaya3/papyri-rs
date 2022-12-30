@@ -1,7 +1,6 @@
 use std::rc::Rc;
 use indexmap::IndexMap;
 
-use crate::errors;
 use crate::parser::token::VerbatimKind;
 use crate::parser::{ast, token, text, Expr, Type};
 use crate::utils::{NameID, str_ids, SliceRef, taginfo};
@@ -147,17 +146,6 @@ impl Value {
         }
     }
     
-    /// Convenience method for coercing a value to an optional string. Returns
-    /// `Some` if this value is a string, or `None` if this is `Value::UNIT`;
-    /// the value must not be of any other type.
-    pub(super) fn to_optional_rc_str(&self, range: SourceRange) -> Option<Rc<str>> {
-        match self {
-            Value::Str(s) => Some(s.clone()),
-            v if v.is_unit() => None,
-            _ => errors::ice_at("failed to coerce", range),
-        }
-    }
-    
     /// Returns the type of this value. If it is a heterogeneous list or
     /// dictionary, then the strongest representable type is chosen.
     pub fn get_type(&self) -> Type {
@@ -224,6 +212,17 @@ impl Default for Value {
 }
 
 impl <'a> Compiler<'a> {
+    /// Convenience method for coercing a value to an optional string. Returns
+    /// `Some` if this value is a string, or `None` if this is `Value::UNIT`;
+    /// the value must not be of any other type.
+    pub(super) fn unwrap_str_option(&self, value: Value, range: SourceRange) -> Option<Rc<str>> {
+        match value {
+            Value::Str(s) => Some(s),
+            v if v.is_unit() => None,
+            _ => self.ice_at("failed to coerce", range),
+        }
+    }
+    
     /// Converts a value to its HTML representation. Lists become `<ul>` tags,
     /// dictionaries become tables, functions and regexes are represented as
     /// code.
@@ -303,7 +302,7 @@ impl <'a> Compiler<'a> {
             if is_spread {
                 let grandchildren = self.evaluate_node(child, &child_type_hint.clone().list())?;
                 let Value::List(grandchildren) = grandchildren else {
-                    errors::ice_at("failed to coerce", child.range());
+                    self.ice_at("failed to coerce", child.range());
                 };
                 children.extend(grandchildren.as_ref().iter().cloned());
             } else if let Some(child) = self.evaluate_node(child, child_type_hint) {
@@ -325,7 +324,7 @@ impl <'a> Compiler<'a> {
                 },
                 ast::TemplatePart::Name(name) => {
                     if let Some(v) = self.evaluate_name(name, &Type::Str.option()) {
-                        if let Some(s) = v.to_optional_rc_str(name.range()) {
+                        if let Some(s) = self.unwrap_str_option(v, name.range()) {
                             out += s.as_ref();
                         }
                     }
@@ -362,7 +361,7 @@ impl <'a> Compiler<'a> {
         let f_name = if verbatim_kind == VerbatimKind::Multiline { str_ids::CODE_BLOCK } else { str_ids::CODE };
         let func = self.get_var(f_name, range)?;
         let Value::Func(f) = self.coerce(func, &Type::Function, range)? else {
-            errors::ice_at("failed to coerce", range);
+            self.ice_at("failed to coerce", range);
         };
         
         let bindings = f.bind_synthetic_call(self, true, str_value, range)?;

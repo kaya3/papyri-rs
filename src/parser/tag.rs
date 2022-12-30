@@ -1,4 +1,4 @@
-use crate::errors::{ice_at, SyntaxError};
+use crate::errors::SyntaxError;
 use crate::utils::{taginfo, str_ids, NameIDSet};
 use super::ast::*;
 use super::base::Parser;
@@ -24,7 +24,7 @@ impl <'a> Parser<'a> {
                 }
                 (TagName::Literal(str_ids::_DOCTYPE), None)
             },
-            _ => ice_at("invalid open tag token", langle.range),
+            _ => self.ice_at("invalid open tag token", langle.range),
         };
         
         let (attrs, rangle) = self.parse_separated_until(

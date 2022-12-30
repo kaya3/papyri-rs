@@ -1,4 +1,4 @@
-use crate::errors::{ice_at, Warning, RuntimeWarning};
+use crate::errors::{Warning, RuntimeWarning};
 use crate::parser::{ast, Type};
 use super::base::Compiler;
 use super::html::HTML;
@@ -166,7 +166,7 @@ impl <'a> Compiler<'a> {
                 let Value::Str(value_str) = value else { return false; };
                 let Some(match_) = regex_pattern.regex.captures(value_str.as_ref()) else { return false; };
                 
-                if match_.len() != regex_pattern.names.len() + 1 { ice_at("incorrect number of capture groups", *pattern_range); }
+                if match_.len() != regex_pattern.names.len() + 1 { self.ice_at("incorrect number of capture groups", *pattern_range); }
                 let match_ = match_.iter()
                     .skip(1)
                     .zip(regex_pattern.names.iter());

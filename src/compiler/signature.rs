@@ -340,7 +340,7 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
         
         let content_name_id = sig.content_param.name_id;
         if !content_name_id.is_anonymous() && !self.bound.map.contains_key(&content_name_id) {
-            errors::ice_at("no content arg provided", call_range);
+            self.compiler.ice_at("no content arg provided", call_range);
         }
         
         if self.bound.positional_arg_count < sig.positional_params.len() {

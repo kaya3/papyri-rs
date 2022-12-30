@@ -1,6 +1,5 @@
 use std::rc::Rc;
 
-use crate::errors;
 use crate::parser::{ast, Type};
 use crate::utils::NameID;
 use crate::utils::sourcefile::SourceRange;
@@ -129,7 +128,7 @@ impl <'a> Compiler<'a> {
                 self.evaluate_func_call_with_bindings(f, bindings, type_hint, call.range)
             },
             f if f.is_unit() => Some(Value::UNIT),
-            _ => errors::ice_at("failed to coerce", call.func.range()),
+            _ => self.ice_at("failed to coerce", call.func.range()),
         }
     }
     

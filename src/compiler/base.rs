@@ -1,4 +1,3 @@
-use crate::errors;
 use crate::parser::{AST, Type};
 use super::context::Context;
 use super::frame::ActiveFrame;
@@ -52,7 +51,7 @@ impl <'a> Compiler<'a> {
             AST::Text(text, ..) => text.clone().into(),
             AST::Whitespace(..) => HTML::Whitespace,
             
-            AST::ParagraphBreak(range) => errors::ice_at("paragraph break should be handled in SequenceCompiler", *range),
+            AST::ParagraphBreak(range) => self.ice_at("paragraph break should be handled in SequenceCompiler", *range),
         }
     }
 }
