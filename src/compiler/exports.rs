@@ -29,14 +29,10 @@ impl <'a> Compiler<'a> {
             ast::Export::FuncDef(_, func_def) => {
                 let f = self.compile_func_def(func_def);
                 let name_id = f.name_id();
+                let f = Value::from(f);
                 let range = func_def.signature.range;
-                if name_id.is_anonymous() {
-                    self.warning(errors::Warning::AnonymousFunctionNotExpected, range);
-                } else {
-                    let f = Value::from(f);
-                    self.export(name_id, f.clone(), range);
-                    self.set_var(name_id, f, false, range);
-                }
+                self.export(name_id, f.clone(), range);
+                self.set_var(name_id, f, false, range);
             },
         }
     }

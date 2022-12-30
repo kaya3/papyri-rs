@@ -4,7 +4,7 @@ use super::context::Context;
 use super::frame::ActiveFrame;
 use super::html::HTML;
 use super::types::Type;
-use super::value::{Value, ValueMap};
+use super::value::ValueMap;
 
 /// The result of compiling a Papyri source file. The output may be incomplete
 /// if there were errors during compilation. 
@@ -46,12 +46,8 @@ impl <'a> Compiler<'a> {
                     .map_or(HTML::Empty, |v| self.compile_value(v))
             },
             AST::FuncDef(def) => {
-                if def.name_id.is_anonymous() {
-                    self.warning(errors::Warning::AnonymousFunctionNotExpected, def.signature.range);
-                } else {
-                    let f = self.compile_func_def(def);
-                    self.set_var(def.name_id, Value::Func(f), false, def.signature.range);
-                }
+                let f = self.compile_func_def(def).into();
+                self.set_var(def.name_id, f, false, def.signature.range);
                 HTML::Empty
             },
             AST::Text(text, ..) => text.clone().into(),

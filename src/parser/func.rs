@@ -8,7 +8,7 @@ use super::base::Parser;
 use super::token::{Token, TokenKind, Keyword};
 
 impl <'a> Parser<'a> {
-    pub(super) fn parse_func_def(&mut self, at: Token) -> Option<FuncDef> {
+    pub(super) fn parse_func_def(&mut self, at: Token, allow_anonymous: bool) -> Option<FuncDef> {
         self.skip_whitespace();
         let name_id = self.poll_if_kind(TokenKind::Name)
             .map_or(
@@ -19,6 +19,11 @@ impl <'a> Parser<'a> {
         self.skip_whitespace();
         self.expect_poll_kind(TokenKind::Arrow)?;
         let body = Rc::new(self.parse_expr()?);
+        
+        if name_id.is_anonymous() && !allow_anonymous {
+            self.syntax_error(SyntaxError::AnonymousFunctionNotAllowed, at.range);
+            return None;
+        }
         Some(FuncDef {
             range: at.range.to_end(body.range().end),
             name_id,

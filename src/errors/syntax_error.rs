@@ -29,6 +29,7 @@ pub enum SyntaxError {
     SpreadPositionalNotAllowed,
     SpreadNamedNotAllowed,
     
+    AnonymousFunctionNotAllowed,
     ParamDuplicateName(String),
     ParamPositionalAfterNamed,
     ParamRequiredAfterOptional,
@@ -88,6 +89,7 @@ impl std::fmt::Display for SyntaxError {
             SyntaxError::TagDuplicateAttr(name) => write!(f, "duplicate attribute name '{name}'"),
             SyntaxError::SpreadPositionalNotAllowed => f.write_str("positional spread not allowed here"),
             SyntaxError::SpreadNamedNotAllowed => f.write_str("named spread not allowed here"),
+            SyntaxError::AnonymousFunctionNotAllowed => f.write_str("anonymous function not allowed here"),
             SyntaxError::ParamDuplicateName(name) => write!(f, "duplicate parameter name '{name}'"),
             SyntaxError::ParamPositionalAfterNamed => f.write_str("positional parameter cannot occur after named parameter"),
             SyntaxError::ParamRequiredAfterOptional => f.write_str("required parameter cannot occur after optional parameter"),

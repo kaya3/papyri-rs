@@ -113,33 +113,53 @@ impl <'a> Parser<'a> {
             TokenKind::Dot => Some(Expr::Unit(tok.range)),
             TokenKind::Boolean(b) => Some(Expr::Bool(b, tok.range)),
             TokenKind::Name => Some(Expr::BareString(tok.range)),
-            TokenKind::Number => Some(Expr::Int(tok.range)),
+            
+            TokenKind::Number => {
+                match self.tok_str(&tok).parse::<i64>() {
+                    Ok(value) => Some(Expr::Int(value, tok.range)),
+                    Err(err) => {
+                        self.syntax_error(SyntaxError::TokenInvalidNumber(err), tok.range);
+                        None
+                    },
+                }
+            },
             
             TokenKind::Verbatim(k) => Some(Expr::Verbatim(tok.range, k)),
             TokenKind::VarName => self.parse_name(tok).map(Expr::Name),
-            TokenKind::FuncName => self.parse_func_call(tok).map(Expr::from),
             
-            TokenKind::Keyword(k) => {
-                if k == Keyword::Export {
+            TokenKind::FuncName => {
+                self.parse_func_call(tok)
+                    .map(Box::new)
+                    .map(Expr::FuncCall)
+            },
+            
+            TokenKind::Keyword(k) => match k {
+                Keyword::Export => {
                     self.syntax_error(SyntaxError::ExportNotAllowed, tok.range);
-                    return None;
-                }
-                impl From<Export> for Expr {
-                    fn from(e: Export) -> Expr {
-                        ice_at("Export should not occur here", e.range())
-                    }
-                }
-                self.parse_keyword(tok, k)
+                    None
+                },
+                Keyword::Fn => {
+                    self.parse_func_def(tok, true)
+                        .map(Box::new)
+                        .map(Expr::FuncDef)
+                },
+                Keyword::Implicit |
+                Keyword::Let => {
+                    self.parse_let_in(tok, false)
+                        .map(Box::new)
+                        .map(Expr::LetIn)
+                },
+                Keyword::Match => {
+                    self.parse_match(tok)
+                        .map(Box::new)
+                        .map(Expr::Match)
+                },
             },
             
-            TokenKind::LBrace => self.parse_group(tok).into(),
-            TokenKind::LSqb => {
-                let (children, range) = self.parse_list(tok)?;
-                Some(Expr::List(children, range))
-            },
+            TokenKind::LBrace => Some(self.parse_group(tok)),
+            TokenKind::LSqb => self.parse_list(tok),
             TokenKind::LAngle if self.has_next(|t| matches!(t.kind, TokenKind::Name | TokenKind::VarName | TokenKind::ExclamationMark)) => {
-                let tag = self.parse_tag(tok)?;
-                Some(Expr::Tag(Box::new(tag)))
+                self.parse_tag(tok)
             },
             TokenKind::Quote(open_kind, _) => {
                 let (parts, range) = self.parse_template_parts(tok, open_kind)?;
@@ -155,17 +175,30 @@ impl <'a> Parser<'a> {
     
     fn parse_node(&mut self, tok: Token) -> Option<AST> {
         match tok.kind {
-            TokenKind::Keyword(k) => self.parse_keyword(tok, k),
+            TokenKind::Keyword(Keyword::Export) => {
+                self.parse_export(tok)
+                    .map(Box::new)
+                    .map(AST::Export)
+            },
+            TokenKind::Keyword(Keyword::Fn) => {
+                self.parse_func_def(tok, false)
+                    .map(Box::new)
+                    .map(AST::FuncDef)
+            },
             
             TokenKind::FuncName |
+            TokenKind::Keyword(..) |
             TokenKind::Verbatim(..) |
             TokenKind::VarName |
             TokenKind::LBrace |
-            TokenKind::LSqb => self.parse_expr_tok(tok).map(AST::from),
+            TokenKind::LSqb => {
+                self.parse_expr_tok(tok)
+                    .map(AST::Expr)
+            },
             
             TokenKind::LAngle if self.has_next(|t| matches!(t.kind, TokenKind::Name | TokenKind::VarName | TokenKind::ExclamationMark)) => {
-                let tag = self.parse_tag(tok)?;
-                Some(Expr::Tag(Box::new(tag)).into())
+                self.parse_tag(tok)
+                    .map(AST::Expr)
             },
             
             TokenKind::CloseTag |
@@ -209,21 +242,6 @@ impl <'a> Parser<'a> {
         Some(name)
     }
     
-    fn parse_keyword<T>(&mut self, at: Token, keyword: Keyword) -> Option<T>
-    where T: From<Export> + From<FuncDef> + From<LetIn> + From<Match> {
-        match keyword {
-            Keyword::Export => self.parse_export(at)
-                .map(T::from),
-            Keyword::Fn => self.parse_func_def(at)
-                .map(T::from),
-            Keyword::Implicit |
-            Keyword::Let => self.parse_let_in(at, false)
-                .map(T::from),
-            Keyword::Match => self.parse_match(at)
-                .map(T::from),
-        }
-    }
-    
     fn seq_range(open: Token, children: &[AST], close: Option<Token>) -> SourceRange {
         let end = match (children.last(), close) {
             (_, Some(close)) => close.range.end,
@@ -260,7 +278,7 @@ impl <'a> Parser<'a> {
         }
     }
     
-    fn parse_list(&mut self, open: Token) -> Option<(Box<[(Expr, bool)]>, SourceRange)> {
+    fn parse_list(&mut self, open: Token) -> Option<Expr> {
         let (children, close) = self.parse_separated_until(
             &open,
             |_self| {
@@ -276,7 +294,7 @@ impl <'a> Parser<'a> {
             TokenKind::RSqb,
         )?;
         
-        Some((
+        Some(Expr::List(
             children.into_boxed_slice(),
             open.range.to_end(close.range.end),
         ))
@@ -286,7 +304,7 @@ impl <'a> Parser<'a> {
         self.skip_whitespace();
         if let Some(fn_tok) = self.poll_if_kind(TokenKind::Keyword(Keyword::Fn)) {
             // @export @fn ...
-            let f = self.parse_func_def(fn_tok)?;
+            let f = self.parse_func_def(fn_tok, false)?;
             let range = at.range.to_end(f.range.end);
             Some(Export::FuncDef(range, f))
         } else if let Some(let_tok) = self.poll_if_kind(TokenKind::Keyword(Keyword::Let)) {

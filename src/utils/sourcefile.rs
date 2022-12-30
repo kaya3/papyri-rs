@@ -116,7 +116,6 @@ impl SourceFile {
     /// reporting diagnostics.
     pub(crate) fn index_to_line_col(&self, index: u32) -> (u32, u32) {
         self.line_col_coords.get_or_init(|| {
-            // upper bound for the needed capacity
             let mut coords = Vec::with_capacity(self.src.len() + 1);
             coords.push((1, 1));
             let mut line = 1;

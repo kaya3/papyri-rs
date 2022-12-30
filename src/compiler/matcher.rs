@@ -1,4 +1,4 @@
-use crate::errors::{ice_at, Warning};
+use crate::errors::{ice_at, Warning, RuntimeWarning};
 use crate::parser::ast;
 use super::base::Compiler;
 use super::html::HTML;
@@ -22,7 +22,7 @@ impl <'a> Compiler<'a> {
             if let Ok(r) = r { return r; }
         }
         
-        self.warning(Warning::NoMatchingBranch, match_.range);
+        self.runtime_warning(RuntimeWarning::NoMatchingBranch, match_.range);
         Some(Value::UNIT)
     }
     

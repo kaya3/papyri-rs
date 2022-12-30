@@ -5,7 +5,7 @@ use super::base::Parser;
 use super::token::{Token, TokenKind};
 
 impl <'a> Parser<'a> {
-    pub(super) fn parse_tag(&mut self, langle: Token) -> Option<Tag> {
+    pub(super) fn parse_tag(&mut self, langle: Token) -> Option<Expr> {
         let name_tok = self.expect_poll()?;
         let (name, name_str) = match name_tok.kind {
             TokenKind::Name => {
@@ -62,7 +62,7 @@ impl <'a> Parser<'a> {
             tag.range.end = close.range.end;
             tag.children = children.into_boxed_slice();
         }
-        Some(tag)
+        Some(Expr::Tag(Box::new(tag)))
     }
     
     fn parse_tag_attribute(&mut self) -> Option<TagAttrOrSpread> {

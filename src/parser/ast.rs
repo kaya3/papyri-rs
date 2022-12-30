@@ -536,7 +536,7 @@ pub enum Expr {
     Bool(bool, SourceRange),
     
     /// A number literal.
-    Int(SourceRange),
+    Int(i64, SourceRange),
     
     /// A bare literal string.
     BareString(SourceRange),
@@ -585,7 +585,7 @@ impl Expr {
             
             Expr::Unit(range) |
             Expr::Bool(.., range) |
-            Expr::Int(range) |
+            Expr::Int(.., range) |
             Expr::BareString(range) |
             Expr::Verbatim(range, ..) |
             Expr::Group(.., range) |
@@ -638,57 +638,5 @@ impl AST {
     /// Indicates whether this AST node is whitespace or a paragraph break.
     pub(crate) fn is_whitespace(&self) -> bool {
         matches!(self, AST::Whitespace(..) | AST::ParagraphBreak(..))
-    }
-}
-
-impl From<FuncCall> for Expr {
-    fn from(call: FuncCall) -> Expr {
-        Expr::FuncCall(Box::new(call))
-    }
-}
-impl From<FuncDef> for Expr {
-    fn from(def: FuncDef) -> Expr {
-        Expr::FuncDef(Box::new(def))
-    }
-}
-impl From<LetIn> for Expr {
-    fn from(let_in: LetIn) -> Expr {
-        Expr::LetIn(Box::new(let_in))
-    }
-}
-impl From<Match> for Expr {
-    fn from(match_: Match) -> Expr {
-        Expr::Match(Box::new(match_))
-    }
-}
-
-impl From<Expr> for AST {
-    fn from(expr: Expr) -> Self {
-        AST::Expr(expr)
-    }
-}
-impl From<Export> for AST {
-    fn from(e: Export) -> AST {
-        AST::Export(Box::new(e))
-    }
-}
-impl From<FuncCall> for AST {
-    fn from(call: FuncCall) -> AST {
-        Expr::from(call).into()
-    }
-}
-impl From<FuncDef> for AST {
-    fn from(def: FuncDef) -> AST {
-        AST::FuncDef(Box::new(def))
-    }
-}
-impl From<LetIn> for AST {
-    fn from(let_in: LetIn) -> AST {
-        Expr::from(let_in).into()
-    }
-}
-impl From<Match> for AST {
-    fn from(match_: Match) -> AST {
-        Expr::from(match_).into()
     }
 }

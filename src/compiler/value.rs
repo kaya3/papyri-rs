@@ -272,16 +272,7 @@ impl <'a> Compiler<'a> {
         let v = match node {
             Expr::Unit(..) => Value::UNIT,
             &Expr::Bool(b, ..) => b.into(),
-            
-            &Expr::Int(range) => if type_hint.is_html() {
-                // This is a shortcut, to avoid parsing ints and then converting
-                // back to text. It also avoids the possibility of a parse error
-                // if an integer is not in the signed 64-bit range.
-                let s = self.ctx.get_source_str(range);
-                text::substitutions(s).into()
-            } else {
-                self.evaluate_int(range)?
-            },
+            &Expr::Int(i, ..) => i.into(),
             &Expr::BareString(range) => self.ctx.get_source_str(range).into(),
             &Expr::Verbatim(range, k) => self.evaluate_verbatim(range, k, type_hint)?,
             
@@ -346,19 +337,6 @@ impl <'a> Compiler<'a> {
             }
         }
         out.into()
-    }
-    
-    /// Evaluates a literal token to a value, or returns `None` if a parse
-    /// error occurs. The token must be either a `Number` or `Name`.
-    pub(super) fn evaluate_int(&mut self, range: SourceRange) -> Option<Value> {
-        let s = self.ctx.get_source_str(range);
-        match s.parse::<i64>() {
-            Ok(value) => Some(value.into()),
-            Err(err) => {
-                self.syntax_error(errors::SyntaxError::TokenInvalidNumber(err), range);
-                None
-            },
-        }
     }
     
     pub(super) fn evaluate_let_in(&mut self, let_in: &ast::LetIn, type_hint: &Type, do_export: bool) -> Option<Value> {
