@@ -6,6 +6,7 @@ use indexmap::IndexMap;
 use crate::utils::{NameID, NameIDSet};
 use crate::utils::sourcefile::SourceRange;
 use super::token::VerbatimKind;
+use super::types::Type;
 
 #[derive(Debug)]
 /// An AST node for a single HTML tag attribute.
@@ -62,40 +63,6 @@ pub struct Tag {
 }
 
 #[derive(Debug)]
-/// An AST node representing an type annotation.
-pub enum TypeAnnotation {
-    /// A primitive type name.
-    Primitive(SourceRange),
-    
-    /// A group type; either `T list`, `T dict`, or `T?`.
-    Group(Box<(Option<TypeAnnotation>, SourceRange)>),
-}
-
-impl TypeAnnotation {
-    /// Returns the source span of this type annotation.
-    pub(crate) fn range(&self) -> SourceRange {
-        match self {
-            TypeAnnotation::Primitive(range) => *range,
-            TypeAnnotation::Group(g) => {
-                let &(ref child, range) = g.as_ref();
-                child.as_ref().map_or(
-                    range,
-                    |t| t.range().to_end(range.end),
-                )
-            },
-        }
-    }
-    
-    /// Returns the end position of the source span of this type annotation.
-    pub(crate) fn range_end(&self) -> u32 {
-        match self {
-            TypeAnnotation::Primitive(range) => range.end,
-            TypeAnnotation::Group(g) => g.1.end,
-        }
-    }
-}
-
-#[derive(Debug)]
 /// A parameter declaration for an AST function signature node.
 pub struct Param {
     /// The source span for this parameter declaration.
@@ -111,8 +78,9 @@ pub struct Param {
     /// will be taken from a variable of the same name at the call-site.
     pub(crate) is_implicit: bool,
     
-    /// The type annotation for this parameter, if it has one.
-    pub(crate) type_annotation: Option<TypeAnnotation>,
+    /// The type annotation for this parameter, or `Type::Any` if it does not
+    /// have one.
+    pub(crate) type_annotation: Type,
     
     /// The default value for this parameter, if it has one.
     pub(crate) default_value: Option<Box<Expr>>,
@@ -311,7 +279,7 @@ pub enum MatchPattern {
     Regex(SourceRange, Box<RegexMatchPattern>),
     
     /// A pattern which matches if the value has the correct type.
-    Typed(TypeAnnotation),
+    Typed(SourceRange, Type),
     
     /// A pattern which binds the value's type (as a string) to a variable.
     TypeOf(SimpleName),
@@ -390,9 +358,9 @@ impl MatchPattern {
             MatchPattern::Regex(range, ..) |
             MatchPattern::LiteralNone(range) |
             MatchPattern::LiteralName(range, ..) |
+            MatchPattern::Typed(range, ..) |
             MatchPattern::TypeOf(SimpleName {range, ..}) |
             MatchPattern::VarName(SimpleName {range, ..}) => *range,
-            MatchPattern::Typed(t) => t.range(),
             MatchPattern::EqualsValue(node) => node.range(),
             MatchPattern::And(pair, ..) |
             MatchPattern::Or(pair, ..) => pair.0.range().to_end(pair.1.range().end),

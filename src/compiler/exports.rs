@@ -1,9 +1,8 @@
 use crate::errors;
-use crate::parser::ast;
+use crate::parser::{ast, Type};
 use crate::utils::NameID;
 use crate::utils::sourcefile::SourceRange;
 use super::base::Compiler;
-use super::types::Type;
 use super::value::Value;
 
 impl <'a> Compiler<'a> {

@@ -1,104 +1,12 @@
-use crate::errors::{self, TypeError};
+use crate::errors::TypeError;
 use crate::utils::sourcefile::SourceRange;
 use crate::utils::str_ids;
-use crate::parser::{ast, token};
+use crate::parser::{token, Type};
 use super::base::Compiler;
 use super::html::HTML;
 use super::value::Value;
 
-#[derive(Clone, PartialEq, Eq)]
-/// Represents a type in the Papyri language.
-pub enum Type {
-    /// The unit type `none`, inhabited only by `Value::UNIT`.
-    Unit,
-    
-    /// The top type `any`, which all values are assignable to.
-    Any,
-    
-    /// The type `html`, representing any HTML content; `block` and `inline`
-    /// are subtypes.
-    HTML,
-    
-    /// The type `block`, representing block-level HTML content, or content
-    /// which otherwise need not be wrapped in a block-level element.
-    Block,
-    
-    /// The type `inline`, representing inline HTML content.
-    Inline,
-    
-    /// The type `bool`, representing the Boolean values `True` and `False`.
-    Bool,
-    
-    /// The type `int`, representing signed 64-bit integer values.
-    Int,
-    
-    /// The type `str`, representing string values. HTML text content is not
-    /// considered to be a string value.
-    Str,
-    
-    /// The type `function`, representing all function with any signature.
-    Function,
-    
-    /// The type `regex`, representing regular expressions.
-    Regex,
-    
-    /// A type of the form `T dict`, representing a dictionary whose elements
-    /// are of type `T`.
-    Dict(Box<Type>),
-    
-    /// A type of the form `T list`, representing a list whose elements are of
-    /// type `T`.
-    List(Box<Type>),
-    
-    /// A type of the form `T?`, representing either values of type `T` or the
-    /// unit value. Optional types are normalised so that the unit value is not
-    /// assignable to `T` itself.
-    Optional(Box<Type>),
-}
-
 impl Type {
-    /// Creates a representation of a `dict` type.
-    pub(super) fn dict(self: Type) -> Type {
-        Type::Dict(Box::new(self))
-    }
-    
-    /// Creates a representation of a `list` type.
-    pub(super) fn list(self) -> Type {
-        Type::List(Box::new(self))
-    }
-    
-    /// Creates a representation of an optional type. The representation is
-    /// normalised by simplifying `T?` to `T` whenever the unit value is
-    /// already assignable to `T`.
-    pub(super) fn option(self) -> Type {
-        if self.unit_is_assignable() {
-            self
-        } else {
-            Type::Optional(Box::new(self))
-        }
-    }
-    
-    /// Converts this type to an optional type, if the given condition is true.
-    pub(super) fn option_if(self, condition: bool) -> Type {
-        if condition { self.option() } else { self }
-    }
-    
-    /// Indicates whether this type is either `html`, `block` or `inline`. The
-    /// types `any` and `none` are not considered to be HTML types.
-    pub(super) fn is_html(&self) -> bool {
-        matches!(self, Type::HTML | Type::Block | Type::Inline)
-    }
-    
-    /// Indicates whether the unit value is assignable to this type.
-    pub(super) fn unit_is_assignable(&self) -> bool {
-        matches!(self, Type::Any |
-            Type::HTML |
-            Type::Block |
-            Type::Inline |
-            Type::Unit |
-            Type::Optional(..))
-    }
-    
     /// Returns the type for list or dictionary components, if this type is
     /// used as a type hint for a list or dictionary value. The returned type
     /// is meaningless if a list or dictionary could never be coerced to this
@@ -159,16 +67,18 @@ impl Type {
     }
     
     fn check_all<'a, T: Iterator<Item=&'a Value>>(&self, vs: T) -> bool {
+        if *self == Type::Any { return true; }
         vs.cloned()
             .all(|v| self.check_value(v))
     }
     
     fn coerce_value(&self, value: Value, value_to_html: &impl Fn(Value) -> HTML) -> Result<Value, TypeError> {
-        let mut expected = self;
-        if let Type::Optional(t) = expected {
+        let expected = if let Type::Optional(t) = self {
             if value.is_unit() { return Ok(Value::UNIT); }
-            expected = t;
-        }
+            t
+        } else {
+            self
+        };
         
         match (expected, &value) {
             (Type::Unit, v) if v.is_unit() => return Ok(Value::UNIT),
@@ -232,62 +142,7 @@ impl Type {
     }
 }
 
-impl std::fmt::Display for Type {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Type::Any => f.write_str("any"),
-            Type::HTML => f.write_str("html"),
-            Type::Block => f.write_str("block"),
-            Type::Inline => f.write_str("inline"),
-            Type::Unit => f.write_str("none"),
-            Type::Bool => f.write_str("bool"),
-            Type::Int => f.write_str("int"),
-            Type::Str => f.write_str("str"),
-            Type::Function => f.write_str("function"),
-            Type::Regex => f.write_str("regex"),
-            Type::Dict(t) => write!(f, "{t} dict"),
-            Type::List(t) => write!(f, "{t} list"),
-            Type::Optional(t) => write!(f, "{t}?"),
-        }
-    }
-}
-
-impl std::fmt::Debug for Type {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self, f)
-    }
-}
-
 impl <'a> Compiler<'a> {
-    /// Compiles an AST type annotation into the Papyri type it represents.
-    pub(super) fn compile_type(&self, type_annotation: &ast::TypeAnnotation) -> Type {
-        match type_annotation {
-            ast::TypeAnnotation::Primitive(range) => match self.ctx.get_source_str(*range) {
-                "any" => Type::Any,
-                "html" => Type::HTML,
-                "block" => Type::Block,
-                "inline" => Type::Inline,
-                "none" => Type::Unit,
-                "bool" => Type::Bool,
-                "int" => Type::Int,
-                "str" => Type::Str,
-                "function" => Type::Function,
-                "regex" => Type::Regex,
-                _ => errors::ice_at("not a primitive type", *range),
-            },
-            ast::TypeAnnotation::Group(g) => {
-                let &(ref child, range) = g.as_ref();
-                let child = child.as_ref().map_or(Type::Any, |t| self.compile_type(t));
-                match self.ctx.get_source_str(range) {
-                    "dict" => child.dict(),
-                    "list" => child.list(),
-                    "?" => child.option(),
-                    _ => errors::ice_at("not a group type", range),
-                }
-            },
-        }
-    }
-    
     pub(super) fn coerce(&mut self, value: Value, expected: &Type, range: SourceRange) -> Option<Value> {
         expected.coerce_value(value, &|v| self.compile_value(v))
             .map_err(|e| self.type_error(e, range))

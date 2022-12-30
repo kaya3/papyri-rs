@@ -6,6 +6,7 @@ use crate::utils::{str_ids, NameIDSet};
 use super::ast::*;
 use super::base::Parser;
 use super::token::{Token, TokenKind, Keyword};
+use super::types::Type;
 
 impl <'a> Parser<'a> {
     pub(super) fn parse_func_def(&mut self, at: Token, allow_anonymous: bool) -> Option<FuncDef> {
@@ -205,11 +206,13 @@ impl <'a> Parser<'a> {
         self.skip_whitespace();
         let question_mark = self.poll_if_kind(TokenKind::QuestionMark);
         self.skip_whitespace();
-        let (is_implicit, type_annotation) = if self.poll_if_kind(TokenKind::Colon).is_some() {
+        let (is_implicit, type_annotation, type_annotation_range) = if self.poll_if_kind(TokenKind::Colon).is_some() {
             self.skip_whitespace();
-            (self.poll_if_kind(TokenKind::Keyword(Keyword::Implicit)).is_some(), self.parse_type())
+            let is_implicit = self.poll_if_kind(TokenKind::Keyword(Keyword::Implicit)).is_some();
+            let (type_, type_range) = self.parse_type();
+            (is_implicit, type_, type_range)
         } else {
-            (false, None)
+            (false, Type::Any, None)
         };
         
         self.skip_whitespace();
@@ -224,7 +227,7 @@ impl <'a> Parser<'a> {
         
         let end = default_value.as_ref()
             .map(|v| v.range().end)
-            .or_else(|| type_annotation.as_ref().map(|t| t.range_end()))
+            .or_else(|| type_annotation_range.map(|t| t.end))
             .or_else(|| question_mark.as_ref().map(|t| t.range.end))
             .unwrap_or(name_tok.range.end);
         let range = spread_range.unwrap_or(name_tok.range)

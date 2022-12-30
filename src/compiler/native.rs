@@ -3,6 +3,7 @@ use std::rc::Rc;
 use crate::errors::{ice, ice_at, RuntimeError, RuntimeWarning, ModuleError, TypeError};
 use crate::utils::{str_ids, text, NameID, relpath, SliceRef};
 use crate::utils::sourcefile::SourceRange;
+use crate::parser::Type;
 use super::base::Compiler;
 use super::frame::ActiveFrame;
 use super::func::Func;
@@ -10,7 +11,6 @@ use super::html::HTML;
 use super::regex_value::RegexValue;
 use super::signature::{FuncParam, FuncSignature};
 use super::tag::Tag;
-use super::types::Type;
 use super::value::{Value, ValueMap};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -1,9 +1,8 @@
 use crate::errors;
-use crate::parser::AST;
+use crate::parser::{AST, Type};
 use super::context::Context;
 use super::frame::ActiveFrame;
 use super::html::HTML;
-use super::types::Type;
 use super::value::ValueMap;
 
 /// The result of compiling a Papyri source file. The output may be incomplete

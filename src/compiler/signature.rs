@@ -4,10 +4,9 @@ use indexmap::IndexMap;
 use crate::utils::{NameID, str_ids};
 use crate::utils::sourcefile::SourceRange;
 use crate::errors;
-use crate::parser::ast;
+use crate::parser::{ast, Type};
 use super::base::Compiler;
 use super::func::Func;
-use super::types::Type;
 use super::value::{Value, ValueMap};
 
 #[derive(Debug)]
@@ -398,8 +397,7 @@ impl <'a> Compiler<'a> {
     }
     
     pub(super) fn compile_param(&mut self, param: &ast::Param) -> FuncParam {
-        let type_ = param.type_annotation.as_ref()
-            .map_or(Type::Any, |t| self.compile_type(t))
+        let type_ = param.type_annotation.clone()
             .option_if(param.question_mark);
         
         let default_value = param.default_value.as_ref()

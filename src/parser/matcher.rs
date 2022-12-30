@@ -364,8 +364,8 @@ impl <'a> Parser<'a> {
             let var = self.parse_name_pattern(var)?;
             MatchPattern::TypeOf(var)
         } else {
-            let type_ = self.parse_type()?;
-            MatchPattern::Typed(type_)
+            let (type_, range) = self.parse_type();
+            MatchPattern::Typed(range?, type_)
         };
         
         Some(if matches!(pattern, MatchPattern::Ignore(..)) {

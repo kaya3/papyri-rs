@@ -2,12 +2,11 @@ use std::rc::Rc;
 use indexmap::IndexMap;
 
 use crate::errors::{ice, ice_at, NameError, RuntimeError};
-use crate::parser::ast;
+use crate::parser::{ast, Type};
 use crate::utils::{str_ids, NameID, taginfo, text};
 use crate::utils::sourcefile::SourceRange;
 use super::base::Compiler;
 use super::html::HTML;
-use super::types::Type;
 use super::value::Value;
 
 pub(super) type AttrMap = IndexMap<NameID, Option<Rc<str>>, fxhash::FxBuildHasher>;

@@ -2,6 +2,7 @@
 /// Represents a warning which occurs during compilation of a Papyri source
 /// file.
 pub enum Warning {
+    RedundantOptionType,
     NameAlreadyDeclared(String),
     PatternNameAlreadyBound(String),
     NameAlreadyExported(String),
@@ -23,6 +24,7 @@ pub enum RuntimeWarning {
 impl std::fmt::Display for Warning {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Warning::RedundantOptionType => f.write_str("type modifier '?' is redundant here"),
             Warning::NameAlreadyDeclared(name) => write!(f, "name '{name}' already declared"),
             Warning::PatternNameAlreadyBound(name) => write!(f, "name '{name}' already bound in this pattern; did you mean '=${name}'?"),
             Warning::NameAlreadyExported(name) => write!(f, "name '{name}' already exported"),

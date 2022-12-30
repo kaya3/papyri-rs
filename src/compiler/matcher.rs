@@ -1,8 +1,7 @@
 use crate::errors::{ice_at, Warning, RuntimeWarning};
-use crate::parser::ast;
+use crate::parser::{ast, Type};
 use super::base::Compiler;
 use super::html::HTML;
-use super::types::Type;
 use super::value::{Value, ValueMap};
 
 impl <'a> Compiler<'a> {
@@ -55,9 +54,7 @@ impl <'a> Compiler<'a> {
                 self.evaluate_node(child, &Type::Any)
                     .map_or(false, |other| value == other)
             },
-            ast::MatchPattern::Typed(type_) => {
-                self.compile_type(type_).check_value(value.clone())
-            },
+            ast::MatchPattern::Typed(.., type_) => type_.check_value(value),
             
             ast::MatchPattern::TypeOf(t_var) => {
                 let t = value.get_type()

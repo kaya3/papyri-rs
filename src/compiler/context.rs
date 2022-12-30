@@ -3,12 +3,12 @@ use std::rc::Rc;
 use crate::errors;
 use crate::utils::{OutFiles, NameID, StringPool, text};
 use crate::utils::sourcefile::{SourceRange, SourceFileCache, SourceFile};
+use crate::parser::Type;
 use super::base::Compiler;
 use super::frame::InactiveFrame;
 use super::html::HTML;
 use super::module_loader::ModuleCache;
 use super::native::NativeDefs;
-use super::types::Type;
 
 /// Holds the context for a compilation job.
 pub struct Context {

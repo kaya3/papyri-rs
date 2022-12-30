@@ -15,5 +15,6 @@ mod tokenizer;
 mod types;
 
 pub(crate) use ast::{AST, Expr};
+pub(crate) use types::Type;
 pub use base::parse;
 pub use tokenizer::tokenize;

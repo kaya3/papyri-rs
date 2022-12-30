@@ -24,5 +24,4 @@ mod value;
 pub use base::CompileResult;
 pub use context::Context;
 pub use html::HTML;
-pub use types::Type;
 pub use value::Value;

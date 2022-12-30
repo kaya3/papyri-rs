@@ -3,7 +3,7 @@ use indexmap::IndexMap;
 
 use crate::errors;
 use crate::parser::token::VerbatimKind;
-use crate::parser::{ast, Expr, token, text};
+use crate::parser::{ast, token, text, Expr, Type};
 use crate::utils::{NameID, str_ids, SliceRef, taginfo};
 use crate::utils::sourcefile::SourceRange;
 use super::base::Compiler;
@@ -11,7 +11,6 @@ use super::func::Func;
 use super::html::HTML;
 use super::regex_value::RegexValue;
 use super::tag::Tag;
-use super::types::Type;
 
 #[derive(Debug, Clone)]
 /// A value represented during compilation of a Papyri source file.

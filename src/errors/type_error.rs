@@ -1,4 +1,4 @@
-use crate::compiler::Type;
+use crate::parser::Type;
 
 #[derive(Debug)]
 #[allow(missing_docs)]
