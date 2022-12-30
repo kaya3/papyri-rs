@@ -30,12 +30,8 @@ impl <'a> Compiler<'a> {
         match pattern {
             ast::MatchPattern::Ignore(..) => true,
             ast::MatchPattern::LiteralNone(..) => value.is_unit(),
-            ast::MatchPattern::Literal(other) => {
-                self.evaluate_literal(other)
-                    .map_or(false, |other| value == other)
-            },
-            &ast::MatchPattern::LiteralName(_, name_id) => {
-                matches!(value, Value::Str(s) if s.as_ref() == self.get_name(name_id))
+            ast::MatchPattern::LiteralName(.., name_id) => {
+                matches!(value, Value::Str(s) if s.as_ref() == self.get_name(*name_id))
             },
             ast::MatchPattern::VarName(var) => {
                 self.bind_one(var, value);

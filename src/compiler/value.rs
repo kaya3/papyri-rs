@@ -3,8 +3,8 @@ use indexmap::IndexMap;
 
 use crate::errors;
 use crate::parser::token::VerbatimKind;
-use crate::parser::{ast, AST, token, text};
-use crate::utils::{NameID, str_ids, SliceRef};
+use crate::parser::{ast, Expr, token, text};
+use crate::utils::{NameID, str_ids, SliceRef, taginfo};
 use crate::utils::sourcefile::SourceRange;
 use super::base::Compiler;
 use super::func::Func;
@@ -268,23 +268,25 @@ impl <'a> Compiler<'a> {
     
     /// Evaluates an AST node to a value. Returns `None` if a compilation error
     /// occurs.
-    pub(super) fn evaluate_node(&mut self, node: &AST, type_hint: &Type) -> Option<Value> {
+    pub(super) fn evaluate_node(&mut self, node: &Expr, type_hint: &Type) -> Option<Value> {
         let v = match node {
-            AST::LiteralValue(tok) => if tok.kind == token::TokenKind::Dot {
-                Value::UNIT
-            } else if type_hint.is_html() {
-                // This is a shortcut, to avoid parsing ints and bools and then
-                // converting back to text. It also avoids the possibility of a
-                // parse error if an integer is not in the signed 64-bit range.
-                let s = self.ctx.get_source_str(tok.range);
+            Expr::Unit(..) => Value::UNIT,
+            &Expr::Bool(b, ..) => b.into(),
+            
+            &Expr::Int(range) => if type_hint.is_html() {
+                // This is a shortcut, to avoid parsing ints and then converting
+                // back to text. It also avoids the possibility of a parse error
+                // if an integer is not in the signed 64-bit range.
+                let s = self.ctx.get_source_str(range);
                 text::substitutions(s).into()
             } else {
-                self.evaluate_literal(tok)?
+                self.evaluate_int(range)?
             },
-            AST::Verbatim(range, k) => self.evaluate_verbatim(*range, *k, type_hint)?,
+            &Expr::BareString(range) => self.ctx.get_source_str(range).into(),
+            &Expr::Verbatim(range, k) => self.evaluate_verbatim(range, k, type_hint)?,
             
-            AST::FuncCall(call) => return self.evaluate_func_call(call, type_hint),
-            AST::FuncDef(def) => {
+            Expr::FuncCall(call) => return self.evaluate_func_call(call, type_hint),
+            Expr::FuncDef(def) => {
                 let v = Value::Func(self.compile_func_def(def));
                 if type_hint.is_html() {
                     self.err_expected_type(type_hint.clone(), v.get_type(), def.range);
@@ -292,20 +294,19 @@ impl <'a> Compiler<'a> {
                 }
                 v
             },
-            AST::LetIn(let_in) => return self.evaluate_let_in(let_in, type_hint, false),
-            AST::Match(m) => return self.evaluate_match(m, type_hint),
-            AST::Name(name) => return self.evaluate_name(name, type_hint),
-            AST::Template(parts, ..) => self.evaluate_template(parts),
+            Expr::LetIn(let_in) => return self.evaluate_let_in(let_in, type_hint, false),
+            Expr::Match(match_) => return self.evaluate_match(match_, type_hint),
+            Expr::Name(name) => return self.evaluate_name(name, type_hint),
+            Expr::Template(parts, ..) => self.evaluate_template(parts),
             
-            AST::Group(..) | AST::Tag(..) => self.compile_node(node).into(),
-            AST::List(list, range) => self.evaluate_list(list, type_hint, *range)?,
-            
-            _ => errors::ice_at("invalid AST value", node.range()),
+            Expr::Group(children, ..) => self.compile_sequence(children, taginfo::ContentKind::ALLOW_P).into(),
+            Expr::Tag(tag) => self.compile_tag(tag).into(),
+            Expr::List(children, range) => self.evaluate_list(children, type_hint, *range)?,
         };
         self.coerce(v, type_hint, node.range())
     }
     
-    fn evaluate_list(&mut self, list: &[(AST, bool)], type_hint: &Type, range: SourceRange) -> Option<Value> {
+    pub(super) fn evaluate_list(&mut self, list: &[(Expr, bool)], type_hint: &Type, range: SourceRange) -> Option<Value> {
         let child_type_hint = type_hint.component_type();
         let mut children = Vec::new();
         for &(ref child, is_spread) in list.iter() {
@@ -348,24 +349,15 @@ impl <'a> Compiler<'a> {
     }
     
     /// Evaluates a literal token to a value, or returns `None` if a parse
-    /// error occurs. The token must be either a `Boolean`, `Number`, `Name` or
-    /// `Verbatim`.
-    pub(super) fn evaluate_literal(&mut self, tok: &token::Token) -> Option<Value> {
-        let s = self.ctx.get_source_str(tok.range);
-        match tok.kind {
-            token::TokenKind::Boolean(b) => Some(b.into()),
-            token::TokenKind::Name => Some(s.into()),
-            token::TokenKind::Verbatim(..) => Some(token::Token::get_verbatim_text(s).into()),
-            
-            token::TokenKind::Number => match s.parse::<i64>() {
-                Ok(value) => Some(value.into()),
-                Err(err) => {
-                    self.syntax_error(errors::SyntaxError::TokenInvalidNumber(err), tok.range);
-                    None
-                },
+    /// error occurs. The token must be either a `Number` or `Name`.
+    pub(super) fn evaluate_int(&mut self, range: SourceRange) -> Option<Value> {
+        let s = self.ctx.get_source_str(range);
+        match s.parse::<i64>() {
+            Ok(value) => Some(value.into()),
+            Err(err) => {
+                self.syntax_error(errors::SyntaxError::TokenInvalidNumber(err), range);
+                None
             },
-            
-            _ => errors::ice_at("illegal token kind", tok.range),
         }
     }
     
@@ -384,7 +376,7 @@ impl <'a> Compiler<'a> {
         })
     }
     
-    fn evaluate_verbatim(&mut self, range: SourceRange, verbatim_kind: VerbatimKind, type_hint: &Type) -> Option<Value> {
+    pub(super) fn evaluate_verbatim(&mut self, range: SourceRange, verbatim_kind: VerbatimKind, type_hint: &Type) -> Option<Value> {
         let str_value = token::Token::get_verbatim_text(self.ctx.get_source_str(range)).into();
         if !type_hint.is_html() {
             return Some(str_value);

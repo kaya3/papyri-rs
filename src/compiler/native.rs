@@ -273,10 +273,10 @@ impl <'a> Compiler<'a> {
             },
             
             NativeFunc::EscapeHTML => {
-                let content = bindings.take(str_ids::PARAM);
+                let content = self.compile_value(bindings.take(str_ids::PARAM));
                 
                 let mut s = Vec::new();
-                self.ctx.render(&self.compile_value(content), true, &mut s).unwrap();
+                self.ctx.render(&content, true, &mut s).unwrap();
                 Some(String::from_utf8(s).unwrap().into())
             },
             

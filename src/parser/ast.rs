@@ -5,7 +5,7 @@ use indexmap::IndexMap;
 
 use crate::utils::{NameID, NameIDSet};
 use crate::utils::sourcefile::SourceRange;
-use super::token::{Token, TokenKind, VerbatimKind};
+use super::token::VerbatimKind;
 
 #[derive(Debug)]
 /// An AST node for a single HTML tag attribute.
@@ -22,7 +22,7 @@ pub struct TagAttribute {
     
     /// The attribute's value; it is `None` for a Boolean attribute, as in
     /// `<input disabled>`.
-    pub(crate) value: Option<AST>,
+    pub(crate) value: Option<Expr>,
 }
 
 #[derive(Debug)]
@@ -32,7 +32,7 @@ pub enum TagAttrOrSpread {
     Attr(TagAttribute),
     
     /// A spread of named attributes, e.g. `**$attrs`.
-    Spread(AST),
+    Spread(Expr),
 }
 
 #[derive(Debug)]
@@ -115,7 +115,7 @@ pub struct Param {
     pub(crate) type_annotation: Option<TypeAnnotation>,
     
     /// The default value for this parameter, if it has one.
-    pub(crate) default_value: Option<Box<AST>>,
+    pub(crate) default_value: Option<Box<Expr>>,
 }
 
 #[derive(Debug)]
@@ -151,7 +151,7 @@ pub struct FuncDef {
     pub(crate) signature: Signature,
     
     /// The function body.
-    pub(crate) body: Rc<AST>,
+    pub(crate) body: Rc<Expr>,
 }
 
 #[derive(Debug)]
@@ -164,17 +164,17 @@ pub struct LetIn {
     pub(crate) is_implicit: bool,
     
     /// The variables declared in this "let in" expression.
-    pub(crate) vars: Box<[(NameID, AST)]>,
+    pub(crate) vars: Box<[(NameID, Expr)]>,
     
     /// The expression body.
-    pub(crate) child: AST,
+    pub(crate) child: Expr,
 }
 
 #[derive(Debug)]
 /// An `@export` declaration.
 pub enum Export {
     /// An `@export(name1=..., name2=...).` declaration.
-    Names(SourceRange, Box<[(NameID, AST)]>),
+    Names(SourceRange, Box<[(NameID, Expr)]>),
     
     /// An `@export @let ...` declaration.
     LetIn(SourceRange, LetIn),
@@ -184,7 +184,7 @@ pub enum Export {
 }
 
 impl Export {
-    fn range(&self) -> SourceRange {
+    pub(super) fn range(&self) -> SourceRange {
         match self {
             Export::Names(range, ..) |
             Export::LetIn(range, ..) |
@@ -208,7 +208,7 @@ pub struct Arg {
     pub(super) spread_kind: SpreadKind,
     
     /// The argument's value.
-    pub(crate) value: AST,
+    pub(crate) value: Expr,
 }
 
 impl Arg {
@@ -244,7 +244,7 @@ pub struct FuncCall {
     pub(crate) args: Box<[Arg]>,
     
     /// The "contents" argument of this function call.
-    pub(crate) content: AST
+    pub(crate) content: Expr,
 }
 
 #[derive(Debug)]
@@ -270,11 +270,11 @@ pub struct Match {
     pub(crate) range: SourceRange,
     
     /// The value to be matched against.
-    pub(crate) value: AST,
+    pub(crate) value: Expr,
     
     /// The branches of this `@match` expression; each has a pattern and a
     /// handler to be evaluated if the pattern is matched.
-    pub(crate) branches: Box<[(MatchPattern, AST)]>,
+    pub(crate) branches: Box<[(MatchPattern, Expr)]>,
 }
 
 #[derive(Debug)]
@@ -286,9 +286,6 @@ pub enum MatchPattern {
     /// A pattern which only matches a unit value.
     LiteralNone(SourceRange),
     
-    /// A pattern which matches a literal bool, int or str value.
-    Literal(Token),
-    
     /// A pattern which matches a literal str, whose value is interned.
     LiteralName(SourceRange, NameID),
     
@@ -297,7 +294,7 @@ pub enum MatchPattern {
     
     /// A pattern which matches if the value is equal to the value of an
     /// expression.
-    EqualsValue(AST),
+    EqualsValue(Expr),
     
     /// An `&` pattern, which matches if both child patterns match. This is
     /// also used for patterns with type annotations.
@@ -393,7 +390,6 @@ impl MatchPattern {
             MatchPattern::Regex(range, ..) |
             MatchPattern::LiteralNone(range) |
             MatchPattern::LiteralName(range, ..) |
-            MatchPattern::Literal(Token {range, ..}) |
             MatchPattern::TypeOf(SimpleName {range, ..}) |
             MatchPattern::VarName(SimpleName {range, ..}) => *range,
             MatchPattern::Typed(t) => t.range(),
@@ -448,11 +444,10 @@ impl MatchPattern {
     /// content is expected.
     pub(super) fn can_match_html(&self) -> bool {
         match self {
-            MatchPattern::Literal(tok) => matches!(tok.kind, TokenKind::Name | TokenKind::Verbatim(..)),
-            
             MatchPattern::And(pair) |
             MatchPattern::Or(pair, _) => pair.0.can_match_html() && pair.1.can_match_html(),
             
+            MatchPattern::EqualsValue(Expr::Bool(..) | Expr::Int(..) | Expr::List(..)) |
             MatchPattern::ExactList(..) |
             MatchPattern::SpreadList(..) |
             MatchPattern::Dict(..) => false,
@@ -532,35 +527,40 @@ pub struct AttrName {
 }
 
 #[derive(Debug)]
-/// An AST node. This may represent either flow content or a value.
-pub enum AST {
-    /// A literal bool, int, str or unit, not including a string literal.
-    LiteralValue(Token),
+/// An AST node for an expression.
+pub enum Expr {
+    /// A unit literal (either `.` or `{}`).
+    Unit(SourceRange),
+    
+    /// A bool literal.
+    Bool(bool, SourceRange),
+    
+    /// A number literal.
+    Int(SourceRange),
+    
+    /// A bare literal string.
+    BareString(SourceRange),
     
     /// A string literal.
     Verbatim(SourceRange, VerbatimKind),
     
-    /// An `@export` declaration.
-    Export(Box<Export>),
-    
-    /// A function call, not including `@fn` or `@match` (which are keywords, not
-    /// functions).
+    /// A function call.
     FuncCall(Box<FuncCall>),
     
     /// A function definition, using the `@fn` keyword.
     FuncDef(Box<FuncDef>),
     
-    /// A "let in" expression.
+    /// A `@let` or `@implicit` expression.
     LetIn(Box<LetIn>),
     
     /// A `@match` expression.
     Match(Box<Match>),
     
-    /// A group of HTML content, delimited by braces.
+    /// A group of flow content, delimited by braces.
     Group(Box<[AST]>, SourceRange),
     
     /// A list, delimited by square brackets.
-    List(Box<[(AST, bool)]>, SourceRange),
+    List(Box<[(Expr, bool)]>, SourceRange),
     
     /// A string template, delimited by quotes.
     Template(Box<[TemplatePart]>, SourceRange),
@@ -570,6 +570,46 @@ pub enum AST {
     
     /// A name expression.
     Name(Name),
+}
+
+impl Expr {
+    /// Returns the source span corresponding to this AST node.
+    pub(crate) fn range(&self) -> SourceRange {
+        match self {
+            Expr::FuncCall(call) => call.range,
+            Expr::FuncDef(def) => def.range,
+            Expr::LetIn(l) => l.range,
+            Expr::Match(m) => m.range,
+            Expr::Tag(tag) => tag.range,
+            Expr::Name(name) => name.range(),
+            
+            Expr::Unit(range) |
+            Expr::Bool(.., range) |
+            Expr::Int(range) |
+            Expr::BareString(range) |
+            Expr::Verbatim(range, ..) |
+            Expr::Group(.., range) |
+            Expr::List(.., range) |
+            Expr::Template(.., range) => *range,
+        }
+    }
+    
+    pub(crate) fn is_literal(&self) -> bool {
+        matches!(self, Expr::Unit(..) | Expr::Bool(..) | Expr::Int(..) | Expr::BareString(..) | Expr::Verbatim(..))
+    }
+}
+
+#[derive(Debug)]
+/// An AST node representing flow content.
+pub enum AST {
+    /// An `@export` declaration.
+    Export(Box<Export>),
+    
+    /// An expression.
+    Expr(Expr),
+    
+    /// A function definition, using the `@fn` keyword.
+    FuncDef(Box<FuncDef>),
     
     /// Literal text. Text substitutions have already been applied.
     Text(Rc<str>, SourceRange),
@@ -585,19 +625,10 @@ impl AST {
     /// Returns the source span corresponding to this AST node.
     pub(crate) fn range(&self) -> SourceRange {
         match self {
-            AST::FuncCall(call) => call.range,
+            AST::Expr(expr) => expr.range(),
             AST::FuncDef(def) => def.range,
-            AST::LetIn(l) => l.range,
-            AST::Match(m) => m.range,
-            AST::Tag(tag) => tag.range,
-            AST::Export(e) => e.range(),
-            AST::Name(name) => name.range(),
+            AST::Export(export) => export.range(),
             
-            AST::LiteralValue(Token {range, ..}) |
-            AST::Verbatim(range, ..) |
-            AST::Group(.., range) |
-            AST::List(.., range) |
-            AST::Template(.., range) |
             AST::Text(.., range) |
             AST::Whitespace(range) |
             AST::ParagraphBreak(range) => *range,
@@ -607,5 +638,57 @@ impl AST {
     /// Indicates whether this AST node is whitespace or a paragraph break.
     pub(crate) fn is_whitespace(&self) -> bool {
         matches!(self, AST::Whitespace(..) | AST::ParagraphBreak(..))
+    }
+}
+
+impl From<FuncCall> for Expr {
+    fn from(call: FuncCall) -> Expr {
+        Expr::FuncCall(Box::new(call))
+    }
+}
+impl From<FuncDef> for Expr {
+    fn from(def: FuncDef) -> Expr {
+        Expr::FuncDef(Box::new(def))
+    }
+}
+impl From<LetIn> for Expr {
+    fn from(let_in: LetIn) -> Expr {
+        Expr::LetIn(Box::new(let_in))
+    }
+}
+impl From<Match> for Expr {
+    fn from(match_: Match) -> Expr {
+        Expr::Match(Box::new(match_))
+    }
+}
+
+impl From<Expr> for AST {
+    fn from(expr: Expr) -> Self {
+        AST::Expr(expr)
+    }
+}
+impl From<Export> for AST {
+    fn from(e: Export) -> AST {
+        AST::Export(Box::new(e))
+    }
+}
+impl From<FuncCall> for AST {
+    fn from(call: FuncCall) -> AST {
+        Expr::from(call).into()
+    }
+}
+impl From<FuncDef> for AST {
+    fn from(def: FuncDef) -> AST {
+        AST::FuncDef(Box::new(def))
+    }
+}
+impl From<LetIn> for AST {
+    fn from(let_in: LetIn) -> AST {
+        Expr::from(let_in).into()
+    }
+}
+impl From<Match> for AST {
+    fn from(match_: Match) -> AST {
+        Expr::from(match_).into()
     }
 }

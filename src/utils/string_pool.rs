@@ -63,9 +63,7 @@ impl StringPool {
     /// the `str_ids` module.
     pub fn get(&self, id: NameID) -> &str {
         let id = id.0.get() as usize;
-        let Some(s) = self.0.get_index(id) else {
-            errors::ice(&format!("no string with ID {id}"));
-        };
-        s
+        self.0.get_index(id)
+            .unwrap_or_else(|| errors::ice(&format!("no string with ID {id}")))
     }
 }

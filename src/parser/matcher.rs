@@ -30,7 +30,7 @@ impl NamedMatchPattern {
 
 impl <'a> Parser<'a> {
     pub(super) fn parse_match(&mut self, at: Token) -> Option<Match> {
-        let value = self.parse_value()?;
+        let value = self.parse_expr()?;
         
         self.skip_whitespace();
         let open = self.expect_poll_kind(TokenKind::LBrace)?;
@@ -48,11 +48,11 @@ impl <'a> Parser<'a> {
         })
     }
     
-    fn parse_match_branch(&mut self) -> Option<(MatchPattern, AST)> {
+    fn parse_match_branch(&mut self) -> Option<(MatchPattern, Expr)> {
         let pattern = self.parse_match_pattern()?;
         self.skip_whitespace();
         self.expect_poll_kind(TokenKind::Arrow)?;
-        let then = self.parse_value()?;
+        let then = self.parse_expr()?;
         Some((pattern, then))
     }
     
@@ -98,9 +98,9 @@ impl <'a> Parser<'a> {
             
             TokenKind::Boolean(..) |
             TokenKind::Number |
-            TokenKind::Verbatim(..) => Some(MatchPattern::Literal(tok)),
+            TokenKind::Verbatim(..) => self.parse_expr_tok(tok).map(MatchPattern::EqualsValue),
             
-            TokenKind::Equals => self.parse_value().map(MatchPattern::EqualsValue),
+            TokenKind::Equals => self.parse_expr().map(MatchPattern::EqualsValue),
             TokenKind::LAngle => self.parse_tag_pattern(tok),
             TokenKind::LSqb => self.parse_seq_pattern(tok, TokenKind::Comma, TokenKind::RSqb).map(|(p, _)| p),
             TokenKind::LPar => self.parse_dict_pattern(tok),

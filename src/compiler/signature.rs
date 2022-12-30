@@ -225,7 +225,7 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
         }
     }
     
-    pub(super) fn compile_content_arg(&mut self, node: &ast::AST) {
+    pub(super) fn compile_content_arg(&mut self, node: &ast::Expr) {
         let sig = self.sig.as_ref();
         
         let type_hint = if self.bound.map.contains_key(&sig.content_param.name_id) {

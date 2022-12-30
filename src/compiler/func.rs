@@ -107,7 +107,7 @@ pub struct NonNativeFunc {
     name_id: NameID,
     closure: InactiveFrame,
     signature: RcFuncSignature,
-    body: Rc<ast::AST>,
+    body: Rc<ast::Expr>,
 }
 
 impl <'a> Compiler<'a> {

@@ -18,7 +18,7 @@ impl <'a> Parser<'a> {
         let signature = self.parse_signature()?;
         self.skip_whitespace();
         self.expect_poll_kind(TokenKind::Arrow)?;
-        let body = Rc::new(self.parse_value()?);
+        let body = Rc::new(self.parse_expr()?);
         Some(FuncDef {
             range: at.range.to_end(body.range().end),
             name_id,
@@ -27,17 +27,16 @@ impl <'a> Parser<'a> {
         })
     }
     
-    pub(super) fn parse_func_call(&mut self, at: Token) -> Option<AST> {
+    pub(super) fn parse_func_call(&mut self, at: Token) -> Option<FuncCall> {
         let func = self.parse_name(at)?;
         let args = self.parse_args()?.into_boxed_slice();
-        let content = self.parse_value_or_ellipsis()?;
-        let call = FuncCall {
+        let content = self.parse_expr_or_ellipsis()?;
+        Some(FuncCall {
             range: func.range().to_end(content.range().end),
             func,
             args,
             content,
-        };
-        Some(AST::FuncCall(Box::new(call)))
+        })
     }
     
     pub(super) fn poll_if_spread(&mut self, allow_pos: bool, allow_named: bool) -> (SpreadKind, Option<SourceRange>) {
@@ -210,7 +209,7 @@ impl <'a> Parser<'a> {
         
         self.skip_whitespace();
         let default_value = if self.poll_if_kind(TokenKind::Equals).is_some() {
-            Some(self.parse_value()?)
+            Some(self.parse_expr()?)
         } else {
             None
         };
@@ -243,13 +242,18 @@ impl <'a> Parser<'a> {
         
         self.skip_whitespace();
         let Some(name_tok) = self.poll_if_kind(TokenKind::Name) else {
-            let value = self.parse_value()?;
+            let value = self.parse_expr()?;
             let v_range = value.range();
             let range = match spread_range {
                 Some(r) => r.to_end(v_range.end),
                 None => v_range,
             };
-            return Some(Arg {range, spread_kind, name_id: str_ids::ANONYMOUS, value});
+            return Some(Arg {
+                range,
+                spread_kind,
+                name_id: str_ids::ANONYMOUS,
+                value,
+            });
         };
         
         let range_start = spread_range.unwrap_or(name_tok.range);
@@ -259,13 +263,20 @@ impl <'a> Parser<'a> {
             if let Some(spread_range) = spread_range {
                 self.syntax_error(SyntaxError::ArgSpreadNamed, spread_range);
             }
-            let name_id = self.tok_name_id(&name_tok);
-            let value = self.parse_value()?;
-            let range = range_start.to_end(value.range().end);
-            Arg {range, spread_kind: SpreadKind::NoSpread, name_id, value}
+            let value = self.parse_expr()?;
+            Arg {
+                range: range_start.to_end(value.range().end),
+                spread_kind: SpreadKind::NoSpread,
+                name_id: self.tok_name_id(&name_tok),
+                value,
+            }
         } else {
-            let range = range_start.to_end(name_tok.range.end);
-            Arg {range, spread_kind, name_id: str_ids::ANONYMOUS, value: AST::LiteralValue(name_tok)}
+            Arg {
+                range: range_start.to_end(name_tok.range.end),
+                spread_kind,
+                name_id: str_ids::ANONYMOUS,
+                value: Expr::BareString(name_tok.range),
+            }
         })
     }
 }
