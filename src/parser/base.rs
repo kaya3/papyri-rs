@@ -4,7 +4,7 @@ use crate::errors::{Diagnostics, SyntaxError};
 use crate::utils::{StringPool, NameID};
 use crate::utils::sourcefile::{SourceFile, SourceRange};
 use super::ast::*;
-use super::token::{TokenKind, Token, Keyword};
+use super::token::{TokenKind, Token, Keyword, VerbatimKind};
 
 /// Holds the mutable state of the parser.
 pub(super) struct Parser<'a> {
@@ -124,7 +124,7 @@ impl <'a> Parser<'a> {
                 }
             },
             
-            TokenKind::Verbatim(k) => Some(Expr::Verbatim(tok.range, k)),
+            TokenKind::Verbatim(..) => Some(Expr::Verbatim(tok.range)),
             TokenKind::VarName => self.parse_name(tok).map(Expr::Name),
             
             TokenKind::FuncName => {
@@ -185,10 +185,10 @@ impl <'a> Parser<'a> {
                     .map(Box::new)
                     .map(AST::FuncDef)
             },
+            TokenKind::Verbatim(k) => Some(AST::CodeFence(tok.range, k == VerbatimKind::Multiline)),
             
             TokenKind::FuncName |
             TokenKind::Keyword(..) |
-            TokenKind::Verbatim(..) |
             TokenKind::VarName |
             TokenKind::LBrace |
             TokenKind::LSqb => {

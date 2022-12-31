@@ -1,11 +1,9 @@
 //! This module contains type declarations for AST nodes.
 
 use std::rc::Rc;
-use indexmap::IndexMap;
 
-use crate::utils::{NameID, NameIDSet};
+use crate::utils::{NameID, NameIDSet, NameIDMap};
 use crate::utils::sourcefile::SourceRange;
-use super::token::VerbatimKind;
 use super::types::Type;
 
 #[derive(Debug)]
@@ -324,7 +322,7 @@ pub struct RegexMatchPattern {
 pub struct DictMatchPattern {
     /// A collection of (name, pattern) pairs for matching individual tag
     /// attributes.
-    pub(crate) attrs: IndexMap<NameID, MatchPattern, fxhash::FxBuildHasher>,
+    pub(crate) attrs: NameIDMap<MatchPattern>,
     
     /// An optional pattern for matching the remaining tag attributes, as a
     /// dictionary.
@@ -510,7 +508,7 @@ pub enum Expr {
     BareString(SourceRange),
     
     /// A string literal.
-    Verbatim(SourceRange, VerbatimKind),
+    Verbatim(SourceRange),
     
     /// A function call.
     FuncCall(Box<FuncCall>),
@@ -579,6 +577,9 @@ pub enum AST {
     /// A function definition, using the `@fn` keyword.
     FuncDef(Box<FuncDef>),
     
+    /// A code fence. The boolean value indicates whether it is multiline.
+    CodeFence(SourceRange, bool),
+    
     /// Literal text. Text substitutions have already been applied.
     Text(Rc<str>, SourceRange),
     
@@ -597,6 +598,7 @@ impl AST {
             AST::FuncDef(def) => def.range,
             AST::Export(export) => export.range(),
             
+            AST::CodeFence(range, ..) |
             AST::Text(.., range) |
             AST::Whitespace(range) |
             AST::ParagraphBreak(range) => *range,

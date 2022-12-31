@@ -121,15 +121,16 @@ impl <'a> Compiler<'a> {
     pub(super) fn evaluate_func_call(&mut self, call: &ast::FuncCall, type_hint: &Type) -> Option<Value> {
         let func_type = Type::Function
             .option_if(call.func.is_coalescing());
+        let func: Option<Func> = self.evaluate_name(&call.func, &func_type)?
+            .expect_convert();
         
-        match self.evaluate_name(&call.func, &func_type)? {
-            Value::Func(f) => {
+        func.map_or(
+            Some(Value::UNIT),
+            |f| {
                 let bindings = f.bind_call(self, call)?;
                 self.evaluate_func_call_with_bindings(f, bindings, type_hint, call.range)
             },
-            f if f.is_unit() => Some(Value::UNIT),
-            _ => self.ice_at("failed to coerce", call.func.range()),
-        }
+        )
     }
     
     pub(super) fn evaluate_func_call_with_bindings(&mut self, func: Func, bindings: ValueMap, type_hint: &Type, call_range: SourceRange) -> Option<Value> {

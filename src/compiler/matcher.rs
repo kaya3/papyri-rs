@@ -3,6 +3,7 @@ use crate::parser::{ast, Type};
 use super::base::Compiler;
 use super::html::HTML;
 use super::value::{Value, ValueMap};
+use super::value_convert::TryConvert;
 
 impl <'a> Compiler<'a> {
     pub(super) fn evaluate_match(&mut self, match_: &ast::Match, type_hint: &Type) -> Option<Value> {
@@ -71,7 +72,7 @@ impl <'a> Compiler<'a> {
             },
             
             ast::MatchPattern::ExactHTMLSeq(_, child_patterns) => {
-                let Some(html) = value.try_into_html() else {
+                let Ok(html) = HTML::try_convert(value) else {
                     return false;
                 };
                 match html {
@@ -98,7 +99,7 @@ impl <'a> Compiler<'a> {
             },
             
             ast::MatchPattern::SpreadHTMLSeq(_, child_patterns, spread_index) => {
-                let Some(html) = value.try_into_html() else {
+                let Ok(html) = HTML::try_convert(value) else {
                     return false;
                 };
                 

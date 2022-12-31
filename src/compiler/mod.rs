@@ -20,6 +20,7 @@ mod signature;
 mod tag;
 mod types;
 mod value;
+mod value_convert;
 
 pub use base::CompileResult;
 pub use context::Context;

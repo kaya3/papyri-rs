@@ -1,4 +1,3 @@
-use crate::parser::{AST, Type};
 use super::context::Context;
 use super::frame::ActiveFrame;
 use super::html::HTML;
@@ -30,28 +29,6 @@ impl <'a> Compiler<'a> {
             ctx,
             call_stack,
             exports: ValueMap::default(),
-        }
-    }
-    
-    pub(super) fn compile_node(&mut self, node: &AST) -> HTML {
-        match node {
-            AST::Export(e) => {
-                self.compile_export(e);
-                HTML::Empty
-            }
-            AST::Expr(expr) => {
-                self.evaluate_node(expr, &Type::HTML)
-                    .map_or(HTML::Empty, |v| self.compile_value(v))
-            },
-            AST::FuncDef(def) => {
-                let f = self.compile_func_def(def).into();
-                self.set_var(def.name_id, f, false, def.signature.range);
-                HTML::Empty
-            },
-            AST::Text(text, ..) => text.clone().into(),
-            AST::Whitespace(..) => HTML::Whitespace,
-            
-            AST::ParagraphBreak(range) => self.ice_at("paragraph break should be handled in SequenceCompiler", *range),
         }
     }
 }

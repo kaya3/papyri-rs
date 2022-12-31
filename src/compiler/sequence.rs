@@ -1,5 +1,5 @@
 use crate::errors::TypeError;
-use crate::parser::ast::AST;
+use crate::parser::{AST, Type};
 use crate::utils::sourcefile::SourceRange;
 use crate::utils::taginfo::{ContentKind, content_kind};
 use crate::utils::{str_ids, NameID};
@@ -18,24 +18,49 @@ impl ContentKind {
 
 impl <'a> Compiler<'a> {
     pub(super) fn compile_sequence(&mut self, sequence: &[AST], content_kind: ContentKind) -> HTML {
-        let mut comp = SequenceBuilder::new(content_kind);
+        let mut builder = SequenceBuilder::new(content_kind);
         for child in sequence {
-            let r = if let AST::ParagraphBreak(..) = child {
-                comp.newline()
-            } else {
-                let child_html = self.compile_node(child);
-                comp.push(child_html)
-            };
-            if let Err(e) = r {
+            if let Err(e) = self.compile_node(&mut builder, child) {
                 self.sequence_error(e, child.range());
             }
         }
         
-        comp.into_html().unwrap_or_else(|e| {
+        builder.into_html().unwrap_or_else(|e| {
             let range = sequence[0].range().to_end(sequence.last().unwrap().range().end);
             self.sequence_error(e, range);
             HTML::Empty
         })
+    }
+    
+    fn compile_node(&mut self, builder: &mut SequenceBuilder, node: &AST) -> Result<(), SequenceError> {
+        match node {
+            AST::Export(export_) => {
+                self.compile_export(export_);
+                Ok(())
+            }
+            AST::Expr(expr) => {
+                if let Some(v) = self.evaluate_node(expr, &Type::HTML) {
+                    builder.push(v.expect_convert())
+                } else {
+                    Ok(())
+                }
+            },
+            AST::FuncDef(def) => {
+                let f = self.compile_func_def(def).into();
+                self.set_var(def.name_id, f, false, def.signature.range);
+                Ok(())
+            },
+            &AST::CodeFence(range, is_multiline) => {
+                if let Some(h) = self.compile_code_fence(range, is_multiline) {
+                    builder.push(h)
+                } else {
+                    Ok(())
+                }
+            },
+            AST::Text(text, ..) => builder.push(text.clone().into()),
+            AST::Whitespace(..) => builder.push(HTML::Whitespace),
+            AST::ParagraphBreak(..) => builder.newline(),
+        }
     }
     
     fn sequence_error(&mut self, e: SequenceError, range: SourceRange) {

@@ -1,7 +1,6 @@
 use std::rc::Rc;
-use indexmap::IndexMap;
 
-use crate::utils::{NameID, str_ids};
+use crate::utils::{NameID, str_ids, NameIDMap};
 use crate::utils::sourcefile::SourceRange;
 use crate::errors;
 use crate::parser::{ast, Type};
@@ -47,7 +46,7 @@ impl FuncParam {
 pub struct FuncSignature {
     positional_params: Vec<FuncParam>,
     spread_param: Option<Box<FuncParam>>,
-    named_params: IndexMap<NameID, FuncParam, fxhash::FxBuildHasher>,
+    named_params: NameIDMap<FuncParam>,
     spread_named_param: Option<Box<FuncParam>>,
     content_param: FuncParam,
 }
@@ -67,7 +66,7 @@ impl FuncSignature {
         FuncSignature {
             positional_params: Vec::new(),
             spread_param: None,
-            named_params: IndexMap::default(),
+            named_params: NameIDMap::default(),
             spread_named_param: None,
             content_param: FuncParam::new(str_ids::ANONYMOUS, Type::Unit),
         }

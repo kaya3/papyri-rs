@@ -1,4 +1,4 @@
-use indexmap::IndexSet;
+use indexmap::{IndexSet, IndexMap};
 use nonmax::NonMaxU32;
 
 use crate::errors;
@@ -24,6 +24,9 @@ impl NameID {
 
 /// A set of NameIDs.
 pub type NameIDSet = IndexSet<NameID, fxhash::FxBuildHasher>;
+
+/// A set of NameIDs.
+pub type NameIDMap<T> = IndexMap<NameID, T, fxhash::FxBuildHasher>;
 
 /// A pool of interned string names, which assigns unique IDs to names, and can
 /// be used to look up names by ID. The pool's maximum capacity is `u32::MAX`.

@@ -10,7 +10,7 @@ use super::value::Value;
 impl <'a> Compiler<'a> {
     /// Returns the value of the given variable, coerced to the given type, or
     /// `None` if a compilation error occurs.
-    pub fn evaluate_name(&mut self, name: &ast::Name, type_hint: &Type) -> Option<Value> {
+    pub(super) fn evaluate_name(&mut self, name: &ast::Name, type_hint: &Type) -> Option<Value> {
         let value = match name {
             ast::Name::SimpleName(name) => {
                 self.get_var(name.name_id, name.range)?

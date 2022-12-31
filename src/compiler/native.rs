@@ -12,6 +12,7 @@ use super::regex_value::RegexValue;
 use super::signature::{FuncParam, FuncSignature};
 use super::tag::Tag;
 use super::value::{Value, ValueMap};
+use super::value_convert::TryConvert;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NativeFunc {
@@ -90,7 +91,7 @@ impl NativeDefs {
             .build();
         
         let join = FuncSignature::builder()
-            .positional(FuncParam::new(str_ids::_0, Type::Any).unit_default())
+            .positional(FuncParam::new(str_ids::_0, Type::HTML).unit_default())
             .content(FuncParam::new(str_ids::PARAM, Type::HTML.list()))
             .build();
         
@@ -232,33 +233,27 @@ impl <'a> Compiler<'a> {
         let mut bindings = Bindings(bindings);
         match f {
             NativeFunc::Add => {
-                let args = bindings.take_list(str_ids::_0);
+                let xs: Vec<i64> = bindings.take(str_ids::_0);
                 
-                let mut total = 0;
-                for arg in args.as_ref().iter() {
-                    match arg {
-                        Value::Int(i) => total += i,
-                        _ => self.ice_at("failed to coerce", call_range),
-                    }
-                }
+                let total: i64 = xs.into_iter().sum();
                 Some(total.into())
             },
             
             NativeFunc::Bind => {
-                let f = bindings.take_function(str_ids::_0);
-                let pos_args = bindings.take_list(str_ids::_1);
-                let named_args = bindings.take_dict(str_ids::KWARGS);
-                let content_arg = bindings.take(str_ids::PARAM);
+                let f: Func = bindings.take(str_ids::_0);
+                let pos_args: SliceRef<Value> = bindings.take(str_ids::_1);
+                let named_args: Rc<ValueMap> = bindings.take(str_ids::KWARGS);
+                let content_arg: Value = bindings.take(str_ids::PARAM);
                 
                 f.bind_partial(self, pos_args.as_ref(), named_args.as_ref(), content_arg, call_range)
                     .map(Value::from)
             },
             
             NativeFunc::Code => {
-                let language = bindings.take_str_option(str_ids::LANGUAGE);
-                let is_block = bindings.take_bool(str_ids::CODE_BLOCK);
-                let first_line_no = bindings.take_int(str_ids::FIRST_LINE_NO);
-                let src = bindings.take_str(str_ids::PARAM);
+                let language: Option<Rc<str>> = bindings.take(str_ids::LANGUAGE);
+                let is_block: bool = bindings.take(str_ids::CODE_BLOCK);
+                let first_line_no: i64 = bindings.take(str_ids::FIRST_LINE_NO);
+                let src: Rc<str> = bindings.take(str_ids::PARAM);
                 
                 let with_hint = is_block.then(|| text::get_source_language_hint(src.as_ref()))
                     .flatten();
@@ -273,7 +268,7 @@ impl <'a> Compiler<'a> {
             },
             
             NativeFunc::EscapeHTML => {
-                let content = self.compile_value(bindings.take(str_ids::PARAM));
+                let content: HTML = bindings.take(str_ids::PARAM);
                 
                 let mut s = Vec::new();
                 self.ctx.render(&content, true, &mut s).unwrap();
@@ -281,7 +276,7 @@ impl <'a> Compiler<'a> {
             },
             
             NativeFunc::Import | NativeFunc::Include | NativeFunc::ListFiles => {
-                let path_str = bindings.take_str(str_ids::PARAM);
+                let path_str: Rc<str> = bindings.take(str_ids::PARAM);
                 
                 // compute path relative to current source file
                 let mut path = self.ctx.source_files
@@ -329,17 +324,16 @@ impl <'a> Compiler<'a> {
             },
             
             NativeFunc::Filter => {
-                let callback = bindings.take_function_option(str_ids::_0);
-                let content = bindings.take_list(str_ids::PARAM);
+                let callback: Option<Func> = bindings.take(str_ids::_0);
+                let content: SliceRef<Value> = bindings.take(str_ids::PARAM);
                 
                 let out = match callback {
                     Some(f) => {
                         let mut out = Vec::new();
                         for v in content.as_ref() {
-                            match self.eval_callback(f.clone(), v.clone(), &Type::Bool, call_range)? {
-                                Value::Bool(true) => out.push(v.clone()),
-                                Value::Bool(false) => {},
-                                _ => self.ice_at("failed to coerce", call_range),
+                            let r = self.eval_callback(f.clone(), v.clone(), &Type::Bool, call_range)?;
+                            if r.expect_convert::<bool>() {
+                                out.push(v.clone())
                             }
                         }
                         out
@@ -357,20 +351,28 @@ impl <'a> Compiler<'a> {
             },
             
             NativeFunc::Join => {
-                let sep = self.compile_value(bindings.take(str_ids::_0));
-                let content = bindings.take_list(str_ids::PARAM);
+                let sep: HTML = bindings.take(str_ids::_0);
+                let content: Vec<HTML> = bindings.take(str_ids::PARAM);
                 
-                let mut out = Vec::new();
-                for (i, v) in content.as_ref().iter().cloned().enumerate() {
-                    if i > 0 && !sep.is_empty() { out.push(sep.clone()); }
-                    out.push(self.compile_value(v));
-                }
+                if content.is_empty() { return Some(Value::UNIT); }
+                
+                let out = if sep.is_empty() {
+                    content
+                } else {
+                    let mut out = Vec::with_capacity(2 * content.len() - 1);
+                    for (i, v) in content.into_iter().enumerate() {
+                        if i > 0 { out.push(sep.clone()); }
+                        out.push(v);
+                    }
+                    out
+                };
+                
                 Some(HTML::seq(out).into())
             },
             
             NativeFunc::Map => {
-                let callback = bindings.take_function(str_ids::_0);
-                let content = bindings.take_list(str_ids::PARAM);
+                let callback: Func = bindings.take(str_ids::_0);
+                let content: SliceRef<Value> = bindings.take(str_ids::PARAM);
                 
                 let mut out = Vec::new();
                 for v in content.as_ref() {
@@ -381,36 +383,36 @@ impl <'a> Compiler<'a> {
             },
             
             NativeFunc::Raise => {
-                let msg = bindings.take_str(str_ids::PARAM);
+                let msg: Rc<str> = bindings.take(str_ids::PARAM);
                 self.runtime_error(RuntimeError::Raised(msg), call_range);
                 None
             },
             
             NativeFunc::RegexCompile => {
-                let regex_str = bindings.take_str(str_ids::PARAM);
+                let regex_str: Rc<str> = bindings.take(str_ids::PARAM);
                 self.compile_regex(regex_str.as_ref(), call_range)
                     .map(Value::from)
             },
             
             NativeFunc::RegexFind => {
-                let regex = bindings.take_regex(str_ids::_0);
-                let s = bindings.take_str(str_ids::PARAM);
+                let regex: Rc<RegexValue> = bindings.take(str_ids::_0);
+                let s: Rc<str> = bindings.take(str_ids::PARAM);
                 Some(regex.find(s.as_ref()))
             },
             
             NativeFunc::RegexFindAll => {
-                let regex = bindings.take_regex(str_ids::_0);
-                let s = bindings.take_str(str_ids::PARAM);
+                let regex: Rc<RegexValue> = bindings.take(str_ids::_0);
+                let s: Rc<str> = bindings.take(str_ids::PARAM);
                 Some(regex.find_all(s.as_ref()))
             },
             
             NativeFunc::Slice => {
-                let content = bindings.take_list(str_ids::PARAM);
+                let content: SliceRef<Value> = bindings.take(str_ids::PARAM);
+                let start: i64 = bindings.take(str_ids::_0);
+                let end: Option<i64> = bindings.take(str_ids::_1);
+                
                 let n = content.len() as i64;
-                
-                let start = bindings.take_int(str_ids::_0);
-                let end = bindings.take_int_option(str_ids::_1).unwrap_or(n);
-                
+                let end = end.unwrap_or(n);
                 let a = if start < 0 { 0.max(start + n) } else { start.min(n) };
                 let b = if end < 0 { 0.max(end + n) } else { end.min(n) };
                 
@@ -419,15 +421,15 @@ impl <'a> Compiler<'a> {
             },
             
             NativeFunc::Sorted => {
-                let key_func = bindings.take_function_option(str_ids::KEY);
-                let reversed = bindings.take_bool(str_ids::REVERSED);
-                let content = bindings.take_list(str_ids::PARAM);
+                let key_func: Option<Func> = bindings.take(str_ids::KEY);
+                let reversed: bool = bindings.take(str_ids::REVERSED);
+                let content: SliceRef<Value> = bindings.take(str_ids::PARAM);
                 
                 if content.is_empty() {
                     return Some(content.into());
                 }
                 
-                let mut decorated = Vec::new();
+                let mut decorated = Vec::with_capacity(content.len());
                 let mut key_type = Type::Unit;
                 for v in content.as_ref().iter().cloned() {
                     let k = key_func.clone()
@@ -453,14 +455,8 @@ impl <'a> Compiler<'a> {
                 if reversed { decorated.reverse(); }
                 
                 match decorated.first().unwrap().0 {
-                    Value::Int(_) => decorated.sort_by_key(|p| match p.0 {
-                        Value::Int(k) => k,
-                        _ => self.ice_at("failed to unwrap int sort key", call_range),
-                    }),
-                    Value::Str(_) => decorated.sort_by_key(|p| match &p.0 {
-                        Value::Str(k) => k.clone(),
-                        _ => self.ice_at("failed to unwrap str sort key", call_range),
-                    }),
+                    Value::Int(_) => decorated.sort_by_key(|p| p.0.clone().expect_convert::<i64>()),
+                    Value::Str(_) => decorated.sort_by_key(|p| p.0.clone().expect_convert::<Rc<str>>()),
                     _ => self.ice_at("failed to unwrap sort key", call_range),
                 }
                 
@@ -473,8 +469,8 @@ impl <'a> Compiler<'a> {
             },
             
             NativeFunc::UniqueID => {
-                let max_len = bindings.take_int(str_ids::MAX_LENGTH);
-                let id_base = bindings.take_str(str_ids::PARAM);
+                let max_len: i64 = bindings.take(str_ids::MAX_LENGTH);
+                let id_base: Rc<str> = bindings.take(str_ids::PARAM);
                 
                 if max_len <= 0 {
                     let e = RuntimeError::ParamMustBePositive(self.get_name(str_ids::MAX_LENGTH).to_string(), max_len);
@@ -487,8 +483,8 @@ impl <'a> Compiler<'a> {
             },
             
             NativeFunc::WriteFile => {
-                let path = bindings.take_str(str_ids::_0);
-                let content = self.compile_value(bindings.take(str_ids::PARAM));
+                let path: Rc<str> = bindings.take(str_ids::_0);
+                let content: HTML = bindings.take(str_ids::PARAM);
                 
                 self.ctx.push_out_file(path, content)
                     .map_err(|e| self.runtime_error(e, call_range))
@@ -551,82 +547,10 @@ impl <'a> Compiler<'a> {
 struct Bindings(ValueMap);
 
 impl Bindings {
-    fn take(&mut self, key: NameID) -> Value {
+    fn take<T: TryConvert>(&mut self, key: NameID) -> T {
         self.0.get_mut(&key)
             .map(std::mem::take)
             .unwrap_or_else(|| ice("failed to unpack"))
-    }
-    
-    fn take_bool(&mut self, key: NameID) -> bool {
-        match self.take(key) {
-            Value::Bool(b) => b,
-            _ => ice("failed to unpack"),
-        }
-    }
-    
-    fn take_int(&mut self, key: NameID) -> i64 {
-        match self.take(key) {
-            Value::Int(i) => i,
-            _ => ice("failed to unpack"),
-        }
-    }
-    
-    fn take_str(&mut self, key: NameID) -> Rc<str> {
-        match self.take(key) {
-            Value::Str(s) => s,
-            _ => ice("failed to unpack"),
-        }
-    }
-    
-    fn take_list(&mut self, key: NameID) -> SliceRef<Value> {
-        match self.take(key) {
-            Value::List(l) => l,
-            _ => ice("failed to unpack"),
-        }
-    }
-    
-    fn take_dict(&mut self, key: NameID) -> Rc<ValueMap> {
-        match self.take(key) {
-            Value::Dict(d) => d,
-            _ => ice("failed to unpack"),
-        }
-    }
-    
-    fn take_function(&mut self, key: NameID) -> Func {
-        match self.take(key) {
-            Value::Func(f) => f,
-            _ => ice("failed to unpack"),
-        }
-    }
-    
-    fn take_regex(&mut self, key: NameID) -> Rc<RegexValue> {
-        match self.take(key) {
-            Value::Regex(r) => r,
-            _ => ice("failed to unpack"),
-        }
-    }
-    
-    fn take_int_option(&mut self, key: NameID) -> Option<i64> {
-        match self.take(key) {
-            Value::Int(i) => Some(i),
-            v if v.is_unit() => None,
-            _ => ice("failed to unpack"),
-        }
-    }
-    
-    fn take_str_option(&mut self, key: NameID) -> Option<Rc<str>> {
-        match self.take(key) {
-            Value::Str(s) => Some(s),
-            v if v.is_unit() => None,
-            _ => ice("failed to unpack"),
-        }
-    }
-    
-    fn take_function_option(&mut self, key: NameID) -> Option<Func> {
-        match self.take(key) {
-            Value::Func(f) => Some(f),
-            v if v.is_unit() => None,
-            _ => ice("failed to unpack"),
-        }
+            .expect_convert()
     }
 }

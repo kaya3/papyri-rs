@@ -1,9 +1,7 @@
 use std::rc::Rc;
-use indexmap::IndexMap;
 
-use crate::parser::token::VerbatimKind;
 use crate::parser::{ast, token, text, Expr, Type};
-use crate::utils::{NameID, str_ids, SliceRef, taginfo};
+use crate::utils::{str_ids, SliceRef, taginfo, NameIDMap};
 use crate::utils::sourcefile::SourceRange;
 use super::base::Compiler;
 use super::func::Func;
@@ -42,90 +40,7 @@ pub enum Value {
     Regex(Rc<RegexValue>),
 }
 
-pub type ValueMap = IndexMap<NameID, Value, fxhash::FxBuildHasher>;
-
-impl From<bool> for Value {
-    fn from(b: bool) -> Value {
-        Value::Bool(b)
-    }
-}
-
-impl From<i64> for Value {
-    fn from(i: i64) -> Value {
-        Value::Int(i)
-    }
-}
-
-impl From<Func> for Value {
-    fn from(f: Func) -> Value {
-        Value::Func(f)
-    }
-}
-
-impl From<RegexValue> for Value {
-    fn from(r: RegexValue) -> Self {
-        Value::Regex(Rc::new(r))
-    }
-}
-
-impl From<&str> for Value {
-    fn from(s: &str) -> Value {
-        Value::Str(Rc::from(s))
-    }
-}
-
-impl From<String> for Value {
-    fn from(s: String) -> Value {
-        Value::Str(Rc::from(s))
-    }
-}
-
-impl From<Option<Rc<str>>> for Value {
-    fn from(s: Option<Rc<str>>) -> Value {
-        s.map_or(Value::UNIT, Value::Str)
-    }
-}
-
-impl From<Vec<Value>> for Value {
-    fn from(vs: Vec<Value>) -> Value {
-        Value::List(vs.into())
-    }
-}
-
-impl <const N: usize> From<[Value; N]> for Value {
-    fn from(vs: [Value; N]) -> Value {
-        Value::List(vs.as_slice().into())
-    }
-}
-
-impl From<SliceRef<Value>> for Value {
-    fn from(vs: SliceRef<Value>) -> Value {
-        Value::List(vs)
-    }
-}
-
-impl From<ValueMap> for Value {
-    fn from(vs: ValueMap) -> Value {
-        Value::Dict(Rc::new(vs))
-    }
-}
-
-impl From<HTML> for Value {
-    fn from(html: HTML) -> Value {
-        match html {
-            HTML::Text(t) => Value::Str(t),
-            HTML::Whitespace => " ".into(),
-            HTML::RawNewline => "\n".into(),
-            html => Value::HTML(html),
-        }
-    }
-}
-
-impl From<&HTML> for Value {
-    fn from(html: &HTML) -> Value {
-        html.clone().into()
-    }
-}
+pub type ValueMap = NameIDMap<Value>;
 
 impl Value {
     /// The unit value, of type `none`.
@@ -134,16 +49,6 @@ impl Value {
     /// Indicates whether this value is the unit value, `Value::UNIT`.
     pub(super) fn is_unit(&self) -> bool {
         matches!(self, Value::HTML(HTML::Empty))
-    }
-    
-    /// Returns this value's HTML content, if the value is HTML or a string,
-    /// otherwise returns `None`. No coercion or compilation is performed.
-    pub(super) fn try_into_html(self) -> Option<HTML> {
-        match self {
-            Value::HTML(h) => Some(h),
-            Value::Str(s) => Some(s.into()),
-            _ => None,
-        }
     }
     
     /// Returns the type of this value. If it is a heterogeneous list or
@@ -189,7 +94,8 @@ impl Value {
 
 impl PartialEq for Value {
     /// Determines whether two values are equal; lists and dictionaries are
-    /// compared deeply. Functions are never equal, not even to themselves.
+    /// compared deeply. Functions and regexes are never equal, not even to
+    /// themselves.
     fn eq(&self, other: &Value) -> bool {
         match (self, other) {
             (Value::Bool(b1), Value::Bool(b2)) => b1 == b2,
@@ -212,17 +118,6 @@ impl Default for Value {
 }
 
 impl <'a> Compiler<'a> {
-    /// Convenience method for coercing a value to an optional string. Returns
-    /// `Some` if this value is a string, or `None` if this is `Value::UNIT`;
-    /// the value must not be of any other type.
-    pub(super) fn unwrap_str_option(&self, value: Value, range: SourceRange) -> Option<Rc<str>> {
-        match value {
-            Value::Str(s) => Some(s),
-            v if v.is_unit() => None,
-            _ => self.ice_at("failed to coerce", range),
-        }
-    }
-    
     /// Converts a value to its HTML representation. Lists become `<ul>` tags,
     /// dictionaries become tables, functions and regexes are represented as
     /// code.
@@ -272,7 +167,7 @@ impl <'a> Compiler<'a> {
             &Expr::Bool(b, ..) => b.into(),
             &Expr::Int(i, ..) => i.into(),
             &Expr::BareString(range) => self.ctx.get_source_str(range).into(),
-            &Expr::Verbatim(range, k) => self.evaluate_verbatim(range, k, type_hint)?,
+            &Expr::Verbatim(range) => self.evaluate_verbatim(range),
             
             Expr::FuncCall(call) => return self.evaluate_func_call(call, type_hint),
             Expr::FuncDef(def) => {
@@ -300,10 +195,8 @@ impl <'a> Compiler<'a> {
         let mut children = Vec::new();
         for &(ref child, is_spread) in list.iter() {
             if is_spread {
-                let grandchildren = self.evaluate_node(child, &child_type_hint.clone().list())?;
-                let Value::List(grandchildren) = grandchildren else {
-                    self.ice_at("failed to coerce", child.range());
-                };
+                let grandchildren: SliceRef<Value> = self.evaluate_node(child, &child_type_hint.clone().list())?
+                    .expect_convert();
                 children.extend(grandchildren.as_ref().iter().cloned());
             } else if let Some(child) = self.evaluate_node(child, child_type_hint) {
                 children.push(child);
@@ -324,7 +217,7 @@ impl <'a> Compiler<'a> {
                 },
                 ast::TemplatePart::Name(name) => {
                     if let Some(v) = self.evaluate_name(name, &Type::Str.option()) {
-                        if let Some(s) = self.unwrap_str_option(v, name.range()) {
+                        if let Some(s) = v.expect_convert::<Option<Rc<str>>>() {
                             out += s.as_ref();
                         }
                     }
@@ -352,19 +245,22 @@ impl <'a> Compiler<'a> {
         })
     }
     
-    pub(super) fn evaluate_verbatim(&mut self, range: SourceRange, verbatim_kind: VerbatimKind, type_hint: &Type) -> Option<Value> {
-        let str_value = token::Token::get_verbatim_text(self.ctx.get_source_str(range)).into();
-        if !type_hint.is_html() {
-            return Some(str_value);
-        }
+    pub(super) fn evaluate_verbatim(&mut self, range: SourceRange) -> Value {
+        token::Token::get_verbatim_text(self.ctx.get_source_str(range))
+            .into()
+    }
+    
+    pub(super) fn compile_code_fence(&mut self, range: SourceRange, is_multiline: bool) -> Option<HTML> {
+        let str_value = self.evaluate_verbatim(range);
         
-        let f_name = if verbatim_kind == VerbatimKind::Multiline { str_ids::CODE_BLOCK } else { str_ids::CODE };
+        let f_name = if is_multiline { str_ids::CODE_BLOCK } else { str_ids::CODE };
         let func = self.get_var(f_name, range)?;
-        let Value::Func(f) = self.coerce(func, &Type::Function, range)? else {
-            self.ice_at("failed to coerce", range);
-        };
+        let func: Func = self.coerce(func, &Type::Function, range)?
+            .expect_convert();
         
-        let bindings = f.bind_synthetic_call(self, true, str_value, range)?;
-        self.evaluate_func_call_with_bindings(f, bindings, type_hint, range)
+        let bindings = func.bind_synthetic_call(self, true, str_value, range)?;
+        let type_hint = if is_multiline { Type::Block } else { Type::Inline };
+        self.evaluate_func_call_with_bindings(func, bindings, &type_hint, range)
+            .map(Value::expect_convert)
     }
 }
