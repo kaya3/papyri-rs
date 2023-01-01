@@ -155,7 +155,7 @@ impl <'a> Compiler<'a> {
                     .iter()
                     .map(|(&k, v)| (
                         k,
-                        v.clone().into(),
+                        v.clone().map_or(Value::UNIT, Value::from),
                     ))
                     .collect();
                 

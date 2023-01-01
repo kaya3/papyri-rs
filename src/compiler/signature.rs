@@ -26,18 +26,8 @@ impl FuncParam {
         }
     }
     
-    pub(super) fn implicit(mut self) -> FuncParam {
-        self.is_implicit = true;
-        self
-    }
-    
-    pub(super) fn unit_default(mut self) -> FuncParam {
-        self.default_value = Some(Value::UNIT);
-        self
-    }
-    
-    pub(super) fn with_default<T: Into<Value>>(mut self, default_value: T) -> FuncParam {
-        self.default_value = Some(default_value.into());
+    pub(super) fn with_default(mut self, default_value: Value) -> FuncParam {
+        self.default_value = Some(default_value);
         self
     }
 }
@@ -80,6 +70,11 @@ impl FuncSignature {
     pub(super) fn named(mut self, param: FuncParam) -> FuncSignature {
         self.named_params.insert(param.name_id, param);
         self
+    }
+    
+    pub(super) fn implicit(self, mut param: FuncParam) -> FuncSignature {
+        param.is_implicit = true;
+        self.named(param)
     }
     
     pub(super) fn pos_spread(mut self, param: FuncParam) -> FuncSignature {

@@ -42,6 +42,12 @@ impl TryConvert for Value {
     }
 }
 
+impl From<()> for Value {
+    fn from(_: ()) -> Value {
+        Value::UNIT
+    }
+}
+
 impl From<bool> for Value {
     fn from(b: bool) -> Value {
         Value::Bool(b)
@@ -197,6 +203,11 @@ impl From<ValueMap> for Value {
         Value::Dict(Rc::new(vs))
     }
 }
+impl From<Rc<ValueMap>> for Value {
+    fn from(vs: Rc<ValueMap>) -> Value {
+        Value::Dict(vs)
+    }
+}
 impl TryConvert for Rc<ValueMap> {
     fn as_type() -> Type {
         Type::Any.dict()
@@ -236,11 +247,6 @@ impl <T: TryConvert> TryConvert for NameIDMap<T> {
     }
 }
 
-impl <T> From<Option<T>> for Value where Value: From<T> {
-    fn from(v: Option<T>) -> Value {
-        v.map_or(Value::UNIT, Value::from)
-    }
-}
 impl <T: TryConvert> TryConvert for Option<T> {
     fn as_type() -> Type {
         T::as_type().option()

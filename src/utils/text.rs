@@ -147,7 +147,7 @@ impl UniqueIDGenerator {
     }
     
     /// Returns a valid identifier based on the given `id_base` string, which
-    /// distinct from all other identifiers returned by this generator since
+    /// is distinct from all other identifiers returned by this generator since
     /// the last call to `clear()`.
     /// 
     /// The identifier is lowercase, and its length is at most `max_len` unless

@@ -13,6 +13,7 @@ mod matcher;
 mod module_loader;
 mod names;
 mod native;
+mod native_gen;
 mod regex_value;
 mod render;
 mod sequence;
