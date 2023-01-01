@@ -59,11 +59,14 @@ impl RegexValue {
         )
     }
     
-    pub(super) fn find_all(&self, s: &str) -> Value {
+    pub(super) fn find_all(&self, s: &str) -> Vec<Value> {
         self.regex.captures_iter(s)
             .map(|m| self.kind.captures_to_value(m))
-            .collect::<Vec<_>>()
-            .into()
+            .collect()
+    }
+    
+    pub(super) fn test(&self, s: &str) -> bool {
+        self.regex.is_match(s)
     }
 }
 

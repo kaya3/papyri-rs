@@ -81,60 +81,27 @@
     |<a class="footnote-ref"/><span class="footnote panel">$v</>
 }
 
-@fn dict_new(**$kwargs). -> $kwargs
-
 @export(
-    bool=@dict_new(
-        negate=@fn bool_negate $b: bool -> $b::negate,
-        and=@fn bool_and($_0: bool, $_1: bool). -> @match $_0 {True -> $_1, False -> False},
-        or=@fn bool_or($_0: bool, $_1: bool). -> @match $_0 {True -> True, False -> $_1},
+    bool=@dict::new(
+        **$bool,
+        is_truthy=@fn is_truthy $v -> @match $v {False | . | 0 | "" | [] | () -> False, _ -> True},
     ).,
-    int=@dict_new(
-        **$int,
-        negate=@fn int_negate $i: int -> $i::negate,
-    ).,
-    str=@dict_new(
-        **$str,
-        from=@fn str_from $s: str -> $s,
-        is_empty=@fn str_is_empty $s: str -> $s::is_empty,
-        is_whitespace=@fn str_is_whitespace $s: str -> $s::is_whitespace,
-        len=@fn str_len $s: str -> $s::len,
-        trim=@let(_trim_regex=@regex::compile `^\s*(.*?)\s*$`) @fn str_trim $s: str -> @match @_trim_regex::find $s {[_, $r] -> $r, _ -> .},
-    ).,
-    function=@dict_new(
+    function=@dict::new(
         **$function,
-        call=@fn function_call($_f: function, *$_args, **$kwargs) $content -> @_f(*$_args, **$kwargs) $content,
+        call=@fn call($_f: function, *$_args, **$kwargs) $content -> @_f(*$_args, **$kwargs) $content,
     ).,
-    regex=@dict_new(
+    regex=@dict::new(
         **$regex,
-        test=@fn regex_test($_r: regex) $s: str -> @match @_r::find $s {. -> False, _ -> True},
-        count=@fn regex_count($_r: regex) $s: str -> @let(v=@_r::find_all $s) $v::len,
+        count=@fn count($_r: regex) $s: str -> @let(v=@_r::find_all $s) $v::len,
     ).,
-    list=@dict_new(
-        **$list,
-        all=@fn list_all($_f: function) $v: list -> @match $v {[] -> True, [$a, *$b] -> @match @_f $a {True -> @list::all($_f) $b, False -> False}},
-        any=@fn list_any($_f: function) $v: list -> @match $v {[] -> False, [$a, *$b] -> @match @_f $a {True -> True, False -> @list::any($_f) $b}},
-        contains=@fn list_contains($_v) $v: list -> @match $v {[] -> False, [=$_v, *_] -> True, [_, *$r] -> @list::contains($_v) $r},
-        find=@fn list_find($_f: function) $v: list -> @match $v {[] -> ., [$a, *$b] -> @match @_f $a {True -> $a, False -> @list::find($_f) $b}},
-        flat=@fn list_flat $v: list -> $v::flat,
-        is_empty=@fn list_is_empty $v: list -> $v::is_empty,
-        len=@fn list_len $v: list -> $v::len,
-        reversed=@fn list_reversed $v: list -> $v::reversed,
-    ).,
-    dict=@dict_new(
-        new=$dict_new,
-    ).,
-    html=@dict_new(
+    html=@dict::new(
         **$html,
-        is_empty=@fn html_is_empty $h: html -> $h::is_empty,
-        is_whitespace=@fn html_is_whitespace $h: html -> $h::is_whitespace,
-        nodes=@fn html_nodes $h: html -> $h::nodes,
-        tag_name=@fn html_tag_name $h: html -> $h::tag_name,
+        tag_name=@fn tag_name $h: html -> $h::tag_name,
     ).,
-    inline=@dict_new(
-        from=@fn inline_from $v: inline -> $v,
+    inline=@dict::new(
+        from=@fn from $v: inline -> $v,
     ).,
-    block=@dict_new(
-        from=@fn block_from $v: block -> $v,
+    block=@dict::new(
+        from=@fn from $v: block -> $v,
     ).,
 ).

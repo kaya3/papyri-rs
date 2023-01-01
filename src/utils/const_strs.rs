@@ -1,22 +1,24 @@
 use super::string_pool::NameID;
 
 macro_rules! const_strs {
-    (@count () {$id: expr}) => {};
-    (@count ($name_head: ident, $val_head: expr, $($name_tail: ident, $val_tail: expr,)*) {$id: expr}) => {
-        #[doc = concat!("The ID of the interned string `", stringify!($val_head), "`.")]
-        pub(crate) const $name_head: NameID = NameID::of($id);
-        const_strs!(@count ($($name_tail, $val_tail,)*) {$id + 1});
-    };
-    
     ($($name: ident = $val: expr,)*) => {
-        pub static CONST_STRS: &'static [&'static str] = &[
+        pub(crate) static CONST_STRS: &'static [&'static str] = &[
             $($val,)*
         ];
         
         /// Constants for ids of names which are always pooled.
-        pub mod str_ids {
+        pub(crate) mod str_ids {
+            #[repr(u32)]
+            #[allow(non_camel_case_types)]
+            enum ConstStr {
+                $($name),*
+            }
+            
             use super::NameID;
-            const_strs!{@count ($($name, $val,)*) {0}}
+            $(
+                #[doc = concat!("The ID of the interned string `", stringify!($val_head), "`.")]
+                pub(crate) const $name: NameID = NameID::of(ConstStr::$name as u32);
+            )*
         }
     }
 }
@@ -24,18 +26,22 @@ macro_rules! const_strs {
 const_strs!(
     ANONYMOUS = "<anonymous>",
     _DOCTYPE = "!DOCTYPE",
-    _0 = "_0",
-    _1 = "_1",
     A = "a",
     ADD = "add",
     ADDRESS = "address",
+    ALL = "all",
+    AND = "and",
+    ANY = "any",
     AREA = "area",
+    ARGS = "args",
     ARTICLE = "article",
     ASIDE = "aside",
+    B = "b",
     BASE = "base",
     BIND = "bind",
     BLOCKQUOTE = "blockquote",
     BODY = "body",
+    BOOL = "bool",
     BR = "br",
     CANVAS = "canvas",
     CAPTION = "caption",
@@ -46,10 +52,12 @@ const_strs!(
     COLGROUP = "colgroup",
     COMMAND = "command",
     COMPILE = "compile",
+    CONTAINS = "contains",
     DATA_LINE_NO = "data_line_no",
     DATA_PAREN_NO = "data_paren_no",
     DD = "dd",
     DETAILS = "details",
+    DICT = "dict",
     DIV = "div",
     DL = "dl",
     DT = "dt",
@@ -58,6 +66,7 @@ const_strs!(
     FIELDSET = "fieldset",
     FIGCAPTION = "figcaption",
     FIGURE = "figure",
+    FILE = "file",
     FILTER = "filter",
     FIRST_LINE_NO = "first_line_no",
     FIND = "find",
@@ -65,6 +74,7 @@ const_strs!(
     FLAT = "flat",
     FOOTER = "footer",
     FORM = "form",
+    FROM = "from",
     FUNCTION = "function",
     H1 = "h1",
     H2 = "h2",
@@ -85,16 +95,17 @@ const_strs!(
     INT = "int",
     IS_EMPTY = "is_empty",
     IS_WHITESPACE = "is_whitespace",
+    ITEMS = "items",
     JOIN = "join",
     KEY = "key",
     KEYGEN = "keygen",
+    KEYS = "keys",
     KWARGS = "kwargs",
     LANGUAGE = "language",
     LEN = "len",
     LI = "li",
     LINK = "link",
     LIST = "list",
-    LIST_FILES = "list_files",
     MAIN = "main",
     MAP = "map",
     MAX_LENGTH = "max_length",
@@ -104,20 +115,21 @@ const_strs!(
     NAME = "name",
     NAV = "nav",
     NEGATE = "negate",
+    NEW = "new",
     NODES = "nodes",
     NOSCRIPT = "noscript",
     OL = "ol",
+    OR = "or",
     P = "p",
     PARAM = "param",
+    PATH = "path",
     PRE = "pre",
     RAISE = "raise",
     REGEX = "regex",
-    REGEX_COMPILE = "regex_compile",
-    REGEX_FIND = "regex_find",
-    REGEX_FIND_ALL = "regex_find_all",
     REVERSED = "reversed",
     SCRIPT = "script",
     SECTION = "section",
+    SEP = "sep",
     SLICE = "slice",
     SORTED = "sorted",
     SOURCE = "source",
@@ -129,15 +141,18 @@ const_strs!(
     TBODY = "tbody",
     TD = "td",
     TEMPLATE = "template",
+    TEST = "test",
     TFOOT = "tfoot",
     TH = "th",
     THEAD = "thead",
     TITLE = "title",
     TR = "tr",
     TRACK = "track",
+    TRIM = "trim",
     UL = "ul",
     UNIQUE_ID = "unique_id",
+    VALUES = "values",
     VIDEO = "video",
     WBR = "wbr",
-    WRITE_FILE = "write_file",
+    WRITE = "write",
 );
