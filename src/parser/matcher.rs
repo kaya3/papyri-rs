@@ -33,7 +33,7 @@ impl <'a> Parser<'a> {
         self.skip_whitespace();
         let open = self.expect_poll_kind(TokenKind::LBrace)?;
         let (branches, close) = self.parse_separated_until(
-            &open,
+            open,
             Parser::parse_match_branch,
             TokenKind::Comma,
             TokenKind::RBrace,
@@ -83,7 +83,7 @@ impl <'a> Parser<'a> {
         self.skip_whitespace();
         let tok = self.expect_poll()?;
         match tok.kind {
-            TokenKind::Name if self.tok_str(&tok) == "_" => {
+            TokenKind::Name if self.tok_str(tok) == "_" => {
                 let p = MatchPattern::Ignore(tok.range);
                 self.parse_optional_typed_pattern(p)
             },
@@ -118,7 +118,7 @@ impl <'a> Parser<'a> {
                 None
             },
             _ => {
-                self.err_unexpected_token(&tok);
+                self.err_unexpected_token(tok);
                 None
             },
         }
@@ -144,19 +144,19 @@ impl <'a> Parser<'a> {
         }
         
         let name_tok = self.expect_poll_kind(TokenKind::Name)?;
-        if self.tok_str(&name_tok).starts_with('_') {
+        if self.tok_str(name_tok).starts_with('_') {
             self.syntax_error(SyntaxError::PatternNamedUnderscore, name_tok.range);
         }
         self.skip_whitespace();
         let equals = if allow_lone_name { self.poll_if_kind(TokenKind::Equals) } else { self.expect_poll_kind(TokenKind::Equals) };
-        let name_id = self.tok_name_id(&name_tok);
+        let name_id = self.tok_name_id(name_tok);
         let pattern = if equals.is_some() { self.parse_match_pattern()? } else { MatchPattern::LiteralNone(name_tok.range) };
         Some(NamedMatchPattern::One(name_id, pattern))
     }
     
     fn parse_seq_pattern(&mut self, open: Token, sep_kind: TokenKind, close_kind: TokenKind) -> Option<(MatchPattern, Token)> {
         let (children, close) = self.parse_separated_until(
-            &open,
+            open,
             Parser::parse_positional_match_pattern,
             sep_kind,
             close_kind,
@@ -204,7 +204,7 @@ impl <'a> Parser<'a> {
     
     fn parse_dict_pattern(&mut self, lpar: Token) -> Option<MatchPattern> {
         let (parts, rpar) = self.parse_separated_until(
-            &lpar,
+            lpar,
             |_self| _self.parse_named_match_pattern(false),
             TokenKind::Comma,
             TokenKind::RPar,
@@ -218,10 +218,10 @@ impl <'a> Parser<'a> {
         let name_tok = self.expect_poll()?;
         let (name, name_str) = match name_tok.kind {
             TokenKind::Name => {
-                if self.tok_str(&name_tok) == "_" {
+                if self.tok_str(name_tok) == "_" {
                     (MatchPattern::Ignore(name_tok.range), None)
                 } else {
-                    let (name_id, name_str) = self.tok_lowercase_name_id(&name_tok);
+                    let (name_id, name_str) = self.tok_lowercase_name_id(name_tok);
                     (MatchPattern::LiteralName(name_tok.range, name_id), Some(name_str))
                 }
             },
@@ -230,13 +230,13 @@ impl <'a> Parser<'a> {
                 (MatchPattern::VarName(name), None)
             },
             _ => {
-                self.err_unexpected_token(&name_tok);
+                self.err_unexpected_token(name_tok);
                 return None;
             },
         };
         
         let (raw_attrs, rangle) = self.parse_separated_until(
-            &langle,
+            langle,
             |_self| _self.parse_named_match_pattern(true),
             TokenKind::Whitespace,
             TokenKind::RAngle,
@@ -245,7 +245,7 @@ impl <'a> Parser<'a> {
         // can simplify `(**P)` to `P`, because the tag attributes are always a dictionary
         let attrs = self.make_dict_pattern(raw_attrs, langle.range.to_end(rangle.range.end), true)?;
         
-        let self_closing = self.tok_str(&rangle) == "/>"
+        let self_closing = self.tok_str(rangle) == "/>"
             || matches!(name, MatchPattern::LiteralName(_, name_id) if taginfo::is_self_closing(name_id));
         
         self.skip_whitespace();
@@ -260,7 +260,7 @@ impl <'a> Parser<'a> {
             (content, close_tag)
         };
         
-        if close_tag.kind == TokenKind::CloseTag && !self.is_close_tag(&close_tag, &name_str) {
+        if close_tag.kind == TokenKind::CloseTag && !self.is_close_tag(close_tag, &name_str) {
             self.syntax_error(SyntaxError::PatternIncorrectCloseTag, close_tag.range);
         }
         
@@ -290,6 +290,9 @@ impl <'a> Parser<'a> {
                 TemplatePart::Name(Name::AttrName(attr)) => {
                     self.syntax_error(SyntaxError::PatternAttrAccess, attr.range);
                 },
+                TemplatePart::Name(Name::IndexName(attr)) => {
+                    self.syntax_error(SyntaxError::PatternIndexAccess, attr.range);
+                },
                 TemplatePart::Whitespace => {
                     regex_str += r"\s+";
                 },
@@ -307,12 +310,16 @@ impl <'a> Parser<'a> {
     }
     
     fn parse_name_pattern(&mut self, token: Token) -> Option<SimpleName> {
-        match self.parse_name(token)? {
+        let name = self.parse_name(token)?;
+        match name {
             Name::SimpleName(name) => Some(name),
             Name::AttrName(attr) => {
                 self.syntax_error(SyntaxError::PatternAttrAccess, attr.range);
-                // try to recover from the error
-                Some(attr.get_root())
+                None
+            },
+            Name::IndexName(index) => {
+                self.syntax_error(SyntaxError::PatternIndexAccess, index.range);
+                None
             },
         }
     }

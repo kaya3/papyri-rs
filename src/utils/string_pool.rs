@@ -61,10 +61,15 @@ impl StringPool {
         }
     }
     
+    pub(crate) fn get_id_if_present(&self, s: &str) -> Option<NameID> {
+        self.0.get_index_of(s)
+            .map(|id| NameID::of(id as u32))
+    }
+    
     /// Returns the name associated with the given ID, as a string. Should only
     /// be called with IDs assigned by this pool, or constant IDs assigned in
     /// the `str_ids` module.
-    pub fn get(&self, id: NameID) -> &str {
+    pub(crate) fn get(&self, id: NameID) -> &str {
         let id = id.0.get() as usize;
         self.0.get_index(id)
             .unwrap_or_else(|| errors::ice(&format!("no string with ID {id}")))

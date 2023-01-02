@@ -38,17 +38,27 @@ assert_ok! {
 }
 
 assert_matches! {
-    list_len(
+    index(
+        "@let(foo=[2, 4, 6]) $foo::0",
+        "2",
+    );
+    
+    negative_index(
+        "@let(foo=[2, 4, 6]) $foo::-1",
+        "6",
+    );
+    
+    len(
         "@let(foo=[2, 4, 6]) @foo::len.",
         "3",
     );
     
-    list_is_empty(
+    is_empty(
         "@let(foo=[]) @foo::is_empty.",
         "True",
     );
     
-    list_is_not_empty(
+    is_not_empty(
         "@let(foo=[2, 4, 6]) @foo::is_empty.",
         "False",
     );
@@ -94,12 +104,12 @@ assert_matches! {
     );
     
     sorted_int_keys(
-        "@list::sorted(key=@fn $p -> @match $p {[$k, _] -> $k}) [[5, True], [3, False], [4, True], [1, False], [2, True]]",
+        "@list::sorted(key=@fn $p -> $p::0) [[5, True], [3, False], [4, True], [1, False], [2, True]]",
         "=[[1, False], [2, True], [3, False], [4, True], [5, True]]",
     );
     
     sorted_string_keys(
-        "@list::sorted(key=@fn $p -> @match $p {[$k, _] -> $k}) [[`foo`, 1], [`bar`, 2], [`baz`, 3]]",
+        "@list::sorted(key=@fn $p -> $p::0) [[`foo`, 1], [`bar`, 2], [`baz`, 3]]",
         "=[[`bar`, 2], [`baz`, 3], [`foo`, 1]]",
     );
     
@@ -111,5 +121,17 @@ assert_matches! {
     sort_reversed(
         "@list::sorted(reversed=True) [4, 2, 3, 5, 1]",
         "=[5, 4, 3, 2, 1]",
+    );
+}
+
+assert_err! {
+    index_out_of_bounds(
+        "@let(foo=[2, 4, 6]) $foo::3",
+        RuntimeError::IndexOutOfRange,
+    );
+    
+    negative_index_out_of_bounds(
+        "@let(foo=[2, 4, 6]) $foo::-4",
+        RuntimeError::IndexOutOfRange,
     );
 }

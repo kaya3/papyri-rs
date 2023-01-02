@@ -429,6 +429,7 @@ impl MatchPattern {
 pub enum Name {
     SimpleName(SimpleName),
     AttrName(Box<AttrName>),
+    IndexName(Box<IndexName>),
 }
 
 impl Name {
@@ -437,30 +438,20 @@ impl Name {
         match self {
             Name::SimpleName(name) => name.range,
             Name::AttrName(attr) => attr.range,
+            Name::IndexName(index) => index.range,
         }
     }
     
-    /// Indicates whether any attribute access in this name expression is
-    /// coalescing, i.e. whether a missing attribute may resolve to the unit
-    /// value rather than raising an error.
+    /// Indicates whether any part of this name expression is coalescing, i.e.
+    /// whether a missing attribute may resolve to the unit value rather than
+    /// raising an error.
     pub(crate) fn is_coalescing(&self) -> bool {
         let mut name = self;
-        while let Name::AttrName(attr) = name {
-            if attr.is_coalescing { return true; }
-            name = &attr.subject;
-        }
-        false
-    }
-}
-
-impl AttrName {
-    /// Returns the simple name at the root of this name expression.
-    pub(super) fn get_root(self) -> SimpleName {
-        let mut attr = self;
         loop {
-            match attr.subject {
-                Name::SimpleName(name) => break name,
-                Name::AttrName(a) => attr = *a,
+            match name {
+                Name::SimpleName(_) => return false,
+                Name::AttrName(attr) => if attr.is_coalescing { return true; } else { name = &attr.subject; },
+                Name::IndexName(index) => if index.is_coalescing { return true; } else { name = &index.subject; },
             }
         }
     }
@@ -489,6 +480,22 @@ pub struct AttrName {
     pub(crate) attr_name_id: NameID,
     
     /// The source span of this attribute access expression.
+    pub(crate) range: SourceRange,
+}
+
+#[derive(Debug)]
+/// An indexed access expression, e.g. `$foo::5`.
+pub struct IndexName {
+    /// The left-hand-side of this indexed access expression.
+    pub(crate) subject: Name,
+    
+    /// If `true`, this expression coalesces a unit value on the left-hand-side.
+    pub(crate) is_coalescing: bool,
+    
+    /// The index.
+    pub(crate) index: i64,
+    
+    /// The source span of this indexed access expression.
     pub(crate) range: SourceRange,
 }
 

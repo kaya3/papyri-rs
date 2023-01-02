@@ -114,7 +114,7 @@ impl std::fmt::Display for TokenKind {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 /// A concrete token which occurs at some position in a Papyri source file.
 pub struct Token {
     /// The kind of token this is.

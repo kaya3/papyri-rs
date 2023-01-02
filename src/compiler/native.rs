@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use crate::errors::{RuntimeError, RuntimeWarning, ModuleError, TypeError};
+use crate::errors::{RuntimeError, RuntimeWarning, ModuleError, TypeError, NameError};
 use crate::utils::{str_ids, text, relpath, SliceRef};
 use crate::utils::sourcefile::{SourceRange, SourceFileID};
 use crate::parser::Type;
@@ -21,7 +21,7 @@ type Dict = Rc<ValueMap>;
 crate::native_defs! {
     let compiler, call_range;
     
-    impl BOOL for Bool => {
+    impl BOOL for Bool {
         @bind_positional
         fn AND(A: positional bool, B: positional bool) {
             A & B
@@ -50,7 +50,7 @@ crate::native_defs! {
         }
     }
     
-    impl INT for Int => {
+    impl INT for Int {
         @bind_positional
         fn ADD(ARGS: pos_spread Vec<Int>) {
             ARGS.into_iter().sum::<Int>()
@@ -62,7 +62,7 @@ crate::native_defs! {
         }
     }
     
-    impl STR for Str => {
+    impl STR for Str {
         @bind_positional
         fn ENDS_WITH(A: positional Str, B: positional Str) {
             A.ends_with(B.as_ref())
@@ -132,7 +132,7 @@ crate::native_defs! {
         }
     }
     
-    impl REGEX for Regex => {
+    impl REGEX for Regex {
         fn COMPILE(SOURCE: content Str) {
             compiler.compile_regex(SOURCE.as_ref())
                 .map_err(|e| compiler.runtime_error(e, call_range))
@@ -165,7 +165,7 @@ crate::native_defs! {
         }
     }
     
-    impl FUNCTION for Func => {
+    impl FUNCTION for Func {
         @bind_positional
         fn BIND(FUNCTION: positional Func, ARGS: pos_spread List, KWARGS: named_spread Dict, PARAM: content Value) {
             FUNCTION.bind_partial(compiler, ARGS.as_ref(), KWARGS.as_ref(), PARAM, call_range)?
@@ -177,7 +177,7 @@ crate::native_defs! {
         }
     }
     
-    impl HTML for HTML => {
+    impl HTML for HTML {
         @bind_content
         fn ESCAPE_HTML(HTML: content HTML) {
             compiler.escape_html_impl(HTML)
@@ -194,7 +194,7 @@ crate::native_defs! {
         }
     }
     
-    impl LIST for List => {
+    impl LIST for List {
         @bind_content
         fn ALL(FUNCTION: positional Func, LIST: content List) {
             for v in LIST.as_ref() {
@@ -261,6 +261,11 @@ crate::native_defs! {
                 }
             }
             out
+        }
+        
+        @bind_content
+        fn GET(I: positional Int, LIST: content List) {
+            compiler.list_get(LIST, I, call_range)?
         }
         
         fn HTML_NODES(HTML: content HTML) {
@@ -366,6 +371,15 @@ crate::native_defs! {
     }
     
     impl DICT {
+        fn GET(KEY: positional Str, DICT: content Dict) {
+            let Some(v) = compiler.ctx.string_pool.get_id_if_present(KEY.as_ref())
+                .and_then(|key_id| DICT.get(&key_id)) else {
+                    compiler.name_error(NameError::NoSuchAttribute(Type::Any.dict(), KEY.to_string()), call_range);
+                    return None;
+                };
+            v.clone()
+        }
+        
         fn IS_EMPTY(DICT: content Dict) {
             DICT.is_empty()
         }

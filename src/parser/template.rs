@@ -9,7 +9,7 @@ impl <'a> Parser<'a> {
         let mut brace_stack: Vec<Token> = Vec::new();
         let close = loop {
             let Some(tok) = self.expect_poll() else {
-                self.err_unmatched(&open);
+                self.err_unmatched(open);
                 return None;
             };
             match tok.kind {
@@ -17,7 +17,7 @@ impl <'a> Parser<'a> {
                 
                 TokenKind::Newline |
                 TokenKind::Verbatim(..) => {
-                    self.err_unexpected_token(&tok);
+                    self.err_unexpected_token(tok);
                 },
                 
                 TokenKind::LBrace => {
@@ -26,7 +26,7 @@ impl <'a> Parser<'a> {
                 },
                 TokenKind::RBrace => {
                     if brace_stack.pop().is_none() {
-                        self.err_unexpected_token(&tok);
+                        self.err_unexpected_token(tok);
                     } else if matches!(parts.last(), Some(TemplatePart::Whitespace)) {
                         parts.pop();
                     }
@@ -38,12 +38,12 @@ impl <'a> Parser<'a> {
                     }
                 },
                 TokenKind::Escape => {
-                    let s = self.unescape_char(&tok)
+                    let s = self.unescape_char(tok)
                         .into_boxed_str();
                     parts.push(TemplatePart::LiteralStr(s));
                 },
                 TokenKind::Entity => {
-                    let s = self.decode_entity(&tok)
+                    let s = self.decode_entity(tok)
                         .into_boxed_str();
                     parts.push(TemplatePart::LiteralStr(s));
                 },
@@ -61,7 +61,7 @@ impl <'a> Parser<'a> {
         };
         
         for tok in brace_stack {
-            self.err_unmatched(&tok);
+            self.err_unmatched(tok);
         }
         
         Some((

@@ -14,7 +14,7 @@ impl <'a> Parser<'a> {
         let name_id = self.poll_if_kind(TokenKind::Name)
             .map_or(
                 str_ids::ANONYMOUS,
-                |t| self.tok_name_id(&t),
+                |t| self.tok_name_id(t),
             );
         let signature = self.parse_signature()?;
         self.skip_whitespace();
@@ -70,7 +70,7 @@ impl <'a> Parser<'a> {
         
         self.skip_whitespace();
         let lpar = self.poll_if_kind(TokenKind::LPar);
-        if let Some(lpar) = &lpar {
+        if let Some(lpar) = lpar {
             let (raw_params, _) = self.parse_separated_until(
                 lpar,
                 Parser::parse_param,
@@ -169,7 +169,7 @@ impl <'a> Parser<'a> {
         };
         
         let (args, _) = self.parse_separated_until(
-            &lpar,
+            lpar,
             Parser::parse_arg,
             TokenKind::Comma,
             TokenKind::RPar,
@@ -200,8 +200,8 @@ impl <'a> Parser<'a> {
         let (spread_kind, spread_range) = self.poll_if_spread(true, true);
         self.skip_whitespace();
         let name_tok = self.expect_poll_kind(TokenKind::VarName)?;
-        let name_id = self.tok_name_id(&name_tok);
-        let underscore = self.tok_str(&name_tok).starts_with("$_");
+        let name_id = self.tok_name_id(name_tok);
+        let underscore = self.tok_str(name_tok).starts_with("$_");
         
         self.skip_whitespace();
         let question_mark = self.poll_if_kind(TokenKind::QuestionMark);
@@ -275,7 +275,7 @@ impl <'a> Parser<'a> {
             Arg {
                 range: range_start.to_end(value.range().end),
                 spread_kind: SpreadKind::NoSpread,
-                name_id: self.tok_name_id(&name_tok),
+                name_id: self.tok_name_id(name_tok),
                 value,
             }
         } else {

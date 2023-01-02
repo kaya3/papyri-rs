@@ -16,23 +16,40 @@ assert_matches! {
         ".",
     );
     
-    dict_len(
+    get(
+        "@let(foo=@dict::new(x=23)., key=`x`) @dict::get($key) $foo",
+        "23",
+    );
+    
+    len(
         "@dict::len @dict::new(x=3, y=4).",
         "2",
     );
     
-    dict_keys(
+    keys(
         "@dict::keys @dict::new(x=3, y=4).",
         "=[x, y]",
     );
     
-    dict_values(
+    values(
         "@dict::values @dict::new(x=3, y=4).",
         "=[3, 4]",
     );
     
-    dict_items(
+    items(
         "@dict::items @dict::new(x=3, y=4).",
         "=[[x, 3], [y, 4]]",
+    );
+}
+
+assert_err! {
+    no_such_attr(
+        "@let(foo=@dict::new(x=23).) $foo::y",
+        NameError::NoSuchAttribute,
+    );
+    
+    get_key_missing(
+        "@let(foo=@dict::new(x=23)., key=`y`) @dict::get($key) $foo",
+        NameError::NoSuchAttribute,
     );
 }

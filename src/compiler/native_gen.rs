@@ -4,7 +4,7 @@
 macro_rules! native_defs {
     (
         let $compiler: ident, $call_range: ident;
-        $(impl $type_name: ident $(for $type_variant: ident =>)? {
+        $(impl $type_name: ident $(for $type_variant: ident)? {
             $($(@$m_bind: ident)? fn $m_name: ident ($($m_param_name: ident: $m_param_kind: ident $m_param_type: ty $(= $m_param_default: expr)?),*) $m_body: block)*
         })*
         $(fn $f_name: ident ($($f_param_name: ident: $f_param_kind: ident $f_param_type: ty $(= $f_param_default: expr)?),*) $f_body: block)*

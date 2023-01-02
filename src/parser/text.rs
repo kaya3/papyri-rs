@@ -58,7 +58,7 @@ pub(crate) fn substitutions(s: &str) -> String {
 impl <'a> Parser<'a> {
     /// Decodes a string containing an HTML entity to the character that entity
     /// represents. If the string is not a valid entity, a syntax error is reported.
-    pub(super) fn decode_entity(&mut self, tok: &Token) -> String {
+    pub(super) fn decode_entity(&mut self, tok: Token) -> String {
         let s = self.tok_str(tok);
         let decoded = entity::decode(s).iter().collect();
         if s == decoded { self.syntax_error(SyntaxError::TokenInvalidEntity, tok.range); }
@@ -68,7 +68,7 @@ impl <'a> Parser<'a> {
     /// Decodes an escape sequence, such as `\xA0` or `\n`. If the escape sequence
     /// does not define a valid Unicode character, then a syntax error is reported
     /// and a Unicode replacement character is returned.
-    pub(super) fn unescape_char(&mut self, tok: &Token) -> String {
+    pub(super) fn unescape_char(&mut self, tok: Token) -> String {
         let s = self.tok_str(tok);
         match s.chars().nth(1).unwrap() {
             'x' | 'u' | 'U' => {
@@ -95,7 +95,7 @@ impl <'a> Parser<'a> {
     /// 
     /// `first_token` must be a token with text.
     pub(super) fn parse_text(&mut self, first_token: Token) -> AST {
-        let Some(text) = self.token_text(&first_token) else {
+        let Some(text) = self.token_text(first_token) else {
             self.ice_at("invalid text token", first_token.range)
         };
         
@@ -113,7 +113,7 @@ impl <'a> Parser<'a> {
     }
     
     /// Returns the representation of this token as normal text, if it has one.
-    fn token_text(&self, tok: &Token) -> Option<&str> {
+    fn token_text(&self, tok: Token) -> Option<&str> {
         match tok.kind {
             TokenKind::Name |
             TokenKind::Number |

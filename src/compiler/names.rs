@@ -1,6 +1,7 @@
 use crate::errors;
 use crate::parser::{ast, Type};
-use crate::utils::str_ids;
+use crate::utils::sourcefile::SourceRange;
+use crate::utils::{str_ids, SliceRef};
 use super::base::Compiler;
 use super::html::HTML;
 use super::value::Value;
@@ -15,6 +16,9 @@ impl <'a> Compiler<'a> {
             },
             ast::Name::AttrName(attr) => {
                 self.evaluate_attr(attr)?
+            },
+            ast::Name::IndexName(index) => {
+                self.evaluate_index(index)?
             },
         };
         self.coerce(value, type_hint, name.range())
@@ -44,5 +48,29 @@ impl <'a> Compiler<'a> {
         let name = self.get_name(attr_id).to_string();
         self.name_error(errors::NameError::NoSuchAttribute(subject.get_type(), name), attr.range);
         None
+    }
+    
+    fn evaluate_index(&mut self, index: &ast::IndexName) -> Option<Value> {
+        let type_hint = Type::Any.list().option_if(index.is_coalescing);
+        let subject: Option<SliceRef<Value>> = self.evaluate_name(&index.subject, &type_hint)?
+            .expect_convert();
+        
+        if let Some(subject) = subject {
+            self.list_get(subject, index.index, index.range)
+        } else {
+            Some(Value::UNIT)
+        }
+    }
+    
+    pub(super) fn list_get(&mut self, list: SliceRef<Value>, i: i64, range: SourceRange) -> Option<Value> {
+        let n = list.len() as i64;
+        if i >= 0 && i < n {
+            Some(list.get(i as usize).clone())
+        } else if i >= -n && i < 0 {
+            Some(list.get((i + n) as usize).clone())
+        } else {
+            self.runtime_error(errors::RuntimeError::IndexOutOfRange(i, list.len()), range);
+            None
+        }
     }
 }

@@ -131,7 +131,7 @@ impl <'a> Parser<'a> {
         let Some(begin_token) = self.expect_poll_kind(TokenKind::Name) else {
             return (Type::Any, None);
         };
-        let mut t = match self.tok_str(&begin_token) {
+        let mut t = match self.tok_str(begin_token) {
             "any" => Type::Any,
             "none" => Type::Unit,
             "html" => Type::HTML,
@@ -155,7 +155,7 @@ impl <'a> Parser<'a> {
             self.skip_whitespace();
             self.poll_if(|_self, t| matches!(t.kind, TokenKind::Name | TokenKind::QuestionMark))
         } {
-            match self.tok_str(&group_tok) {
+            match self.tok_str(group_tok) {
                 "list" => t = t.list(),
                 "dict" => t = t.dict(),
                 "?" => if t.unit_is_assignable() {

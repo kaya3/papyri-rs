@@ -14,12 +14,12 @@ impl <'a> Parser<'a> {
     }
     
     /// Reports a syntax error caused by an unexpected token.
-    pub(super) fn err_unexpected_token(&mut self, tok: &Token) {
+    pub(super) fn err_unexpected_token(&mut self, tok: Token) {
         self.syntax_error(errors::SyntaxError::TokenUnexpected(tok.kind), tok.range);
     }
     
     /// Reports a syntax error caused by an unmatched opening or closing token.
-    pub(super) fn err_unmatched(&mut self, tok: &Token) {
+    pub(super) fn err_unmatched(&mut self, tok: Token) {
         self.syntax_error(errors::SyntaxError::TokenUnmatched(tok.kind), tok.range);
     }
 }

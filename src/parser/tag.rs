@@ -9,7 +9,7 @@ impl <'a> Parser<'a> {
         let name_tok = self.expect_poll()?;
         let (name, name_str) = match name_tok.kind {
             TokenKind::Name => {
-                let (name_id, lc_name) = self.tok_lowercase_name_id(&name_tok);
+                let (name_id, lc_name) = self.tok_lowercase_name_id(name_tok);
                 (TagName::Literal(name_id), Some(lc_name))
             },
             TokenKind::VarName => {
@@ -18,7 +18,7 @@ impl <'a> Parser<'a> {
             },
             TokenKind::ExclamationMark => {
                 let doctype = self.expect_poll()?;
-                if !self.tok_str(&doctype).eq_ignore_ascii_case("DOCTYPE") {
+                if !self.tok_str(doctype).eq_ignore_ascii_case("DOCTYPE") {
                     self.syntax_error(SyntaxError::TokenExpectedDoctype, doctype.range);
                     return None;
                 }
@@ -28,7 +28,7 @@ impl <'a> Parser<'a> {
         };
         
         let (attrs, rangle) = self.parse_separated_until(
-            &langle,
+            langle,
             Parser::parse_tag_attribute,
             TokenKind::Whitespace,
             TokenKind::RAngle,
@@ -51,7 +51,7 @@ impl <'a> Parser<'a> {
             children: Box::from([]),
         };
         
-        let self_closing = self.tok_str(&rangle) == "/>"
+        let self_closing = self.tok_str(rangle) == "/>"
             || matches!(tag.name, TagName::Literal(name_id) if taginfo::is_self_closing(name_id));
         
         if !self_closing {
@@ -75,7 +75,7 @@ impl <'a> Parser<'a> {
         
         self.skip_whitespace();
         let name_tok = self.poll_if_kind(TokenKind::Name)?;
-        let name_id = self.tok_name_id(&name_tok);
+        let name_id = self.tok_name_id(name_tok);
         
         self.skip_whitespace();
         let question_mark = self.poll_if_kind(TokenKind::QuestionMark);
@@ -108,7 +108,7 @@ impl <'a> Parser<'a> {
     
     /// Indicates whether this token is a closing tag for the given tag name.
     /// If no tag name is given, only `</>` matches.
-    pub(super) fn is_close_tag(&self, tok: &Token, name: &Option<String>) -> bool {
+    pub(super) fn is_close_tag(&self, tok: Token, name: &Option<String>) -> bool {
         tok.kind == TokenKind::CloseTag && {
             let s = self.tok_str(tok);
             s == "</>" || matches!(name, Some(t) if t.eq_ignore_ascii_case(&s[2..s.len() - 1]))

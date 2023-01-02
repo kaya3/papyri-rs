@@ -64,6 +64,7 @@ pub enum SyntaxError {
     PatternIncorrectCloseTag,
     PatternCannotMatchHTML,
     PatternAttrAccess,
+    PatternIndexAccess,
 }
 
 impl std::fmt::Display for SyntaxError {
@@ -122,6 +123,7 @@ impl std::fmt::Display for SyntaxError {
             SyntaxError::PatternIncorrectCloseTag => f.write_str("incorrect closing tag in match pattern; use </> for unnamed tag"),
             SyntaxError::PatternCannotMatchHTML => f.write_str("this pattern cannot match HTML content"),
             SyntaxError::PatternAttrAccess => f.write_str("variable pattern must be a simple name, not attribute access"),
+            SyntaxError::PatternIndexAccess => f.write_str("variable pattern must be a simple name, not indexed access"),
         }
     }
 }

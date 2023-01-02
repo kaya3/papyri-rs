@@ -44,17 +44,17 @@ impl <'a> Parser<'a> {
     
     /// Removes and returns the next token from the queue, if it exists and
     /// satisfies the given predicate function.
-    pub(super) fn poll_if(&mut self, mut predicate: impl FnMut(&Parser, &Token) -> bool) -> Option<Token> {
+    pub(super) fn poll_if(&mut self, mut predicate: impl FnMut(&Parser, Token) -> bool) -> Option<Token> {
         match self.tokens.last() {
-            Some(tok) if predicate(self, tok) => self.poll(),
+            Some(tok) if predicate(self, *tok) => self.poll(),
             _ => None,
         }
     }
     
     /// Indicates whether the next token in the queue exists and satisfies the
     /// given predicate function.
-    pub(super) fn has_next(&mut self, mut predicate: impl FnMut(&Token) -> bool) -> bool {
-        matches!(self.tokens.last(), Some(tok) if predicate(tok))
+    pub(super) fn has_next(&mut self, mut predicate: impl FnMut(Token) -> bool) -> bool {
+        matches!(self.tokens.last(), Some(tok) if predicate(*tok))
     }
     
     /// Removes any whitespace tokens from the front of the queue.
