@@ -73,6 +73,11 @@ assert_matches! {
         ".",
     );
     
+    function_name(
+        "@let(bar=@fn foo $x -> $x) @bar::name.",
+        "`foo`",
+    );
+    
     bind_none(
         "@let(foo=@function::bind(@fn $_ -> 4).) @foo.",
         "4",

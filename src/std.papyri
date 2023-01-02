@@ -82,17 +82,9 @@
 }
 
 @export(
-    bool=@dict::new(
-        **$bool,
-        is_truthy=@fn is_truthy $v -> @match $v {False | . | 0 | "" | [] | () -> False, _ -> True},
-    ).,
     function=@dict::new(
         **$function,
         call=@fn call($_f: function, *$_args, **$kwargs) $content -> @_f(*$_args, **$kwargs) $content,
-    ).,
-    regex=@dict::new(
-        **$regex,
-        count=@fn count($_r: regex) $s: str -> @let(v=@_r::find_all $s) $v::len,
     ).,
     html=@dict::new(
         **$html,

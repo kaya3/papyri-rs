@@ -12,7 +12,7 @@ use super::value::{Value, ValueMap};
 #[derive(Debug, Clone)]
 pub enum Func {
     NonNative(Rc<NonNativeFunc>),
-    Native(NativeFunc, RcFuncSignature),
+    Native(NativeFunc, NameID, RcFuncSignature),
     Bound(Rc<(Func, PartialParams)>),
 }
 
@@ -20,7 +20,7 @@ impl Func {
     pub(super) fn name_id(&self) -> NameID {
         match self {
             Func::NonNative(f) => f.name_id,
-            Func::Native(f, _) => f.name_id(),
+            Func::Native(_, name_id, _) => *name_id,
             Func::Bound(f) => f.0.name_id(),
         }
     }
@@ -28,7 +28,7 @@ impl Func {
     pub(super) fn signature(&self) -> RcFuncSignature {
         match self {
             Func::NonNative(f) => f.signature.clone(),
-            Func::Native(_, sig) => sig.clone(),
+            Func::Native(_, _, sig) => sig.clone(),
             Func::Bound(f) => f.0.signature(),
         }
     }
@@ -48,7 +48,7 @@ impl Func {
         binder.close_into_bound_function(self.clone(), range)
     }
     
-    pub(super) fn bind_pos_arg(&self, compiler: &mut Compiler, arg: Value, range: SourceRange) -> Option<Func> {
+    pub(super) fn bind_positional(&self, compiler: &mut Compiler, arg: Value, range: SourceRange) -> Option<Func> {
         let mut binder = self.get_partials()
             .open(compiler, self.signature());
         
@@ -139,7 +139,7 @@ impl <'a> Compiler<'a> {
                 let frame = f.closure.new_child_frame(bindings, func.clone(), call_range);
                 self.evaluate_in_frame(frame, |_self| _self.evaluate_node(f.body.as_ref(), type_hint))
             },
-            Func::Native(f, _) => {
+            Func::Native(f, _, _) => {
                 let v = self.evaluate_native_func(f, bindings, call_range)?;
                 self.coerce(v, type_hint, call_range)
             },

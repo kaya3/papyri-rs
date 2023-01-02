@@ -66,23 +66,6 @@ impl Value {
         }
     }
     
-    pub(super) fn reverse_list(vs: &[Value]) -> Vec<Value> {
-        let mut vs = Vec::from(vs);
-        vs.reverse();
-        vs
-    }
-    
-    pub(super) fn flatten_list(vs: &[Value]) -> Vec<Value> {
-        let mut out = Vec::new();
-        for child in vs.iter() {
-            match child {
-                Value::List(children) => out.extend(children.as_ref().iter().cloned()),
-                _ => out.push(child.clone()),
-            }
-        }
-        out
-    }
-    
     /// Returns the strongest type assignable from all values in the given
     /// iterator.
     pub(super) fn common_type_of<'a, T: Iterator<Item=&'a Value>>(vs: T) -> Type {

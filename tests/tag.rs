@@ -87,6 +87,13 @@ assert_ok! {
     );
 }
 
+assert_matches! {
+    tag_name(
+        "@let(t=<span/>) $t::tag_name",
+        "`span`",
+    );
+}
+
 assert_err! {
     unclosed_tag(
         "<span>",

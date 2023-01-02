@@ -1,8 +1,5 @@
-use regex::Regex;
-
 use crate::utils::{NameID, text};
-use crate::utils::sourcefile::SourceRange;
-use crate::errors;
+use crate::errors::RuntimeError;
 use super::base::Compiler;
 use super::value::{Value, ValueMap};
 
@@ -43,7 +40,7 @@ impl RegexKind {
 
 #[derive(Debug)]
 pub struct RegexValue {
-    regex: Regex,
+    regex: regex::Regex,
     kind: RegexKind,
 }
 
@@ -68,35 +65,36 @@ impl RegexValue {
     pub(super) fn test(&self, s: &str) -> bool {
         self.regex.is_match(s)
     }
+    
+    pub(super) fn count(&self, s: &str) -> usize {
+        self.regex.find_iter(s)
+            .count()
+    }
 }
 
 impl <'a> Compiler<'a> {
-    pub(super) fn compile_regex(&mut self, regex_str: &str, range: SourceRange) -> Option<RegexValue> {
-        let regex = Regex::new(regex_str)
-            .map_err(|e| self.runtime_error(errors::RuntimeError::RegexSyntaxError(e), range))
-            .ok()?;
+    pub(super) fn compile_regex(&mut self, regex_str: &str) -> Result<RegexValue, RuntimeError> {
+        let regex = regex::Regex::new(regex_str)
+            .map_err(RuntimeError::RegexSyntaxError)?;
         
         let kind = if regex.captures_len() == 1 {
             RegexKind::Simple
         } else if regex.capture_names().skip(1).all(|n| n.is_none()) {
             RegexKind::NumberedGroups
         } else if regex.capture_names().skip(1).all(|n| n.is_some()) {
-            let names = regex.capture_names()
-                .skip(1)
-                .map(|name| {
-                    let name = name.unwrap();
-                    if !text::is_identifier(name) {
-                        self.runtime_error(errors::RuntimeError::RegexInvalidGroupName(name.to_string()), range);
-                    }
-                    self.ctx.string_pool.insert(name)
-                })
-                .collect();
-            RegexKind::NamedGroups(names)
+            let mut names = Vec::with_capacity(regex.captures_len() - 1);
+            for name in regex.capture_names().skip(1) {
+                let name = name.unwrap();
+                if !text::is_identifier(name) {
+                    return Err(RuntimeError::RegexInvalidGroupName(name.to_string()));
+                }
+                names.push(self.ctx.string_pool.insert(name));
+            }
+            RegexKind::NamedGroups(names.into_boxed_slice())
         } else {
-            self.runtime_error(errors::RuntimeError::RegexMixedGroupKinds, range);
-            return None;
+            return Err(RuntimeError::RegexMixedGroupKinds);
         };
         
-        Some(RegexValue {regex, kind})
+        Ok(RegexValue {regex, kind})
     }
 }

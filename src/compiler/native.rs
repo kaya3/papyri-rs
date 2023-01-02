@@ -21,111 +21,168 @@ type Dict = Rc<ValueMap>;
 crate::native_defs! {
     let compiler, call_range;
     
-    impl BOOL {
+    impl BOOL for Bool => {
+        @bind_positional
         fn AND(A: positional bool, B: positional bool) {
             A & B
         }
         
+        fn FROM(PARAM: content Value) {
+            match PARAM {
+                Value::Bool(b) => b,
+                Value::Int(i) => i != 0,
+                Value::Str(s) => !s.is_empty(),
+                Value::HTML(h) => !h.is_empty(),
+                Value::List(vs) => !vs.is_empty(),
+                Value::Dict(vs) => !vs.is_empty(),
+                _ => true,
+            }
+        }
+        
+        @bind_positional
         fn OR(A: positional bool, B: positional bool) {
             A | B
         }
         
+        @bind_content
         fn NEGATE(PARAM: content bool) {
             !PARAM
         }
     }
     
-    impl INT {
+    impl INT for Int => {
+        @bind_positional
         fn ADD(ARGS: pos_spread Vec<Int>) {
             ARGS.into_iter().sum::<Int>()
         }
         
+        @bind_content
         fn NEGATE(PARAM: content Int) {
             -PARAM
         }
     }
     
-    impl STR {
+    impl STR for Str => {
+        @bind_positional
+        fn ENDS_WITH(A: positional Str, B: positional Str) {
+            A.ends_with(B.as_ref())
+        }
+        
+        @bind_content
+        fn ESCAPE_HTML(STR: content Str) {
+            compiler.escape_html_impl(STR.into())
+        }
+        
         fn FROM(PARAM: content Str) {
             PARAM
         }
         
+        @bind_content
         fn IS_EMPTY(STR: content Str) {
             STR.is_empty()
         }
         
+        @bind_content
         fn IS_WHITESPACE(STR: content Str) {
             text::is_whitespace(STR.as_ref())
         }
         
+        @bind_content
         fn LEN(STR: content Str) {
             STR.len() as Int
         }
         
+        @bind_content
+        fn NODES(STR: content Str) {
+            HTML::from(STR).nodes()
+        }
+        
+        @bind_positional
+        fn STARTS_WITH(A: positional Str, B: positional Str) {
+            A.starts_with(B.as_ref())
+        }
+        
+        @bind_content
         fn TRIM(STR: content Str) {
             STR.trim()
         }
         
-        fn UNIQUE_ID(MAX_LENGTH: named Int = 128, STR: content Str) {
+        @bind_content
+        fn UNIQUE_ID(MAX_LENGTH: named Int = 128, BASE: content Str) {
             if MAX_LENGTH <= 0 {
                 let e = RuntimeError::ParamMustBePositive(compiler.get_name(str_ids::MAX_LENGTH).to_string(), MAX_LENGTH);
                 compiler.runtime_error(e, call_range);
                 return None;
             }
             
-            compiler.ctx.unique_ids.get_unique_id(STR.as_ref(), MAX_LENGTH as usize)
+            compiler.ctx.unique_ids.get_unique_id(BASE.as_ref(), MAX_LENGTH as usize)
         }
     }
     
-    impl REGEX {
+    impl REGEX for Regex => {
         fn COMPILE(SOURCE: content Str) {
-            compiler.compile_regex(SOURCE.as_ref(), call_range)?
+            compiler.compile_regex(SOURCE.as_ref())
+                .map_err(|e| compiler.runtime_error(e, call_range))
+                .ok()?
         }
         
+        @bind_positional
+        fn COUNT(REGEX: positional Regex, STR: content Str) {
+            REGEX.count(STR.as_ref()) as Int
+        }
+        
+        @bind_positional
         fn FIND(REGEX: positional Regex, STR: content Str) {
             REGEX.find(STR.as_ref())
         }
         
+        @bind_positional
         fn FIND_ALL(REGEX: positional Regex, STR: content Str) {
             REGEX.find_all(STR.as_ref())
         }
         
+        @bind_positional
         fn TEST(REGEX: positional Regex, STR: content Str) {
             REGEX.test(STR.as_ref())
         }
     }
     
-    impl FUNCTION {
+    impl FUNCTION for Func => {
+        @bind_positional
         fn BIND(FUNCTION: positional Func, ARGS: pos_spread List, KWARGS: named_spread Dict, PARAM: content Value) {
             FUNCTION.bind_partial(compiler, ARGS.as_ref(), KWARGS.as_ref(), PARAM, call_range)?
         }
+        
+        @bind_content
+        fn NAME(FUNCTION: content Func) {
+            compiler.get_name(FUNCTION.name_id())
+        }
     }
     
-    impl HTML {
+    impl HTML for HTML => {
+        @bind_content
         fn ESCAPE_HTML(HTML: content HTML) {
-            let mut s = Vec::new();
-            compiler.ctx.render(&HTML, true, &mut s).unwrap();
-            String::from_utf8(s).unwrap()
+            compiler.escape_html_impl(HTML)
         }
         
+        @bind_content
         fn IS_EMPTY(HTML: content HTML) {
             HTML.is_empty()
         }
         
+        @bind_content
         fn IS_WHITESPACE(HTML: content HTML) {
             HTML.is_whitespace()
         }
         
+        @bind_content
         fn NODES(HTML: content HTML) {
-            match HTML {
-                HTML::Empty => Value::from([]),
-                HTML::Sequence(seq) => seq.iter().map(Value::from).collect::<Vec<_>>().into(),
-                _ => [HTML.into()].into(),
-            }
+            HTML.nodes()
         }
     }
     
-    impl LIST {
+    impl LIST for List => {
+        @bind_content
         fn ALL(FUNCTION: positional Func, LIST: content List) {
             for v in LIST.as_ref() {
                 if !compiler.eval_callback::<bool>(FUNCTION.clone(), v.clone(), call_range)? {
@@ -135,6 +192,7 @@ crate::native_defs! {
             true
         }
         
+        @bind_content
         fn ANY(FUNCTION: positional Func, LIST: content List) {
             for v in LIST.as_ref() {
                 if compiler.eval_callback::<bool>(FUNCTION.clone(), v.clone(), call_range)? {
@@ -144,11 +202,13 @@ crate::native_defs! {
             false
         }
         
+        @bind_content
         fn CONTAINS(PARAM: positional Value, LIST: content List) {
             LIST.as_ref()
                 .contains(&PARAM)
         }
         
+        @bind_content
         fn FILTER(FUNCTION: positional Option<Func> = (), LIST: content List) {
             if let Some(f) = FUNCTION {
                 let mut out = Vec::new();
@@ -167,6 +227,7 @@ crate::native_defs! {
             }
         }
         
+        @bind_content
         fn FIND(FUNCTION: positional Func, LIST: content List) {
             for v in LIST.as_ref() {
                 if compiler.eval_callback::<bool>(FUNCTION.clone(), v.clone(), call_range)? {
@@ -176,14 +237,25 @@ crate::native_defs! {
             ()
         }
         
+        @bind_content
         fn FLAT(LIST: content List) {
-            Value::flatten_list(LIST.as_ref())
+            let mut out = Vec::new();
+            for child in LIST.as_ref() {
+                if let Value::List(children) = child {
+                    out.extend(children.as_ref().iter().cloned());
+                } else {
+                    out.push(child.clone());
+                }
+            }
+            out
         }
         
+        @bind_content
         fn IS_EMPTY(LIST: content List) {
             LIST.is_empty()
         }
         
+        @bind_content
         fn JOIN(SEP: positional HTML = (), LIST: content Vec<HTML>) {
             if LIST.is_empty() {
                 HTML::Empty
@@ -199,10 +271,12 @@ crate::native_defs! {
             }
         }
         
+        @bind_content
         fn LEN(LIST: content List) {
             LIST.len() as Int
         }
         
+        @bind_content
         fn MAP(FUNCTION: positional Func, LIST: content List) {
             let mut out = Vec::new();
             for v in LIST.as_ref() {
@@ -212,6 +286,7 @@ crate::native_defs! {
             out
         }
         
+        @bind_content
         fn SLICE(A: positional Int, B: positional Option<Int> = (), LIST: content List) {
             let n = LIST.len() as Int;
             let start = A;
@@ -222,6 +297,7 @@ crate::native_defs! {
             LIST.slice(a.min(b) as usize, b as usize)
         }
         
+        @bind_content
         fn SORTED(KEY: named Option<Func> = (), REVERSED: named bool = false, LIST: content List) {
             if LIST.is_empty() {
                 return Some(LIST.into());
@@ -266,7 +342,9 @@ crate::native_defs! {
         }
         
         fn REVERSED(LIST: content List) {
-            Value::reverse_list(LIST.as_ref())
+            let mut vs = LIST.as_ref().to_vec();
+            vs.reverse();
+            vs
         }
     }
     
@@ -404,6 +482,12 @@ impl <'a> Compiler<'a> {
         };
         
         Some(tag)
+    }
+    
+    fn escape_html_impl(&mut self, h: HTML) -> String {
+        let mut s = Vec::new();
+        self.ctx.render(&h, true, &mut s).unwrap();
+        String::from_utf8(s).unwrap()
     }
     
     fn resolve_relative_path(&mut self, src_id: SourceFileID, relative_path: &str, add_papyri_suffix: bool) -> std::path::PathBuf {

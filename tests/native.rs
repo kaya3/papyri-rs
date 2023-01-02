@@ -7,7 +7,7 @@ assert_matches! {
     );
     
     negate(
-        "@let(x=4) $x::negate",
+        "@let(x=4) @x::negate.",
         "-4",
     );
     

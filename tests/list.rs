@@ -38,6 +38,21 @@ assert_ok! {
 }
 
 assert_matches! {
+    list_len(
+        "@let(foo=[2, 4, 6]) @foo::len.",
+        "3",
+    );
+    
+    list_is_empty(
+        "@let(foo=[]) @foo::is_empty.",
+        "True",
+    );
+    
+    list_is_not_empty(
+        "@let(foo=[2, 4, 6]) @foo::is_empty.",
+        "False",
+    );
+    
     filter_none(
         "@list::filter [1, 2, ., 3, ., 4]",
         "=[1, 2, 3, 4]",
