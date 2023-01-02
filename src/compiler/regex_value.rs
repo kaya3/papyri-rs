@@ -70,6 +70,13 @@ impl RegexValue {
         self.regex.find_iter(s)
             .count()
     }
+    
+    pub(super) fn split(&self, s: &str) -> Vec<Value> {
+        self.regex.split(s)
+            .into_iter()
+            .map(Value::from)
+            .collect()
+    }
 }
 
 impl <'a> Compiler<'a> {

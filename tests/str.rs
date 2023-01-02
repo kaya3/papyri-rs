@@ -36,8 +36,23 @@ assert_matches! {
         "False",
     );
     
+    split(
+        "@str::split(` `) `foo bar`",
+        "=[`foo`, `bar`]",
+    );
+    
     trim(
         "@str::trim `  foo bar   `",
         "`foo bar`",
+    );
+    
+    lower(
+        "@str::lower `FOO`",
+        "`foo`",
+    );
+    
+    upper(
+        "@str::upper `foo`",
+        "`FOO`",
     );
 }

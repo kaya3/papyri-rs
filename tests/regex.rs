@@ -41,13 +41,8 @@ assert_matches! {
         "[(letters=`foo`, numbers=`123`), (letters=`bar`, numbers=`456`)]",
     );
     
-    trim(
-        "@str::trim `  foo  `",
-        "`foo`",
-    );
-    
-    no_trim(
-        "@str::trim `foo`",
-        "`foo`",
+    split(
+        r"@regex::split(@regex::compile `\s+`) `foo   bar  baz`",
+        "=[`foo`, `bar`, `baz`]",
     );
 }

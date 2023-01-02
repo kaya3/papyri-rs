@@ -93,8 +93,16 @@ crate::native_defs! {
         }
         
         @bind_content
-        fn NODES(STR: content Str) {
-            HTML::from(STR).nodes()
+        fn LOWER(STR: content Str) {
+            STR.to_lowercase()
+        }
+        
+        @bind_content
+        fn SPLIT(SEP: positional Str, STR: content Str) {
+            STR.as_ref()
+                .split(SEP.as_ref())
+                .map(Value::from)
+                .collect::<Vec<Value>>()
         }
         
         @bind_positional
@@ -116,6 +124,11 @@ crate::native_defs! {
             }
             
             compiler.ctx.unique_ids.get_unique_id(BASE.as_ref(), MAX_LENGTH as usize)
+        }
+        
+        @bind_content
+        fn UPPER(STR: content Str) {
+            STR.to_uppercase()
         }
     }
     
@@ -139,6 +152,11 @@ crate::native_defs! {
         @bind_positional
         fn FIND_ALL(REGEX: positional Regex, STR: content Str) {
             REGEX.find_all(STR.as_ref())
+        }
+        
+        @bind_positional
+        fn SPLIT(REGEX: positional Regex, STR: content Str) {
+            REGEX.split(STR.as_ref())
         }
         
         @bind_positional
@@ -173,11 +191,6 @@ crate::native_defs! {
         @bind_content
         fn IS_WHITESPACE(HTML: content HTML) {
             HTML.is_whitespace()
-        }
-        
-        @bind_content
-        fn NODES(HTML: content HTML) {
-            HTML.nodes()
         }
     }
     
@@ -250,6 +263,10 @@ crate::native_defs! {
             out
         }
         
+        fn HTML_NODES(HTML: content HTML) {
+            HTML.nodes()
+        }
+        
         @bind_content
         fn IS_EMPTY(LIST: content List) {
             LIST.is_empty()
@@ -278,7 +295,7 @@ crate::native_defs! {
         
         @bind_content
         fn MAP(FUNCTION: positional Func, LIST: content List) {
-            let mut out = Vec::new();
+            let mut out = Vec::with_capacity(LIST.len());
             for v in LIST.as_ref() {
                 let r: Value = compiler.eval_callback(FUNCTION.clone(), v.clone(), call_range)?;
                 out.push(r);

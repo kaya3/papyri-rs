@@ -104,7 +104,7 @@ macro_rules! native_defs {
                 ActiveFrame::new(None, globals, None)
             }
         }
-
+        
         impl <'a> crate::compiler::base::Compiler<'a> {
             #[allow(non_snake_case, unreachable_code)]
             pub(super) fn evaluate_native_func(&mut self, f: NativeFunc, mut bindings: crate::compiler::value::ValueMap, $call_range: crate::utils::sourcefile::SourceRange) -> Option<crate::compiler::value::Value> {
