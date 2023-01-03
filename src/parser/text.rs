@@ -134,6 +134,7 @@ impl <'a> Parser<'a> {
             TokenKind::ExclamationMark |
             TokenKind::QuestionMark |
             TokenKind::QuestionMarkDoubleColon |
+            TokenKind::Underscore |
             TokenKind::RawText => Some(self.tok_str(tok)),
             
             TokenKind::Ellipsis => Some("\u{2026}"),

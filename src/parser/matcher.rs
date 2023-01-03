@@ -83,7 +83,7 @@ impl <'a> Parser<'a> {
         self.skip_whitespace();
         let tok = self.expect_poll()?;
         match tok.kind {
-            TokenKind::Name if self.tok_str(tok) == "_" => {
+            TokenKind::Underscore => {
                 let p = MatchPattern::Ignore(tok.range);
                 self.parse_optional_typed_pattern(p)
             },
@@ -217,13 +217,12 @@ impl <'a> Parser<'a> {
     fn parse_tag_pattern(&mut self, langle: Token) -> Option<MatchPattern> {
         let name_tok = self.expect_poll()?;
         let (name, name_str) = match name_tok.kind {
+            TokenKind::Underscore => {
+                (MatchPattern::Ignore(name_tok.range), None)
+            },
             TokenKind::Name => {
-                if self.tok_str(name_tok) == "_" {
-                    (MatchPattern::Ignore(name_tok.range), None)
-                } else {
-                    let (name_id, name_str) = self.tok_lowercase_name_id(name_tok);
-                    (MatchPattern::LiteralName(name_tok.range, name_id), Some(name_str))
-                }
+                let (name_id, name_str) = self.tok_lowercase_name_id(name_tok);
+                (MatchPattern::LiteralName(name_tok.range, name_id), Some(name_str))
             },
             TokenKind::VarName => {
                 let name = self.parse_name_pattern(name_tok)?;
@@ -272,6 +271,10 @@ impl <'a> Parser<'a> {
     
     fn parse_template_pattern(&mut self, open: Token, open_kind: QuoteKind) -> Option<MatchPattern> {
         let (parts, range) = self.parse_template_parts(open, open_kind)?;
+        
+        if parts.iter().all(TemplatePart::is_literal){
+            return Some(MatchPattern::EqualsValue(Expr::Template(parts.into(), range)));
+        }
         
         let mut regex_str = "^(?s:".to_string();
         let mut vars = Vec::new();

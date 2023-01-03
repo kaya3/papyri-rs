@@ -47,6 +47,7 @@ pub enum TokenKind {
     QuestionMark,
     QuestionMarkDoubleColon,
     Quote(QuoteKind, QuoteDir),
+    Underscore,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -110,6 +111,7 @@ impl std::fmt::Display for TokenKind {
                 QuoteKind::Single => "single-quote",
                 QuoteKind::Double => "double-quote",
             },
+            TokenKind::Underscore => "'_'",
         })
     }
 }
@@ -130,8 +132,7 @@ impl Token {
         self.kind == TokenKind::Whitespace || self.kind == TokenKind::Newline
     }
     
-    /// Converts a `bool` value to the source of a Boolean literal token. This
-    /// is the inverse of `get_bool_value`.
+    /// Converts a `bool` value to the source of a Boolean literal token.
     pub(crate) fn bool_to_string(b: bool) -> &'static str {
         if b { "True" } else { "False" }
     }

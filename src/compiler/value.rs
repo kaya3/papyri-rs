@@ -77,14 +77,14 @@ impl Value {
 
 impl PartialEq for Value {
     /// Determines whether two values are equal; lists and dictionaries are
-    /// compared deeply. Functions and regexes are never equal, not even to
-    /// themselves.
+    /// compared deeply. Functions are never equal, not even to themselves.
     fn eq(&self, other: &Value) -> bool {
         match (self, other) {
             (Value::Bool(b1), Value::Bool(b2)) => b1 == b2,
             (Value::Int(i1), Value::Int(i2)) => i1 == i2,
             (Value::Str(s1), Value::Str(s2)) => s1 == s2,
             (Value::HTML(h1), Value::HTML(h2)) => h1 == h2,
+            (Value::Regex(r1), Value::Regex(r2)) => r1.as_str() == r2.as_str(),
             (Value::List(v1), Value::List(v2)) => v1 == v2,
             (Value::Dict(v1), Value::Dict(v2)) => v1 == v2,
             

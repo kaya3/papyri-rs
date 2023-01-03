@@ -229,6 +229,12 @@ pub enum TemplatePart {
     Whitespace,
 }
 
+impl TemplatePart {
+    pub(super) fn is_literal(&self) -> bool {
+        return matches!(self, TemplatePart::Literal(..) | TemplatePart::LiteralStr(..))
+    }
+}
+
 #[derive(Debug)]
 /// An AST node for a `@match` expression.
 pub struct Match {

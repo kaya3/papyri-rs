@@ -94,6 +94,7 @@ fn next_token(src: &str, mut on_error: impl FnMut(errors::SyntaxError)) -> (usiz
             let kind = match &src[..len] {
                 "True" => TokenKind::Boolean(true),
                 "False" => TokenKind::Boolean(false),
+                "_" => TokenKind::Underscore,
                 _ => TokenKind::Name,
             };
             (len, kind)
