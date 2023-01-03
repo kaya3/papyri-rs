@@ -13,7 +13,7 @@ pub struct FuncParam {
     name_id: NameID,
     is_implicit: bool,
     type_: Type,
-    default_value: Option<Value>,
+    default_value: Option<Box<Value>>,
 }
 
 impl FuncParam {
@@ -27,7 +27,7 @@ impl FuncParam {
     }
     
     pub(super) fn with_default(mut self, default_value: Value) -> FuncParam {
-        self.default_value = Some(default_value);
+        self.default_value = Some(Box::new(default_value));
         self
     }
 }
@@ -210,7 +210,7 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
         for param in sig.named_params.values() {
             if !param.is_implicit || self.bound.map.contains_key(&param.name_id) {
                 // do nothing
-            } else if let Some(v) = self.compiler.get_implicit(param.name_id, param.default_value.clone(), call_range) {
+            } else if let Some(v) = self.compiler.get_implicit(param.name_id, param.default_value.as_ref().map(|v| *v.clone()), call_range) {
                 self.bound.map.insert(param.name_id, v.clone());
             } else {
                 self.any_errors = true;
@@ -349,7 +349,7 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
                     );
                     return None;
                 };
-                self.bound.map.insert(param.name_id, v.clone());
+                self.bound.map.insert(param.name_id, *v.clone());
             }
         }
         for param in sig.named_params.values() {
@@ -359,7 +359,7 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
                 self.compiler.runtime_error(errors::RuntimeError::ParamMissing(name), call_range);
                 return None;
             };
-            self.bound.map.insert(param.name_id, v.clone());
+            self.bound.map.insert(param.name_id, *v.clone());
         }
         
         Some(self.bound.map)
@@ -396,7 +396,8 @@ impl <'a> Compiler<'a> {
         
         let default_value = param.default_value.as_ref()
             .and_then(|v| self.evaluate_node(v, &type_))
-            .or_else(|| param.question_mark.then_some(Value::UNIT));
+            .or_else(|| param.question_mark.then_some(Value::UNIT))
+            .map(Box::new);
         
         FuncParam {
             name_id: param.name_id,

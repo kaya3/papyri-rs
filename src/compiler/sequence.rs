@@ -34,8 +34,8 @@ impl <'a> Compiler<'a> {
     
     fn compile_node(&mut self, builder: &mut SequenceBuilder, node: &AST) -> Result<(), SequenceError> {
         match node {
-            AST::Export(export_) => {
-                self.compile_export(export_);
+            AST::Export(export) => {
+                self.compile_export(export);
                 Ok(())
             }
             AST::Expr(expr) => {
