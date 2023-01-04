@@ -118,7 +118,7 @@ crate::native_defs! {
         @bind_content
         fn UNIQUE_ID(MAX_LENGTH: named Int = 128, BASE: content Str) {
             if MAX_LENGTH <= 0 {
-                let e = RuntimeError::ParamMustBePositive(compiler.get_name(str_ids::MAX_LENGTH).to_string(), MAX_LENGTH);
+                let e = RuntimeError::ParamMustBePositive(compiler.get_name(str_ids::MAX_LENGTH), MAX_LENGTH);
                 compiler.runtime_error(e, call_range);
                 return None;
             }
@@ -247,7 +247,6 @@ crate::native_defs! {
                     return Some(v.clone());
                 }
             }
-            ()
         }
         
         @bind_content
@@ -374,7 +373,7 @@ crate::native_defs! {
         fn GET(KEY: positional Str, DICT: content Dict) {
             let Some(v) = compiler.ctx.string_pool.get_id_if_present(KEY.as_ref())
                 .and_then(|key_id| DICT.get(&key_id)) else {
-                    compiler.name_error(NameError::NoSuchAttribute(Type::Any.dict(), KEY.to_string()), call_range);
+                    compiler.name_error(NameError::NoSuchAttribute(Type::Any.dict(), KEY), call_range);
                     return None;
                 };
             v.clone()
@@ -490,7 +489,7 @@ impl <'a> Compiler<'a> {
                     Some(lines)
                 } else {
                     let w = if cfg!(feature = "syntect") {
-                        RuntimeWarning::HighlightLanguageUnknown(language.to_string())
+                        RuntimeWarning::HighlightLanguageUnknown(language.into())
                     } else {
                         RuntimeWarning::HighlightNotEnabled
                     };

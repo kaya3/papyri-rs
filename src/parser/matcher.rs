@@ -1,5 +1,5 @@
 use crate::errors::SyntaxError;
-use crate::utils::{taginfo, NameID, NameIDSet, NameIDMap};
+use crate::utils::{taginfo, NameID, NameIDSet, NameIDMap, str_ids};
 use crate::utils::sourcefile::SourceRange;
 use super::ast::*;
 use super::base::Parser;
@@ -216,17 +216,17 @@ impl <'a> Parser<'a> {
     
     fn parse_tag_pattern(&mut self, langle: Token) -> Option<MatchPattern> {
         let name_tok = self.expect_poll()?;
-        let (name, name_str) = match name_tok.kind {
+        let (name, name_id) = match name_tok.kind {
             TokenKind::Underscore => {
-                (MatchPattern::Ignore(name_tok.range), None)
+                (MatchPattern::Ignore(name_tok.range), str_ids::ANONYMOUS)
             },
             TokenKind::Name => {
-                let (name_id, name_str) = self.tok_lowercase_name_id(name_tok);
-                (MatchPattern::LiteralName(name_tok.range, name_id), Some(name_str))
+                let name_id = self.tok_lowercase_name_id(name_tok);
+                (MatchPattern::LiteralName(name_tok.range, name_id), name_id)
             },
             TokenKind::VarName => {
                 let name = self.parse_name_pattern(name_tok)?;
-                (MatchPattern::VarName(name), None)
+                (MatchPattern::VarName(name), str_ids::ANONYMOUS)
             },
             _ => {
                 self.err_unexpected_token(name_tok);
@@ -245,10 +245,10 @@ impl <'a> Parser<'a> {
         let attrs = self.make_dict_pattern(raw_attrs, langle.range.to_end(rangle.range.end), true)?;
         
         let self_closing = self.tok_str(rangle) == "/>"
-            || matches!(name, MatchPattern::LiteralName(_, name_id) if taginfo::is_self_closing(name_id));
+            || (!name_id.is_anonymous() && taginfo::is_self_closing(name_id));
         
         self.skip_whitespace();
-        let (content, close_tag) = if self_closing {
+        let (content, close) = if self_closing {
             (MatchPattern::LiteralNone(rangle.range), rangle)
         } else if let Some(close_tag) = self.poll_if_kind(TokenKind::CloseTag) {
             (MatchPattern::LiteralNone(close_tag.range), close_tag)
@@ -259,12 +259,12 @@ impl <'a> Parser<'a> {
             (content, close_tag)
         };
         
-        if close_tag.kind == TokenKind::CloseTag && !self.is_close_tag(close_tag, &name_str) {
-            self.syntax_error(SyntaxError::PatternIncorrectCloseTag, close_tag.range);
+        if close.kind == TokenKind::CloseTag && !self.is_close_tag(close, name_id) {
+            self.syntax_error(SyntaxError::PatternIncorrectCloseTag, close.range);
         }
         
         Some(MatchPattern::Tag(
-            langle.range.to_end(close_tag.range.end),
+            langle.range.to_end(close.range.end),
             Box::new(TagMatchPattern {name, attrs, content}),
         ))
     }
@@ -286,14 +286,14 @@ impl <'a> Parser<'a> {
                 TemplatePart::LiteralStr(s) => {
                     regex_str += &regex::escape(&s);
                 },
-                TemplatePart::Name(Name::SimpleName(var)) => {
+                TemplatePart::Name(Name::Simple(var)) => {
                     regex_str += "(.+?)";
                     vars.push(var);
                 },
-                TemplatePart::Name(Name::AttrName(attr)) => {
+                TemplatePart::Name(Name::Attr(attr)) => {
                     self.syntax_error(SyntaxError::PatternAttrAccess, attr.range);
                 },
-                TemplatePart::Name(Name::IndexName(attr)) => {
+                TemplatePart::Name(Name::Index(attr)) => {
                     self.syntax_error(SyntaxError::PatternIndexAccess, attr.range);
                 },
                 TemplatePart::Whitespace => {
@@ -303,24 +303,22 @@ impl <'a> Parser<'a> {
         }
         regex_str += ")$";
         
-        match regex::Regex::new(&regex_str) {
-            Ok(regex) => {
-                let p = RegexMatchPattern {regex, names: vars.into_boxed_slice()};
-                Some(MatchPattern::Regex(range, Box::new(p)))
-            },
-            Err(e) => self.ice_at(&format!("regex {regex_str} failed to parse: {e}"), range),
-        }
+        let regex = regex::Regex::new(&regex_str)
+            .unwrap_or_else(|e| self.ice_at(&format!("regex {regex_str} failed to parse: {e}"), range));
+        
+        let p = RegexMatchPattern {regex, names: vars.into_boxed_slice()};
+        Some(MatchPattern::Regex(range, Box::new(p)))
     }
     
     fn parse_name_pattern(&mut self, token: Token) -> Option<SimpleName> {
         let name = self.parse_name(token)?;
         match name {
-            Name::SimpleName(name) => Some(name),
-            Name::AttrName(attr) => {
+            Name::Simple(name) => Some(name),
+            Name::Attr(attr) => {
                 self.syntax_error(SyntaxError::PatternAttrAccess, attr.range);
                 None
             },
-            Name::IndexName(index) => {
+            Name::Index(index) => {
                 self.syntax_error(SyntaxError::PatternIndexAccess, index.range);
                 None
             },
@@ -338,7 +336,7 @@ impl <'a> Parser<'a> {
                     if spread.is_some() {
                         self.syntax_error(SyntaxError::PatternNamedAfterSpread, part_range);
                     } else if attrs.insert(name_id, child).is_some() {
-                        let name = self.string_pool.get(name_id).to_string();
+                        let name = self.string_pool.get(name_id);
                         self.syntax_error(SyntaxError::PatternDuplicateName(name), part_range);
                     }
                 },
@@ -379,7 +377,8 @@ impl <'a> Parser<'a> {
         Some(if matches!(pattern, MatchPattern::Ignore(..)) {
             type_pattern
         } else {
-            let pair = (pattern, type_pattern);
+            // check type first
+            let pair = (type_pattern, pattern);
             MatchPattern::And(Box::new(pair))
         })
     }

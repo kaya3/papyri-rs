@@ -126,7 +126,7 @@ impl From<&HTML> for Value {
 }
 impl TryConvert for HTML {
     fn as_type() -> Type {
-        Type::HTML
+        Type::Html
     }
     fn try_convert(value: Value) -> Result<HTML, ()> {
         match value {

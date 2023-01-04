@@ -1,7 +1,7 @@
 use std::rc::Rc;
 use indexmap::IndexMap;
 
-use crate::errors::{ice, NameError, RuntimeError};
+use crate::errors;
 use crate::parser::{ast, Type};
 use crate::utils::{str_ids, NameID, taginfo, text};
 use crate::utils::sourcefile::SourceRange;
@@ -30,7 +30,7 @@ impl Tag {
     pub(super) fn str_attr(mut self, k: NameID, v: &str) -> Tag {
         let v = Some(Rc::from(v));
         if self.attributes.insert(k, v).is_some() {
-            ice("duplicate attribute");
+            errors::ice("duplicate attribute");
         }
         self
     }
@@ -66,11 +66,11 @@ impl <'a> Compiler<'a> {
                     let name_str: Rc<str> = v.expect_convert();
                     if text::is_identifier(&name_str) {
                         self.string_pool_mut()
-                            .insert(&name_str.to_ascii_lowercase())
+                            .insert(name_str.to_ascii_lowercase())
                     } else if name_str.eq_ignore_ascii_case("!DOCTYPE") {
                         str_ids::_DOCTYPE
                     } else {
-                        self.name_error(NameError::InvalidTag(name_str), name.range());
+                        self.name_error(errors::NameError::InvalidTag(name_str), name.range());
                         str_ids::ANONYMOUS
                     }
                 },
@@ -105,7 +105,7 @@ impl <'a> Compiler<'a> {
             }
         }
         
-        let children = self.compile_sequence(&tag.children, taginfo::content_kind(tag_name_id));
+        let children = self.compile_sequence(&tag.children, taginfo::ContentKind::for_(tag_name_id));
         if tag_name_id.is_anonymous() {
             children
         } else {
@@ -115,8 +115,8 @@ impl <'a> Compiler<'a> {
     
     fn add_attr(&mut self, attrs: &mut AttrMap, name_id: NameID, value: Option<Rc<str>>, range: SourceRange) {
         if attrs.insert(name_id, value).is_some() {
-            let name = self.get_name(name_id).to_string();
-            self.runtime_error(RuntimeError::AttrMultipleValues(name), range);
+            let name = self.get_name(name_id);
+            self.runtime_error(errors::RuntimeError::AttrMultipleValues(name), range);
         }
     }
 }

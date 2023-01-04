@@ -15,7 +15,7 @@ pub enum Type {
     
     /// The type `html`, representing any HTML content; `block` and `inline`
     /// are subtypes.
-    HTML,
+    Html,
     
     /// The type `block`, representing block-level HTML content, or content
     /// which otherwise need not be wrapped in a block-level element.
@@ -84,13 +84,13 @@ impl Type {
     /// Indicates whether this type is either `html`, `block` or `inline`. The
     /// types `any` and `none` are not considered to be HTML types.
     pub(crate) fn is_html(&self) -> bool {
-        matches!(self, Type::HTML | Type::Block | Type::Inline)
+        matches!(self, Type::Html | Type::Block | Type::Inline)
     }
     
     /// Indicates whether the unit value is assignable to this type.
     pub(crate) fn unit_is_assignable(&self) -> bool {
         matches!(self, Type::Any |
-            Type::HTML |
+            Type::Html |
             Type::Block |
             Type::Inline |
             Type::Unit |
@@ -102,7 +102,7 @@ impl std::fmt::Display for Type {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Type::Any => f.write_str("any"),
-            Type::HTML => f.write_str("html"),
+            Type::Html => f.write_str("html"),
             Type::Block => f.write_str("block"),
             Type::Inline => f.write_str("inline"),
             Type::Unit => f.write_str("none"),
@@ -134,7 +134,7 @@ impl <'a> Parser<'a> {
         let mut t = match self.tok_str(begin_token) {
             "any" => Type::Any,
             "none" => Type::Unit,
-            "html" => Type::HTML,
+            "html" => Type::Html,
             "block" => Type::Block,
             "inline" => Type::Inline,
             "bool" => Type::Bool,

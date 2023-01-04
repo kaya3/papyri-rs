@@ -93,7 +93,7 @@ impl <'a> Compiler<'a> {
             for name in regex.capture_names().skip(1) {
                 let name = name.unwrap();
                 if !text::is_identifier(name) {
-                    return Err(RuntimeError::RegexInvalidGroupName(name.to_string()));
+                    return Err(RuntimeError::RegexInvalidGroupName(name.into()));
                 }
                 names.push(self.ctx.string_pool.insert(name));
             }

@@ -11,13 +11,13 @@ impl <'a> Compiler<'a> {
     /// `None` if a compilation error occurs.
     pub(super) fn evaluate_name(&mut self, name: &ast::Name, type_hint: &Type) -> Option<Value> {
         let value = match name {
-            ast::Name::SimpleName(name) => {
+            ast::Name::Simple(name) => {
                 self.get_var(name.name_id, name.range)?
             },
-            ast::Name::AttrName(attr) => {
+            ast::Name::Attr(attr) => {
                 self.evaluate_attr(attr)?
             },
-            ast::Name::IndexName(index) => {
+            ast::Name::Index(index) => {
                 self.evaluate_index(index)?
             },
         };
@@ -35,9 +35,8 @@ impl <'a> Compiler<'a> {
                 return Some(v.clone());
             }
         } else if let Value::HTML(HTML::Tag(ref t)) = subject {
-            match attr_id {
-                str_ids::TAG_NAME => return Some(self.get_name(t.name_id).into()),
-                _ => {},
+            if attr_id == str_ids::TAG_NAME {
+                return Some(self.get_name(t.name_id).into())
             }
         }
         
@@ -45,7 +44,7 @@ impl <'a> Compiler<'a> {
             return Some(f.into());
         }
         
-        let name = self.get_name(attr_id).to_string();
+        let name = self.get_name(attr_id);
         self.name_error(errors::NameError::NoSuchAttribute(subject.get_type(), name), attr.range);
         None
     }

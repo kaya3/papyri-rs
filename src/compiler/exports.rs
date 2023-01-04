@@ -8,7 +8,7 @@ use super::value::Value;
 impl <'a> Compiler<'a> {
     pub(super) fn export(&mut self, name_id: NameID, value: Value, range: SourceRange) {
         if self.exports.insert(name_id, value).is_some() {
-            let name = self.get_name(name_id).to_string();
+            let name = self.get_name(name_id);
             self.warning(errors::Warning::NameAlreadyExported(name), range);
         }
     }

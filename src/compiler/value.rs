@@ -1,5 +1,6 @@
 use std::rc::Rc;
 
+use crate::errors::TypeError;
 use crate::parser::{ast, token, text, Expr, Type};
 use crate::utils::{str_ids, SliceRef, taginfo, NameIDMap};
 use crate::utils::sourcefile::SourceRange;
@@ -156,7 +157,7 @@ impl <'a> Compiler<'a> {
             Expr::FuncDef(def) => {
                 let v = Value::Func(self.compile_func_def(def));
                 if type_hint.is_html() {
-                    self.err_expected_type(type_hint.clone(), v.get_type(), def.range);
+                    self.type_error(TypeError::ExpectedWas(type_hint.clone(), v.get_type()), def.range);
                     return None;
                 }
                 v

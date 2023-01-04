@@ -264,7 +264,7 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
         } else if let Some(param) = &sig.spread_named_param {
             (param.type_.component_type(), &mut self.bound.spread_named)
         } else {
-            let name = self.compiler.get_name(name_id).to_string();
+            let name = self.compiler.get_name(name_id);
             self.compiler.name_error(errors::NameError::NoSuchParameter(name), range);
             self.any_errors = true;
             return;
@@ -272,8 +272,8 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
         match self.compiler.coerce(value, type_, range) {
             Some(v) => {
                 if map.insert(name_id, v).is_some() {
-                    let name = self.compiler.get_name(name_id).to_string();
-                    self.compiler.name_error(errors::NameError::NoSuchParameter(name), range);
+                    let name = self.compiler.get_name(name_id);
+                    self.compiler.runtime_error(errors::RuntimeError::ParamMultipleValues(name), range);
                     self.any_errors = true;
                 }
             },
@@ -355,7 +355,7 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
         for param in sig.named_params.values() {
             if self.bound.map.contains_key(&param.name_id) { continue; }
             let Some(v) = &param.default_value else {
-                let name = self.compiler.get_name(param.name_id).to_string();
+                let name = self.compiler.get_name(param.name_id);
                 self.compiler.runtime_error(errors::RuntimeError::ParamMissing(name), call_range);
                 return None;
             };

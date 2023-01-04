@@ -31,7 +31,7 @@ impl <'a> Compiler<'a> {
             ast::MatchPattern::Ignore(..) => true,
             ast::MatchPattern::LiteralNone(..) => value.is_unit(),
             ast::MatchPattern::LiteralName(.., name_id) => {
-                matches!(value, Value::Str(s) if s.as_ref() == self.get_name(*name_id))
+                matches!(value, Value::Str(s) if s == self.get_name(*name_id))
             },
             ast::MatchPattern::VarName(var) => {
                 self.bind_one(var, value);
@@ -211,7 +211,7 @@ impl <'a> Compiler<'a> {
     
     fn bind_one(&mut self, var: &ast::SimpleName, value: Value) {
         if self.frame().set(var.name_id, value, false) {
-            let name = self.get_name(var.name_id).to_string();
+            let name = self.get_name(var.name_id);
             self.warning(Warning::PatternNameAlreadyBound(name), var.range);
         }
     }

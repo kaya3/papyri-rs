@@ -3,21 +3,21 @@
 /// file.
 pub enum Warning {
     RedundantOptionType,
-    NameAlreadyDeclared(String),
-    PatternNameAlreadyBound(String),
-    NameAlreadyExported(String),
+    NameAlreadyDeclared(std::rc::Rc<str>),
+    PatternNameAlreadyBound(std::rc::Rc<str>),
+    NameAlreadyExported(std::rc::Rc<str>),
 }
 
 #[allow(missing_docs)]
 /// Represents a warning which occurs at runtime; there is an associated stack
 /// trace.
 pub enum RuntimeWarning {
-    NameNotImplicit(String),
+    NameNotImplicit(std::rc::Rc<str>),
     InlineHighlightEnumerate,
     InlineHighlightMultiline,
     NoMatchingBranch,
     HighlightNotEnabled,
-    HighlightLanguageUnknown(String),
+    HighlightLanguageUnknown(std::rc::Rc<str>),
     BrokenLink(std::rc::Rc<str>),
 }
 

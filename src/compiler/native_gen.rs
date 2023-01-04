@@ -9,7 +9,7 @@ macro_rules! native_defs {
         })*
         $(fn $f_name: ident ($($f_param_name: ident: $f_param_kind: ident $f_param_type: ty $(= $f_param_default: expr)?),*) $f_body: block)*
     ) => {
-        #[allow(non_camel_case_types)]
+        #[allow(non_camel_case_types, clippy::upper_case_acronyms, clippy::enum_variant_names)]
         mod native_names {
             $(
                 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -28,8 +28,8 @@ macro_rules! native_defs {
         
         /*
         impl NativeFunc {
-            pub(super) fn name_id(self) -> crate::utils::NameID {
-                use crate::utils::str_ids;
+            pub(super) fn name_id(self) -> $crate::utils::NameID {
+                use $crate::utils::str_ids;
                 match self {
                     $($(NativeFunc::$type_name(native_names::$type_name::$m_name) => str_ids::$m_name,)*)*
                     $(NativeFunc::$f_name => str_ids::$f_name),*
@@ -37,9 +37,9 @@ macro_rules! native_defs {
             }
         }*/
         
-        #[allow(non_snake_case)]
+        #[allow(non_snake_case, clippy::upper_case_acronyms)]
         mod native_cache {
-            use crate::compiler::func::Func;
+            use $crate::compiler::func::Func;
             $(
                 pub(crate) struct $type_name {
                     $(pub(crate) $m_name: Func),*
@@ -55,9 +55,9 @@ macro_rules! native_defs {
         
         impl NativeDefs {
             pub(super) fn build() -> NativeDefs {
-                use crate::utils::str_ids;
-                use crate::compiler::signature::{FuncParam, FuncSignature};
-                use crate::compiler::value::Value;
+                use $crate::utils::str_ids;
+                use $crate::compiler::signature::{FuncParam, FuncSignature};
+                use $crate::compiler::value::Value;
                 NativeDefs {
                     $($type_name: native_cache::$type_name {
                         $($m_name: Func::Native(
@@ -85,10 +85,10 @@ macro_rules! native_defs {
             }
             
             #[allow(non_snake_case, unused_must_use)]
-            pub(super) fn to_frame(&self) -> crate::compiler::frame::ActiveFrame {
-                use crate::utils::str_ids;
-                use crate::compiler::value::ValueMap;
-                use crate::compiler::frame::ActiveFrame;
+            pub(super) fn to_frame(&self) -> $crate::compiler::frame::ActiveFrame {
+                use $crate::utils::str_ids;
+                use $crate::compiler::value::ValueMap;
+                use $crate::compiler::frame::ActiveFrame;
                 let globals = ValueMap::from_iter([
                     $((
                         str_ids::$type_name,
@@ -105,12 +105,12 @@ macro_rules! native_defs {
             }
         }
         
-        impl <'a> crate::compiler::base::Compiler<'a> {
+        impl <'a> $crate::compiler::base::Compiler<'a> {
             #[allow(non_snake_case, unreachable_code)]
-            pub(super) fn evaluate_native_func(&mut self, f: NativeFunc, mut bindings: crate::compiler::value::ValueMap, $call_range: crate::utils::sourcefile::SourceRange) -> Option<crate::compiler::value::Value> {
-                use crate::utils::{str_ids, NameID};
-                use crate::errors;
-                use crate::compiler::value::Value;
+            pub(super) fn evaluate_native_func(&mut self, f: NativeFunc, mut bindings: $crate::compiler::value::ValueMap, $call_range: $crate::utils::sourcefile::SourceRange) -> Option<$crate::compiler::value::Value> {
+                use $crate::utils::{str_ids, NameID};
+                use $crate::errors;
+                use $crate::compiler::value::Value;
                 let $compiler = self;
                 let mut take = |name_id: NameID| {
                     bindings.get_mut(&name_id)
@@ -129,9 +129,9 @@ macro_rules! native_defs {
                 })
             }
             
-            pub(super) fn evaluate_native_attr(&mut self, subject: crate::compiler::value::Value, attr_id: crate::utils::NameID, attr_range: crate::utils::sourcefile::SourceRange) -> Option<crate::compiler::func::Func> {
-                use crate::utils::str_ids;
-                use crate::compiler::value::Value;
+            pub(super) fn evaluate_native_attr(&mut self, subject: $crate::compiler::value::Value, attr_id: $crate::utils::NameID, attr_range: $crate::utils::sourcefile::SourceRange) -> Option<$crate::compiler::func::Func> {
+                use $crate::utils::str_ids;
+                use $crate::compiler::value::Value;
                 $(if false $(|| matches!(subject, Value::$type_variant(..)))? {
                     let _cls = &self.ctx.natives.$type_name;
                     match attr_id {

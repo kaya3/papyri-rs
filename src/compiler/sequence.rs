@@ -1,7 +1,7 @@
 use crate::errors::TypeError;
 use crate::parser::{AST, Type};
 use crate::utils::sourcefile::SourceRange;
-use crate::utils::taginfo::{ContentKind, content_kind};
+use crate::utils::taginfo::ContentKind;
 use crate::utils::{str_ids, NameID};
 use super::base::Compiler;
 use super::html::HTML;
@@ -39,7 +39,7 @@ impl <'a> Compiler<'a> {
                 Ok(())
             }
             AST::Expr(expr) => {
-                if let Some(v) = self.evaluate_node(expr, &Type::HTML) {
+                if let Some(v) = self.evaluate_node(expr, &Type::Html) {
                     builder.push(v.expect_convert())
                 } else {
                     Ok(())
@@ -65,7 +65,7 @@ impl <'a> Compiler<'a> {
     
     fn sequence_error(&mut self, e: SequenceError, range: SourceRange) {
         let e = match e {
-            SequenceError::TagNotAllowed(name_id) => TypeError::TagNotAllowed(self.get_name(name_id).to_string()),
+            SequenceError::TagNotAllowed(name_id) => TypeError::TagNotAllowed(self.get_name(name_id)),
             SequenceError::ParagraphBreakNotAllowed => TypeError::ParagraphBreakNotAllowed,
             SequenceError::NoContentAllowed => TypeError::NoContentAllowed,
         };
@@ -168,7 +168,7 @@ impl SequenceBuilder {
             Ok(())
         } else if self.next_child.is_some() || !child.is_whitespace() {
             self.next_child.get_or_insert_with(|| {
-                let child_content_kind = content_kind(self.content_kind.wrap_with());
+                let child_content_kind = ContentKind::for_(self.content_kind.wrap_with());
                 Box::new(SequenceBuilder::new(child_content_kind))
             }).push(child)
         } else {

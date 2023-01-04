@@ -25,13 +25,13 @@ pub enum SyntaxError {
     
     TagCloseMalformed,
     TagUnmatchedOpen,
-    TagDuplicateAttr(String),
+    TagDuplicateAttr(std::rc::Rc<str>),
     
     SpreadPositionalNotAllowed,
     SpreadNamedNotAllowed,
     
     AnonymousFunctionNotAllowed,
-    ParamDuplicateName(String),
+    ParamDuplicateName(std::rc::Rc<str>),
     ParamPositionalAfterNamed,
     ParamRequiredAfterOptional,
     ParamDefaultImplicit,
@@ -45,7 +45,7 @@ pub enum SyntaxError {
     ParamContentSpread,
     ParamContentDefault,
     
-    ArgDuplicateName(String),
+    ArgDuplicateName(std::rc::Rc<str>),
     ArgNamedNotAllowed,
     ArgPositionalAfterNamed,
     ArgSpreadNamed,
@@ -60,7 +60,7 @@ pub enum SyntaxError {
     PatternMultipleSpreads,
     PatternNamedUnderscore,
     PatternNamedAfterSpread,
-    PatternDuplicateName(String),
+    PatternDuplicateName(std::rc::Rc<str>),
     PatternIncorrectCloseTag,
     PatternCannotMatchHTML,
     PatternAttrAccess,

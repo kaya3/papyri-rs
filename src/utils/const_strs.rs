@@ -9,14 +9,14 @@ macro_rules! const_strs {
         /// Constants for ids of names which are always pooled.
         pub(crate) mod str_ids {
             #[repr(u32)]
-            #[allow(non_camel_case_types)]
+            #[allow(non_camel_case_types, clippy::upper_case_acronyms)]
             enum ConstStr {
                 $($name),*
             }
             
             use super::NameID;
             $(
-                #[doc = concat!("The ID of the interned string `", stringify!($val_head), "`.")]
+                #[doc = concat!("The ID of the interned string `\"", $val, "\"`.")]
                 pub(crate) const $name: NameID = NameID::of(ConstStr::$name as u32);
             )*
         }

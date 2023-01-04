@@ -1,3 +1,4 @@
+use std::rc::Rc;
 use indexmap::{IndexSet, IndexMap};
 use nonmax::NonMaxU32;
 
@@ -29,8 +30,8 @@ pub type NameIDSet = IndexSet<NameID, fxhash::FxBuildHasher>;
 pub type NameIDMap<T> = IndexMap<NameID, T, fxhash::FxBuildHasher>;
 
 /// A pool of interned string names, which assigns unique IDs to names, and can
-/// be used to look up names by ID. The pool's maximum capacity is `u32::MAX`.
-pub struct StringPool(IndexSet<Box<str>, fxhash::FxBuildHasher>);
+/// be used to look up names by ID. The pool's maximum capacity is `u32::MAX - 1`.
+pub struct StringPool(IndexSet<Rc<str>, fxhash::FxBuildHasher>);
 
 impl Default for StringPool {
     fn default() -> StringPool {
@@ -43,19 +44,20 @@ impl StringPool {
     /// `const_strs.rs` for a full list.
     pub(crate) fn new() -> StringPool {
         let strings = CONST_STRS.iter()
-            .map(|&s| Box::from(s));
+            .copied()
+            .map(Rc::from);
         
         StringPool(IndexSet::from_iter(strings))
     }
     
     /// Inserts a name into this pool if it is not already present, and returns
     /// its unique ID.
-    pub(crate) fn insert(&mut self, s: &str) -> NameID {
-        match self.0.get_index_of(s) {
+    pub(crate) fn insert<T>(&mut self, s: T) -> NameID
+    where T: Into<Rc<str>> + AsRef<str> {
+        match self.0.get_index_of(s.as_ref()) {
             Some(id) => NameID::of(id as u32),
             None => {
-                let s_owned: Box<str> = Box::from(s);
-                let (id, _) = self.0.insert_full(s_owned);
+                let (id, _) = self.0.insert_full(s.into());
                 NameID::of(id as u32)
             },
         }
@@ -69,9 +71,10 @@ impl StringPool {
     /// Returns the name associated with the given ID, as a string. Should only
     /// be called with IDs assigned by this pool, or constant IDs assigned in
     /// the `str_ids` module.
-    pub(crate) fn get(&self, id: NameID) -> &str {
+    pub(crate) fn get(&self, id: NameID) -> Rc<str> {
         let id = id.0.get() as usize;
         self.0.get_index(id)
             .unwrap_or_else(|| errors::ice(&format!("no string with ID {id}")))
+            .clone()
     }
 }

@@ -15,7 +15,7 @@ impl Type {
         match self {
             Type::Dict(t) | Type::List(t) => t,
             Type::Optional(t) => t.component_type(),
-            Type::Block | Type::HTML => &Type::HTML,
+            Type::Block | Type::Html => &Type::Html,
             _ => &Type::Any,
         }
     }
@@ -28,7 +28,7 @@ impl Type {
             (Type::Any, t) | (t, Type::Any) => t,
             (t, Type::Unit) | (Type::Unit, t) => t.option(),
             
-            (t1, t2) if t1.is_html() && t2.is_html() => Type::HTML,
+            (t1, t2) if t1.is_html() && t2.is_html() => Type::Html,
             
             (Type::List(t1), Type::List(t2)) => t1.least_upper_bound(*t2).list(),
             (Type::Dict(t1), Type::Dict(t2)) => t1.least_upper_bound(*t2).dict(),
@@ -51,8 +51,8 @@ impl Type {
             (Type::Str, Value::Str(..)) |
             (Type::Function, Value::Func(..)) |
             (Type::Regex, Value::Regex(..)) |
-            (Type::HTML, Value::HTML(..)) |
-            (Type::HTML, Value::Str(..)) |
+            (Type::Html, Value::HTML(..)) |
+            (Type::Html, Value::Str(..)) |
             (Type::Inline, Value::Str(..)) => true,
             
             (Type::Block, Value::HTML(h)) => h.is_block(),
@@ -87,9 +87,9 @@ impl Type {
             (Type::Bool, Value::Bool(..)) |
             (Type::Int, Value::Int(..)) |
             (Type::Str, Value::Str(..)) |
-            (Type::HTML, Value::Str(..)) |
+            (Type::Html, Value::Str(..)) |
             (Type::Inline, Value::Str(..)) |
-            (Type::HTML, Value::HTML(..)) |
+            (Type::Html, Value::HTML(..)) |
             (Type::Function, Value::Func(..)) |
             (Type::Regex, Value::Regex(..)) => return Ok(value),
             
@@ -110,7 +110,7 @@ impl Type {
             (_, Value::Func(..)) |
             (Type::Inline, Value::Dict(..) | Value::List(..)) => {},
             
-            (Type::HTML, _) => {
+            (Type::Html, _) => {
                 return Ok(value_to_html(value).into());
             },
             (Type::Block, _) => {

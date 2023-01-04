@@ -3,7 +3,6 @@ use std::rc::Rc;
 use crate::errors;
 use crate::utils::{OutFiles, NameID, StringPool, text};
 use crate::utils::sourcefile::{SourceRange, SourceFileCache, SourceFile};
-use crate::parser::Type;
 use super::base::Compiler;
 use super::frame::InactiveFrame;
 use super::html::HTML;
@@ -64,7 +63,7 @@ impl Context {
     /// Adds an output file to this context's collector. The operation may fail
     /// if this context has no output file collector, or if the path is not
     /// within the output directory.
-    pub(super) fn push_out_file(&mut self, path: std::rc::Rc<str>, content: HTML) -> Result<(), errors::RuntimeError> {
+    pub(super) fn push_out_file(&mut self, path: Rc<str>, content: HTML) -> Result<(), errors::RuntimeError> {
         let Some(sink) = self.out_files.as_mut() else {
             return Err(errors::RuntimeError::WriteFileNotAllowed);
         };
@@ -80,7 +79,7 @@ impl Context {
     pub fn reset(&mut self) {
         self.diagnostics.clear();
         self.unique_ids.clear();
-        if matches!(self.out_files, Some(ref o) if !o.is_empty()) {
+        if matches!(&self.out_files, Some(o) if !o.is_empty()) {
             errors::ice("Output files were not consumed");
         }
     }
@@ -119,10 +118,6 @@ impl <'a> Compiler<'a> {
         self.ctx.diagnostics.module_error(path, e, self.get_source_file(range), range);
     }
     
-    pub(super) fn err_expected_type(&mut self, expected: Type, was: Type, range: SourceRange) {
-        self.type_error(errors::TypeError::ExpectedWas(expected, was), range);
-    }
-    
     pub(super) fn string_pool(&self) -> &StringPool {
         &self.ctx.string_pool
     }
@@ -131,7 +126,7 @@ impl <'a> Compiler<'a> {
         &mut self.ctx.string_pool
     }
     
-    pub(super) fn get_name(&self, name_id: NameID) -> &str {
+    pub(super) fn get_name(&self, name_id: NameID) -> Rc<str> {
         self.string_pool().get(name_id)
     }
 }

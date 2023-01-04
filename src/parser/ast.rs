@@ -231,7 +231,7 @@ pub enum TemplatePart {
 
 impl TemplatePart {
     pub(super) fn is_literal(&self) -> bool {
-        return matches!(self, TemplatePart::Literal(..) | TemplatePart::LiteralStr(..))
+        matches!(self, TemplatePart::Literal(..) | TemplatePart::LiteralStr(..))
     }
 }
 
@@ -433,18 +433,18 @@ impl MatchPattern {
 #[allow(missing_docs)]
 /// A name expression, which is either a simple name or an attribute access.
 pub enum Name {
-    SimpleName(SimpleName),
-    AttrName(Box<AttrName>),
-    IndexName(Box<IndexName>),
+    Simple(SimpleName),
+    Attr(Box<AttrName>),
+    Index(Box<IndexName>),
 }
 
 impl Name {
     /// Returns the source span of this name expression.
     pub(crate) fn range(&self) -> SourceRange {
         match self {
-            Name::SimpleName(name) => name.range,
-            Name::AttrName(attr) => attr.range,
-            Name::IndexName(index) => index.range,
+            Name::Simple(name) => name.range,
+            Name::Attr(attr) => attr.range,
+            Name::Index(index) => index.range,
         }
     }
     
@@ -455,9 +455,9 @@ impl Name {
         let mut name = self;
         loop {
             match name {
-                Name::SimpleName(_) => return false,
-                Name::AttrName(attr) => if attr.is_coalescing { return true; } else { name = &attr.subject; },
-                Name::IndexName(index) => if index.is_coalescing { return true; } else { name = &index.subject; },
+                Name::Simple(_) => return false,
+                Name::Attr(attr) => if attr.is_coalescing { return true; } else { name = &attr.subject; },
+                Name::Index(index) => if index.is_coalescing { return true; } else { name = &index.subject; },
             }
         }
     }

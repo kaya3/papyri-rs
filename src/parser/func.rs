@@ -89,7 +89,7 @@ impl <'a> Parser<'a> {
                 let is_positional = if is_spread { spread_kind == SpreadKind::Positional } else { is_underscore };
                 
                 if !names_used.insert(param.name_id) {
-                    let name = self.string_pool.get(param.name_id).to_string();
+                    let name = self.string_pool.get(param.name_id);
                     self.syntax_error(SyntaxError::ParamDuplicateName(name), param.range);
                 } else if is_positional && any_named_params {
                     self.syntax_error(SyntaxError::ParamPositionalAfterNamed, param.range);
@@ -181,7 +181,7 @@ impl <'a> Parser<'a> {
         for arg in args.iter() {
             if !arg.name_id.is_anonymous() {
                 if !names_used.insert(arg.name_id) {
-                    let name = self.string_pool.get(arg.name_id).to_string();
+                    let name = self.string_pool.get(arg.name_id);
                     self.syntax_error(SyntaxError::ArgDuplicateName(name), arg.range);
                 }
                 any_named = true;
@@ -252,10 +252,7 @@ impl <'a> Parser<'a> {
         let Some(name_tok) = self.poll_if_kind(TokenKind::Name) else {
             let value = self.parse_expr()?;
             let v_range = value.range();
-            let range = match spread_range {
-                Some(r) => r.to_end(v_range.end),
-                None => v_range,
-            };
+            let range = spread_range.map_or(v_range, |r| r.to_end(v_range.end));
             return Some(Arg {
                 range,
                 spread_kind,

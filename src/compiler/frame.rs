@@ -146,7 +146,7 @@ impl <'a> Compiler<'a> {
     pub(super) fn get_var(&mut self, name_id: NameID, range: SourceRange) -> Option<Value> {
         let r = self.frame().get(name_id, false);
         if r.is_none() {
-            let name = self.get_name(name_id).to_string();
+            let name = self.get_name(name_id);
             self.name_error(NameError::NoSuchVariable(name), range);
         }
         r
@@ -156,11 +156,11 @@ impl <'a> Compiler<'a> {
         let r = self.frame().get(name_id, true);
         if r.is_none() {
             if default_value.is_none() {
-                let name = self.get_name(name_id).to_string();
+                let name = self.get_name(name_id);
                 self.runtime_error(RuntimeError::ParamMissingImplicit(name), range);
             }
             if self.frame().get(name_id, false).is_some() {
-                let name = self.get_name(name_id).to_string();
+                let name = self.get_name(name_id);
                 self.runtime_warning(RuntimeWarning::NameNotImplicit(name), range);
             }
         }
@@ -169,7 +169,7 @@ impl <'a> Compiler<'a> {
     
     pub(super) fn set_var(&mut self, name_id: NameID, value: Value, implicit: bool, range: SourceRange) {
         if self.frame().set(name_id, value, implicit) {
-            let name = self.get_name(name_id).to_string();
+            let name = self.get_name(name_id);
             self.warning(Warning::NameAlreadyDeclared(name), range);
         }
     }

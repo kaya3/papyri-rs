@@ -5,9 +5,9 @@ use crate::parser::Type;
 /// Represents an error which occurs at runtime due to an undefined or invalid
 /// name; there is an associated stack trace.
 pub enum NameError {
-    NoSuchVariable(String),
-    NoSuchParameter(String),
-    NoSuchAttribute(Type, String),
+    NoSuchVariable(std::rc::Rc<str>),
+    NoSuchParameter(std::rc::Rc<str>),
+    NoSuchAttribute(Type, std::rc::Rc<str>),
     
     InvalidTag(std::rc::Rc<str>),
 }
@@ -17,16 +17,16 @@ pub enum NameError {
 /// Represents an error which occurs at runtime; there is an associated stack
 /// trace.
 pub enum RuntimeError {
-    AttrMultipleValues(String),
+    AttrMultipleValues(std::rc::Rc<str>),
     
-    ParamMissing(String),
-    ParamMissingImplicit(String),
-    ParamMultipleValues(String),
-    ParamMustBePositive(String, i64),
+    ParamMissing(std::rc::Rc<str>),
+    ParamMissingImplicit(std::rc::Rc<str>),
+    ParamMultipleValues(std::rc::Rc<str>),
+    ParamMustBePositive(std::rc::Rc<str>, i64),
     
     RegexSyntaxError(regex::Error),
     RegexMixedGroupKinds,
-    RegexInvalidGroupName(String),
+    RegexInvalidGroupName(std::rc::Rc<str>),
     
     Raised(std::rc::Rc<str>),
     IndexOutOfRange(i64, usize),

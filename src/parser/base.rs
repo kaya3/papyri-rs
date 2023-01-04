@@ -32,20 +32,22 @@ impl <'a> Parser<'a> {
     
     pub(super) fn tok_name_id(&mut self, tok: Token) -> NameID {
         // must use self.src.get_span instead of self.tok_str here, to satisfy the borrow checker
+        let s = self.src.get_span(tok.range);
         let s = match tok.kind {
-            TokenKind::Name => self.src.get_span(tok.range),
-            TokenKind::FuncName | TokenKind::VarName => &self.src.get_span(tok.range)[1..],
+            TokenKind::Name => s,
+            TokenKind::FuncName | TokenKind::VarName => &s[1..],
             _ => self.ice_at(&format!("token {} is not Name, FuncName or VarName", tok.kind), tok.range),
         };
         self.string_pool.insert(s)
     }
     
-    pub(super) fn tok_lowercase_name_id(&mut self, tok: Token) -> (NameID, String) {
+    pub(super) fn tok_lowercase_name_id(&mut self, tok: Token) -> NameID {
         if tok.kind != TokenKind::Name {
             self.ice_at(&format!("token {} is not Name", tok.kind), tok.range);
         }
-        let s = self.tok_str(tok).to_ascii_lowercase();
-        (self.string_pool.insert(&s), s)
+        let s = self.tok_str(tok)
+            .to_ascii_lowercase();
+        self.string_pool.insert(s)
     }
     
     pub(super) fn parse_nodes_until(&mut self, closer: impl Fn(&Parser, Token) -> bool) -> (Vec<AST>, Option<Token>) {
@@ -227,7 +229,7 @@ impl <'a> Parser<'a> {
     }
     
     pub(super) fn parse_name(&mut self, token: Token) -> Option<Name> {
-        let mut name = Name::SimpleName(SimpleName {
+        let mut name = Name::Simple(SimpleName {
             name_id: self.tok_name_id(token),
             range: token.range,
         });
@@ -236,7 +238,7 @@ impl <'a> Parser<'a> {
             if let Some(index_tok) = self.poll_if_kind(TokenKind::Number) {
                 let index = self.parse_number(index_tok)?;
                 let range = name.range().to_end(index_tok.range.end);
-                name = Name::IndexName(Box::new(IndexName {
+                name = Name::Index(Box::new(IndexName {
                     subject: name,
                     is_coalescing,
                     index,
@@ -245,7 +247,7 @@ impl <'a> Parser<'a> {
             } else {
                 let attr_name = self.expect_poll_kind(TokenKind::Name)?;
                 let range = name.range().to_end(attr_name.range.end);
-                name = Name::AttrName(Box::new(AttrName {
+                name = Name::Attr(Box::new(AttrName {
                     subject: name,
                     is_coalescing,
                     attr_name_id: self.tok_name_id(attr_name),
