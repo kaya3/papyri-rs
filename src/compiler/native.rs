@@ -279,6 +279,9 @@ crate::native_defs! {
         
         fn HTML_NODES(HTML: content HTML) {
             HTML.nodes()
+                .iter()
+                .map(Value::from)
+                .collect::<Vec<_>>()
         }
         
         @bind_content

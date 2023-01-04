@@ -3,7 +3,6 @@ use std::rc::Rc;
 use crate::errors;
 use crate::utils::{NameID, taginfo, text};
 use super::tag::Tag;
-use super::value::Value;
 
 #[derive(Debug, Clone)]
 /// Some HTML content, possibly empty. HTML content is classified as either
@@ -139,11 +138,11 @@ impl HTML {
         }
     }
     
-    pub(super) fn nodes(&self) -> Vec<Value> {
+    pub(super) fn nodes(&self) -> &[HTML] {
         match self {
-            HTML::Empty => [].into(),
-            HTML::Sequence(seq) => seq.as_ref().iter().map(Value::from).collect(),
-            _ => [self.into()].into(),
+            HTML::Empty => &[],
+            HTML::Sequence(seq) => seq.as_ref(),
+            _ => std::slice::from_ref(self),
         }
     }
 }

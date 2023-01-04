@@ -72,19 +72,10 @@ impl <'a> Compiler<'a> {
             },
             
             ast::MatchPattern::ExactHTMLSeq(_, child_patterns) => {
-                let Ok(html) = HTML::try_convert(value) else {
-                    return false;
-                };
-                match html {
-                    HTML::Empty => child_patterns.is_empty(),
-                    HTML::Sequence(seq) => {
-                        if child_patterns.len() != seq.len() { return false; }
-                        let child_values = seq.iter()
-                            .map(Value::from);
-                        self.bind_all(child_patterns, child_values)
-                    },
-                    _ => child_patterns.len() == 1 && self.bind_pattern(&child_patterns[0], html.into()),
-                }
+                let Ok(html) = HTML::try_convert(value) else { return false; };
+                let html_nodes = html.nodes();
+                html_nodes.len() == child_patterns.len()
+                    && self.bind_all(child_patterns, html_nodes.iter().map(Value::from))
             },
             
             ast::MatchPattern::SpreadList(_, child_patterns, spread_index) => {
@@ -99,22 +90,9 @@ impl <'a> Compiler<'a> {
             },
             
             ast::MatchPattern::SpreadHTMLSeq(_, child_patterns, spread_index) => {
-                let Ok(html) = HTML::try_convert(value) else {
-                    return false;
-                };
+                let Ok(html) = HTML::try_convert(value) else { return false; };
                 
-                let html_slice = match &html {
-                    HTML::Empty => {
-                        if child_patterns.len() != 1 { return false; }
-                        &[]
-                    },
-                    HTML::Sequence(seq) => {
-                        if seq.len() + 1 < child_patterns.len() { return false; }
-                        seq.as_ref()
-                    },
-                    _ => std::slice::from_ref(&html),
-                };
-                
+                let html_slice = html.nodes();
                 self.bind_all_with_spread(
                     child_patterns,
                     *spread_index,
