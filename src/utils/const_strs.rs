@@ -127,6 +127,7 @@ const_strs!(
     OR = "or",
     P = "p",
     PARAM = "param",
+    PARSE = "parse",
     PATH = "path",
     PRE = "pre",
     RAISE = "raise",

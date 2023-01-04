@@ -28,8 +28,10 @@ pub enum RuntimeError {
     RegexMixedGroupKinds,
     RegexInvalidGroupName(std::rc::Rc<str>),
     
+    
     Raised(std::rc::Rc<str>),
     IndexOutOfRange(i64, usize),
+    ParseIntError(std::num::ParseIntError),
     PathNotInOutDir(std::rc::Rc<str>),
     WriteFileNotAllowed,
 }
@@ -58,6 +60,7 @@ impl std::fmt::Display for RuntimeError {
             RuntimeError::RegexInvalidGroupName(name) => write!(f, "regex group name '{name}' is not a valid identifier"),
             RuntimeError::Raised(msg) => f.write_str(msg),
             RuntimeError::IndexOutOfRange(i, len) => write!(f, "index out of bounds (index {i}, length {len})"),
+            RuntimeError::ParseIntError(e) => write!(f, "failed to parse int ({e})"),
             RuntimeError::PathNotInOutDir(path) => write!(f, "path \"{path}\" is not within output directory"),
             RuntimeError::WriteFileNotAllowed => f.write_str("no output directory for '@write_file'; use '--out'"),
         }

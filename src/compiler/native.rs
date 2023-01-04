@@ -60,6 +60,16 @@ crate::native_defs! {
         fn NEGATE(PARAM: content Int) {
             -PARAM
         }
+        
+        fn PARSE(PARAM: content Str) {
+            match PARAM.parse::<Int>() {
+                Ok(r) => r,
+                Err(e) => {
+                    compiler.runtime_error(RuntimeError::ParseIntError(e), call_range);
+                    return None;
+                },
+            }
+        }
     }
     
     impl STR for Str {

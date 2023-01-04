@@ -210,12 +210,12 @@ impl <'a> Parser<'a> {
             TokenKind::Whitespace => Some(AST::Whitespace(tok.range)),
             TokenKind::Newline => Some(AST::ParagraphBreak(tok.range)),
             TokenKind::Escape => {
-                let s = self.unescape_char(tok);
-                Some(AST::Text(Rc::from(s), tok.range))
+                let c = self.unescape_char(tok);
+                Some(AST::Char(c, tok.range))
             },
             TokenKind::Entity => {
-                let s = self.decode_entity(tok);
-                Some(AST::Text(Rc::from(s), tok.range))
+                let c = self.decode_entity(tok);
+                Some(AST::Char(c, tok.range))
             },
             _ => Some(self.parse_text(tok)),
         }

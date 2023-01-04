@@ -38,14 +38,12 @@ impl <'a> Parser<'a> {
                     }
                 },
                 TokenKind::Escape => {
-                    let s = self.unescape_char(tok)
-                        .into_boxed_str();
-                    parts.push(TemplatePart::LiteralStr(s));
+                    let c = self.unescape_char(tok);
+                    parts.push(TemplatePart::LiteralChar(c));
                 },
                 TokenKind::Entity => {
-                    let s = self.decode_entity(tok)
-                        .into_boxed_str();
-                    parts.push(TemplatePart::LiteralStr(s));
+                    let c = self.decode_entity(tok);
+                    parts.push(TemplatePart::LiteralChar(c));
                 },
                 TokenKind::Whitespace => parts.push(TemplatePart::Whitespace),
                 

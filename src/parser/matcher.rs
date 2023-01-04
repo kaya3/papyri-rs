@@ -283,8 +283,10 @@ impl <'a> Parser<'a> {
                 TemplatePart::Literal(range) => {
                     regex_str += &regex::escape(self.src.get_span(range));
                 },
-                TemplatePart::LiteralStr(s) => {
-                    regex_str += &regex::escape(&s);
+                TemplatePart::LiteralChar(c) => {
+                    let mut arr = [0u8; 4];
+                    let s = c.encode_utf8(&mut arr);
+                    regex_str += &regex::escape(s);
                 },
                 TemplatePart::Name(Name::Simple(var)) => {
                     regex_str += "(.+?)";

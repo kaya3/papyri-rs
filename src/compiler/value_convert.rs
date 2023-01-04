@@ -154,9 +154,9 @@ impl TryConvert for Func {
     }
 }
 
-impl From<RegexValue> for Value {
-    fn from(r: RegexValue) -> Self {
-        Value::Regex(Rc::new(r))
+impl From<Rc<RegexValue>> for Value {
+    fn from(r: Rc<RegexValue>) -> Self {
+        Value::Regex(r)
     }
 }
 impl TryConvert for Rc<RegexValue> {

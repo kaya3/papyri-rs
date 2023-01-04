@@ -58,6 +58,7 @@ impl <'a> Compiler<'a> {
                 }
             },
             AST::Text(text, ..) => builder.push(text.clone().into()),
+            AST::Char(c, ..) => builder.push(c.to_string().into()),
             AST::Whitespace(..) => builder.push(HTML::Whitespace),
             AST::ParagraphBreak(..) => builder.newline(),
         }

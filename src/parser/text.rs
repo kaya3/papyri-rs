@@ -57,24 +57,28 @@ pub(crate) fn substitutions(s: &str) -> String {
 
 impl <'a> Parser<'a> {
     /// Decodes a string containing an HTML entity to the character that entity
-    /// represents. If the string is not a valid entity, a syntax error is reported.
-    pub(super) fn decode_entity(&mut self, tok: Token) -> String {
+    /// represents. If the string is not a valid entity, a syntax error is
+    /// reported and a Unicode replacement character is returned.
+    pub(super) fn decode_entity(&mut self, tok: Token) -> char {
         let s = self.tok_str(tok);
-        let decoded = entity::decode(s).iter().collect();
-        if s == decoded { self.syntax_error(SyntaxError::TokenInvalidEntity, tok.range); }
-        decoded
+        let decoded = entity::decode(s);
+        if decoded.len() == 1 {
+            decoded[0]
+        } else {
+            self.syntax_error(SyntaxError::TokenInvalidEntity, tok.range);
+            char::REPLACEMENT_CHARACTER
+        }
     }
     
     /// Decodes an escape sequence, such as `\xA0` or `\n`. If the escape sequence
     /// does not define a valid Unicode character, then a syntax error is reported
     /// and a Unicode replacement character is returned.
-    pub(super) fn unescape_char(&mut self, tok: Token) -> String {
+    pub(super) fn unescape_char(&mut self, tok: Token) -> char {
         let s = self.tok_str(tok);
         match s.chars().nth(1).unwrap() {
             'x' | 'u' | 'U' => {
-                let Ok(char_code) = u32::from_str_radix(&s[2..], 16) else {
-                    self.ice_at("failed to parse hex digits", tok.range);
-                };
+                let char_code = u32::from_str_radix(&s[2..], 16)
+                    .unwrap_or_else(|e| self.ice_at(&format!("failed to parse hex digits: {e}"), tok.range));
                 match char::from_u32(char_code) {
                     Some(c) => c,
                     None => {
@@ -86,7 +90,7 @@ impl <'a> Parser<'a> {
             'n' => '\n',
             't' => '\t',
             c => c,
-        }.to_string()
+        }
     }
     
     /// Parses literal text starting at `first_token`, until just before the
@@ -95,11 +99,10 @@ impl <'a> Parser<'a> {
     /// 
     /// `first_token` must be a token with text.
     pub(super) fn parse_text(&mut self, first_token: Token) -> AST {
-        let Some(text) = self.token_text(first_token) else {
-            self.ice_at("invalid text token", first_token.range)
-        };
+        let mut text = self.token_text(first_token)
+            .unwrap_or_else(|| self.ice_at("invalid text token", first_token.range))
+            .to_string();
         
-        let mut text = text.to_string();
         let mut range = first_token.range;
         while let Some(tok) = self.poll_if(|_self, tok| match tok.kind {
             TokenKind::LAngle => false,

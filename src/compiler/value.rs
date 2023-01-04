@@ -196,8 +196,8 @@ impl <'a> Compiler<'a> {
                 ast::TemplatePart::Literal(range) => {
                     out += self.ctx.get_source_str(*range);
                 }
-                ast::TemplatePart::LiteralStr(s) => {
-                    out += s;
+                ast::TemplatePart::LiteralChar(c) => {
+                    out.push(*c);
                 },
                 ast::TemplatePart::Name(name) => {
                     if let Some(v) = self.evaluate_name(name, &Type::Str.option()) {

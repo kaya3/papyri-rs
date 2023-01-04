@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use crate::utils::{NameID, text};
 use crate::errors::RuntimeError;
 use super::base::Compiler;
@@ -80,7 +82,7 @@ impl RegexValue {
 }
 
 impl <'a> Compiler<'a> {
-    pub(super) fn compile_regex(&mut self, regex_str: &str) -> Result<RegexValue, RuntimeError> {
+    pub(super) fn compile_regex(&mut self, regex_str: &str) -> Result<Rc<RegexValue>, RuntimeError> {
         let regex = regex::Regex::new(regex_str)
             .map_err(RuntimeError::RegexSyntaxError)?;
         
@@ -102,6 +104,6 @@ impl <'a> Compiler<'a> {
             return Err(RuntimeError::RegexMixedGroupKinds);
         };
         
-        Ok(RegexValue {regex, kind})
+        Ok(Rc::new(RegexValue {regex, kind}))
     }
 }

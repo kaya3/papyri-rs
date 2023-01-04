@@ -219,8 +219,8 @@ pub enum TemplatePart {
     /// A literal text part, represented by a source range.
     Literal(SourceRange),
     
-    /// A literal text part, represented by a string.
-    LiteralStr(Box<str>),
+    /// A literal character, either from an escape sequence or an HTML entity.
+    LiteralChar(char),
     
     /// A name expression.
     Name(Name),
@@ -231,7 +231,7 @@ pub enum TemplatePart {
 
 impl TemplatePart {
     pub(super) fn is_literal(&self) -> bool {
-        matches!(self, TemplatePart::Literal(..) | TemplatePart::LiteralStr(..))
+        matches!(self, TemplatePart::Literal(..) | TemplatePart::LiteralChar(..))
     }
 }
 
@@ -596,6 +596,9 @@ pub enum AST {
     /// Literal text. Text substitutions have already been applied.
     Text(Rc<str>, SourceRange),
     
+    /// A literal character, either from an escape sequence or an HTML entity.
+    Char(char, SourceRange),
+    
     /// Literal whitespace.
     Whitespace(SourceRange),
     
@@ -613,6 +616,7 @@ impl AST {
             
             AST::CodeFence(range, ..) |
             AST::Text(.., range) |
+            AST::Char(.., range) |
             AST::Whitespace(range) |
             AST::ParagraphBreak(range) => *range,
         }
@@ -620,6 +624,11 @@ impl AST {
     
     /// Indicates whether this AST node is whitespace or a paragraph break.
     pub(crate) fn is_whitespace(&self) -> bool {
-        matches!(self, AST::Whitespace(..) | AST::ParagraphBreak(..))
+        match self {
+            AST::Whitespace(..) |
+            AST::ParagraphBreak(..) => true,
+            AST::Char(c, ..) => c.is_ascii_whitespace(),
+            _ => false,
+        }
     }
 }

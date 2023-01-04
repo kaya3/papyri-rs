@@ -55,4 +55,16 @@ assert_matches! {
         "@str::upper `foo`",
         "`FOO`",
     );
+    
+    parse_int(
+        "@int::parse `123`",
+        "123",
+    );
+}
+
+assert_err! {
+    parse_int_fail(
+        "@int::parse `foobar`",
+        RuntimeError::ParseIntError,
+    );
 }
