@@ -179,6 +179,7 @@ impl <'a> Compiler<'a> {
         let mut children = Vec::new();
         for &(ref child, is_spread) in list.iter() {
             if is_spread {
+                // can't necessarily use `type_hint` here, because it might not be a list type
                 let grandchildren: SliceRef<Value> = self.evaluate_node(child, &child_type_hint.clone().list())?
                     .expect_convert();
                 children.extend(grandchildren.as_ref().iter().cloned());

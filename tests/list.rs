@@ -63,6 +63,16 @@ assert_matches! {
         "False",
     );
     
+    enumerate(
+        "@list::enumerate [foo, bar, baz]",
+        "=[[0, foo], [1, bar], [2, baz]]",
+    );
+    
+    enumerate_from(
+        "@list::enumerate(from=4) [foo, bar, baz]",
+        "=[[4, foo], [5, bar], [6, baz]]",
+    );
+    
     filter_none(
         "@list::filter [1, 2, ., 3, ., 4]",
         "=[1, 2, 3, 4]",

@@ -232,6 +232,16 @@ crate::native_defs! {
         }
         
         @bind_content
+        fn ENUMERATE(FROM: named Int = 0, LIST: content List) {
+            LIST.as_ref()
+                .iter()
+                .cloned()
+                .enumerate()
+                .map(|(i, v)| [Value::Int(i as Int + FROM), v].into())
+                .collect::<Vec<Value>>()
+        }
+        
+        @bind_content
         fn FILTER(FUNCTION: positional Option<Func> = (), LIST: content List) {
             if let Some(f) = FUNCTION {
                 let mut out = Vec::new();
@@ -439,6 +449,13 @@ crate::native_defs! {
                     .into()
                 )
                 .collect::<Vec<Value>>()
+        }
+        
+        fn READ(PATH: content Str) {
+            let path = compiler.resolve_relative_path(call_range.src_id, PATH.as_ref(), false);
+            std::fs::read_to_string(path)
+                .map_err(|e| compiler.runtime_error(RuntimeError::FileReadError(PATH, e), call_range))
+                .ok()?
         }
         
         fn WRITE(PATH: positional Str, HTML: content HTML) {

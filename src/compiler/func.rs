@@ -28,7 +28,7 @@ impl Func {
     pub(super) fn signature(&self) -> RcFuncSignature {
         match self {
             Func::NonNative(f) => f.signature.clone(),
-            Func::Native(_, _, sig) => sig.clone(),
+            Func::Native(.., sig) => sig.clone(),
             Func::Bound(f) => f.0.signature(),
         }
     }
@@ -60,7 +60,7 @@ impl Func {
         let mut binder = self.get_partials()
             .open(compiler, self.signature());
         
-        for arg in positional_args.as_ref().iter().cloned() {
+        for arg in positional_args.iter().cloned() {
             binder.add_positional_arg(arg, call_range);
         }
         for (&name_id, arg) in named_args.iter() {
@@ -139,7 +139,7 @@ impl <'a> Compiler<'a> {
                 let frame = f.closure.new_child_frame(bindings, func.clone(), call_range);
                 self.evaluate_in_frame(frame, |_self| _self.evaluate_node(f.body.as_ref(), type_hint))
             },
-            Func::Native(f, _, _) => {
+            Func::Native(f, ..) => {
                 let v = self.evaluate_native_func(f, bindings, call_range)?;
                 self.coerce(v, type_hint, call_range)
             },
