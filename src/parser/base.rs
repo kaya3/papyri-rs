@@ -85,7 +85,7 @@ impl <'a> Parser<'a> {
                 children.push(child);
             } else {
                 self.err_unmatched(open);
-                self.syntax_error(SyntaxError::TokenExpectedWasEOF(close_kind), self.src.eof_range());
+                self.report(SyntaxError::TokenExpectedWasEOF(close_kind), self.src.eof_range());
                 return None;
             }
             self.skip_whitespace();
@@ -132,7 +132,7 @@ impl <'a> Parser<'a> {
             
             TokenKind::Keyword(k) => match k {
                 Keyword::Export => {
-                    self.syntax_error(SyntaxError::ExportNotAllowed, tok.range);
+                    self.report(SyntaxError::ExportNotAllowed, tok.range);
                     None
                 },
                 Keyword::Fn => {
@@ -164,7 +164,7 @@ impl <'a> Parser<'a> {
             },
             
             _ => {
-                self.syntax_error(SyntaxError::ExpectedValue, tok.range);
+                self.report(SyntaxError::ExpectedValue, tok.range);
                 None
             }
         }
@@ -224,7 +224,7 @@ impl <'a> Parser<'a> {
     fn parse_number(&mut self, token: Token) -> Option<i64> {
         self.tok_str(token)
             .parse::<i64>()
-            .map_err(|e| self.syntax_error(SyntaxError::TokenInvalidNumber(e), token.range))
+            .map_err(|e| self.report(SyntaxError::TokenInvalidNumber(e), token.range))
             .ok()
     }
     
@@ -300,9 +300,9 @@ impl <'a> Parser<'a> {
             |_self| {
                 let arg = _self.parse_arg()?;
                 if arg.spread_kind == SpreadKind::Named {
-                    _self.syntax_error(SyntaxError::SpreadNamedNotAllowed, arg.range);
+                    _self.report(SyntaxError::SpreadNamedNotAllowed, arg.range);
                 } else if !arg.is_positional() {
-                    _self.syntax_error(SyntaxError::ArgNamedNotAllowed, arg.range);
+                    _self.report(SyntaxError::ArgNamedNotAllowed, arg.range);
                 }
                 Some((arg.value, arg.spread_kind == SpreadKind::Positional))
             },
@@ -343,7 +343,7 @@ impl <'a> Parser<'a> {
         let child = self.parse_expr_or_ellipsis()?;
         
         if child.is_literal() && !is_export {
-            self.syntax_error(SyntaxError::LetInLiteral, child.range());
+            self.report(SyntaxError::LetInLiteral, child.range());
         }
         
         Some(LetIn {
@@ -358,7 +358,7 @@ impl <'a> Parser<'a> {
         let args = match self.parse_args() {
             Some(args) if !args.is_empty() => args,
             _ => {
-                self.syntax_error(SyntaxError::DeclMissingArgs, at.range);
+                self.report(SyntaxError::DeclMissingArgs, at.range);
                 return None;
             },
         };
@@ -367,10 +367,10 @@ impl <'a> Parser<'a> {
             .filter_map(|arg| {
                 if arg.is_spread() {
                     let e = if arg.is_positional() { SyntaxError::SpreadPositionalNotAllowed } else { SyntaxError::SpreadNamedNotAllowed };
-                    self.syntax_error(e, arg.range);
+                    self.report(e, arg.range);
                     None
                 } else if arg.is_positional() {
-                    self.syntax_error(SyntaxError::DeclPositionalArg, arg.range);
+                    self.report(SyntaxError::DeclPositionalArg, arg.range);
                     None
                 } else {
                     Some((arg.name_id, arg.value))

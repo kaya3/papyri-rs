@@ -6,31 +6,73 @@ use super::module_error::ModuleError;
 use super::runtime_error::{RuntimeError, NameError};
 use super::syntax_error::SyntaxError;
 use super::type_error::TypeError;
-use super::warning::{Warning, RuntimeWarning};
+use super::warning::Warning;
 
 #[allow(missing_docs)]
 /// Represents an error or warning which occurs while attempting to compile a
 /// Papyri source file.
 pub enum PapyriError {
-    ModuleError(Box<std::path::Path>, ModuleError),
+    ModuleError(ModuleError),
     NameError(NameError),
     RuntimeError(RuntimeError),
     SyntaxError(SyntaxError),
     TypeError(TypeError),
     Warning(Warning),
-    RuntimeWarning(RuntimeWarning),
+}
+
+impl PapyriError {
+    fn severity(&self) -> Severity {
+        match self {
+            PapyriError::ModuleError(..) |
+            PapyriError::NameError(..) |
+            PapyriError::RuntimeError(..) |
+            PapyriError::SyntaxError(..) |
+            PapyriError::TypeError(..) => Severity::Error,
+            PapyriError::Warning(..) => Severity::Warning,
+        }
+    }
+}
+
+impl From<ModuleError> for PapyriError {
+    fn from(e: ModuleError) -> PapyriError {
+        PapyriError::ModuleError(e)
+    }
+}
+impl From<NameError> for PapyriError {
+    fn from(e: NameError) -> PapyriError {
+        PapyriError::NameError(e)
+    }
+}
+impl From<RuntimeError> for PapyriError {
+    fn from(e: RuntimeError) -> PapyriError {
+        PapyriError::RuntimeError(e)
+    }
+}
+impl From<SyntaxError> for PapyriError {
+    fn from(e: SyntaxError) -> PapyriError {
+        PapyriError::SyntaxError(e)
+    }
+}
+impl From<TypeError> for PapyriError {
+    fn from(e: TypeError) -> PapyriError {
+        PapyriError::TypeError(e)
+    }
+}
+impl From<Warning> for PapyriError {
+    fn from(e: Warning) -> PapyriError {
+        PapyriError::Warning(e)
+    }
 }
 
 impl std::fmt::Display for PapyriError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            PapyriError::ModuleError(path, e) => write!(f, "Module error: {e} in \"{}\"", path.to_string_lossy()),
+            PapyriError::ModuleError(e) => write!(f, "Module error: {e}"),
             PapyriError::NameError(e) => write!(f, "Name error: {e}"),
             PapyriError::RuntimeError(e) => write!(f, "Runtime error: {e}"),
             PapyriError::SyntaxError(e) => write!(f, "Syntax error: {e}"),
             PapyriError::TypeError(e) => write!(f, "Type error: {e}"),
             PapyriError::Warning(e) => write!(f, "Warning: {e}"),
-            PapyriError::RuntimeWarning(e) => write!(f, "Warning: {e}"),
         }
     }
 }
@@ -40,44 +82,18 @@ impl std::fmt::Display for PapyriError {
 pub type Diagnostics = DiagnosticSink<PapyriError>;
 
 impl Diagnostics {
-    /// Reports a syntax error in a Papyri source file.
-    pub fn syntax_error(&mut self, e: SyntaxError, src: Rc<SourceFile>, range: SourceRange) {
-        self.add(Severity::Error, PapyriError::SyntaxError(e), src, range, None);
+    /// Reports a static diagnostic in a Papyri source file (i.e. one with no
+    /// stack trace).
+    pub fn report_static<T: Into<PapyriError>>(&mut self, e: T, src: Rc<SourceFile>, range: SourceRange) {
+        let e = e.into();
+        self.add(e.severity(), e, src, range, None);
     }
     
-    /// Reports a type error in a Papyri source file.
-    pub fn type_error(&mut self, e: TypeError, trace: StackTrace, src: Rc<SourceFile>, range: SourceRange) {
-        self.add(Severity::Error, PapyriError::TypeError(e), src, range, Some(trace));
-    }
-    
-    /// Reports an error which occurs while loading a Papyri module.
-    pub fn module_error<P: AsRef<std::path::Path>>(&mut self, path: P, e: ModuleError, src: Rc<SourceFile>, range: SourceRange) {
-        let path = path.as_ref().into();
-        self.add(Severity::Error, PapyriError::ModuleError(path, e), src, range, None);
-    }
-    
-    /// Reports a name error which occurs during compilation of a Papyri source
-    /// file. A name error indicates that a variable or parameter of some name
-    /// has not been declared.
-    pub fn name_error(&mut self, e: NameError, trace: StackTrace, src: Rc<SourceFile>, range: SourceRange) {
-        self.add(Severity::Error, PapyriError::NameError(e), src, range, Some(trace));
-    }
-    
-    /// Reports a runtime error by adding it to the collection. This occurs
-    /// only when the Papyri program itself uses the native `@raise` function
-    /// to raise an error.
-    pub fn runtime_error(&mut self, e: RuntimeError, trace: StackTrace, src: Rc<SourceFile>, range: SourceRange) {
-        self.add(Severity::Error, PapyriError::RuntimeError(e), src, range, Some(trace));
-    }
-    
-    /// Reports a warning.
-    pub fn warning(&mut self, e: Warning, src: Rc<SourceFile>, range: SourceRange) {
-        self.add(Severity::Warning, PapyriError::Warning(e), src, range, None);
-    }
-    
-    /// Reports a warning with a stack trace.
-    pub fn runtime_warning(&mut self, e: RuntimeWarning, trace: StackTrace, src: Rc<SourceFile>, range: SourceRange) {
-        self.add(Severity::Warning, PapyriError::RuntimeWarning(e), src, range, Some(trace));
+    /// Reports a diagnostic in a Papyri source file, with an associated stack
+    /// trace.
+    pub fn report<T: Into<PapyriError>>(&mut self, e: T, trace: StackTrace, src: Rc<SourceFile>, range: SourceRange) {
+        let e = e.into();
+        self.add(e.severity(), e, src, range, Some(trace));
     }
 }
 

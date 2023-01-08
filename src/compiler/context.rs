@@ -56,10 +56,6 @@ impl Context {
         ctx
     }
     
-    pub(crate) fn get_source_str(&self, range: SourceRange) -> &str {
-        self.source_files.get_str(range)
-    }
-    
     /// Adds an output file to this context's collector. The operation may fail
     /// if this context has no output file collector, or if the path is not
     /// within the output directory.
@@ -90,32 +86,20 @@ impl <'a> Compiler<'a> {
         self.ctx.source_files.get(range.src_id)
     }
     
+    pub(crate) fn get_source_str(&self, range: SourceRange) -> &str {
+        self.ctx.source_files.get_str(range)
+    }
+    
     pub(super) fn ice_at(&self, msg: &str, range: SourceRange) -> ! {
         errors::ice_at(msg, self.get_source_file(range).as_ref(), range)
     }
     
-    pub(super) fn name_error(&mut self, e: errors::NameError, range: SourceRange) {
-        self.ctx.diagnostics.name_error(e, self.stack_trace(), self.get_source_file(range), range);
+    pub(super) fn report_static<T: Into<errors::PapyriError>>(&mut self, e: T, range: SourceRange) {
+        self.ctx.diagnostics.report_static(e, self.get_source_file(range), range);
     }
     
-    pub(super) fn type_error(&mut self, e: errors::TypeError, range: SourceRange) {
-        self.ctx.diagnostics.type_error(e, self.stack_trace(), self.get_source_file(range), range);
-    }
-    
-    pub(super) fn runtime_error(&mut self, e: errors::RuntimeError, range: SourceRange) {
-        self.ctx.diagnostics.runtime_error(e, self.stack_trace(), self.get_source_file(range), range);
-    }
-    
-    pub(super) fn warning(&mut self, e: errors::Warning, range: SourceRange) {
-        self.ctx.diagnostics.warning(e, self.get_source_file(range), range);
-    }
-    
-    pub(super) fn runtime_warning(&mut self, e: errors::RuntimeWarning, range: SourceRange) {
-        self.ctx.diagnostics.runtime_warning(e, self.stack_trace(), self.get_source_file(range), range);
-    }
-    
-    pub(super) fn module_error(&mut self, path: &std::path::Path, e: errors::ModuleError, range: SourceRange) {
-        self.ctx.diagnostics.module_error(path, e, self.get_source_file(range), range);
+    pub(super) fn report<T: Into<errors::PapyriError>>(&mut self, e: T, range: SourceRange) {
+        self.ctx.diagnostics.report(e.into(), self.stack_trace(), self.get_source_file(range), range);
     }
     
     pub(super) fn string_pool(&self) -> &StringPool {

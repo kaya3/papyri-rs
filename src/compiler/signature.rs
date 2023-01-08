@@ -265,7 +265,7 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
             (param.type_.component_type(), &mut self.bound.spread_named)
         } else {
             let name = self.compiler.get_name(name_id);
-            self.compiler.name_error(errors::NameError::NoSuchParameter(name), range);
+            self.compiler.report(errors::NameError::NoSuchParameter(name), range);
             self.any_errors = true;
             return;
         };
@@ -273,7 +273,7 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
             Some(v) => {
                 if map.insert(name_id, v).is_some() {
                     let name = self.compiler.get_name(name_id);
-                    self.compiler.runtime_error(errors::RuntimeError::ParamMultipleValues(name), range);
+                    self.compiler.report(errors::RuntimeError::ParamMultipleValues(name), range);
                     self.any_errors = true;
                 }
             },
@@ -287,7 +287,7 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
         
         if self.bound.map.contains_key(&name_id) {
             if !content_value.is_unit() {
-                self.compiler.type_error(
+                self.compiler.report(
                     errors::TypeError::ContentAlreadyBound,
                     range,
                 );
@@ -306,7 +306,7 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
         let sig = self.sig.as_ref();
         
         if sig.spread_param.is_none() && self.bound.positional_arg_count > sig.positional_params.len() {
-            self.compiler.type_error(
+            self.compiler.report(
                 errors::TypeError::TooManyPositionalArgs(
                     sig.positional_params.len(),
                     self.bound.positional_arg_count,
@@ -340,7 +340,7 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
         if self.bound.positional_arg_count < sig.positional_params.len() {
             for param in &sig.positional_params[self.bound.positional_arg_count..] {
                 let Some(v) = &param.default_value else {
-                    self.compiler.type_error(
+                    self.compiler.report(
                         errors::TypeError::NotEnoughPositionalArgs(
                             sig.positional_params.iter().filter(|p| p.default_value.is_none()).count(),
                             self.bound.positional_arg_count,
@@ -356,7 +356,7 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
             if self.bound.map.contains_key(&param.name_id) { continue; }
             let Some(v) = &param.default_value else {
                 let name = self.compiler.get_name(param.name_id);
-                self.compiler.runtime_error(errors::RuntimeError::ParamMissing(name), call_range);
+                self.compiler.report(errors::RuntimeError::ParamMissing(name), call_range);
                 return None;
             };
             self.bound.map.insert(param.name_id, *v.clone());

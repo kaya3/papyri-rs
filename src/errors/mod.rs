@@ -10,7 +10,7 @@ pub use module_error::ModuleError;
 pub use runtime_error::{NameError, RuntimeError};
 pub use syntax_error::SyntaxError;
 pub use type_error::TypeError;
-pub use warning::{Warning, RuntimeWarning};
+pub use warning::Warning;
 
 mod sink;
 mod sink_base;

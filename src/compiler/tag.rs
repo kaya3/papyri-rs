@@ -70,7 +70,7 @@ impl <'a> Compiler<'a> {
                     } else if name_str.eq_ignore_ascii_case("!DOCTYPE") {
                         str_ids::_DOCTYPE
                     } else {
-                        self.name_error(errors::NameError::InvalidTag(name_str), name.range());
+                        self.report(errors::NameError::InvalidTag(name_str), name.range());
                         str_ids::ANONYMOUS
                     }
                 },
@@ -116,7 +116,7 @@ impl <'a> Compiler<'a> {
     fn add_attr(&mut self, attrs: &mut AttrMap, name_id: NameID, value: Option<Rc<str>>, range: SourceRange) {
         if attrs.insert(name_id, value).is_some() {
             let name = self.get_name(name_id);
-            self.runtime_error(errors::RuntimeError::AttrMultipleValues(name), range);
+            self.report(errors::RuntimeError::AttrMultipleValues(name), range);
         }
     }
 }

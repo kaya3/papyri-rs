@@ -28,7 +28,7 @@ impl <'a> Compiler<'a> {
     pub(super) fn try_evaluate<T: TryConvert>(&mut self, node: &Expr) -> Option<T> {
         self.evaluate_node(node, &T::as_type())?
             .try_convert()
-            .map_err(|e| self.type_error(e, node.range()))
+            .map_err(|e| self.report(e, node.range()))
             .ok()
     }
 }

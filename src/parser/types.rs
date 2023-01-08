@@ -145,7 +145,7 @@ impl <'a> Parser<'a> {
             "list" => Type::Any.list(),
             "dict" => Type::Any.dict(),
             _ => {
-                self.syntax_error(SyntaxError::TokenInvalidPrimitiveType, begin_token.range);
+                self.report(SyntaxError::TokenInvalidPrimitiveType, begin_token.range);
                 Type::Any
             },
         };
@@ -159,12 +159,12 @@ impl <'a> Parser<'a> {
                 "list" => t = t.list(),
                 "dict" => t = t.dict(),
                 "?" => if t.unit_is_assignable() {
-                    self.diagnostics.warning(Warning::RedundantOptionType, self.src.clone(), group_tok.range);
+                    self.report(Warning::RedundantOptionType, group_tok.range);
                 } else {
                     t = Type::Optional(Box::new(t));
                 },
                 _ => {
-                    self.syntax_error(SyntaxError::TokenInvalidGroupType, begin_token.range);
+                    self.report(SyntaxError::TokenInvalidGroupType, begin_token.range);
                 },
             }
             range.end = group_tok.range.end;

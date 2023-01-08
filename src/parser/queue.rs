@@ -25,7 +25,7 @@ impl <'a> Parser<'a> {
     pub(super) fn expect_poll(&mut self) -> Option<Token> {
         let t = self.poll();
         if t.is_none() {
-            self.syntax_error(SyntaxError::UnexpectedEOF, self.src.eof_range());
+            self.report(SyntaxError::UnexpectedEOF, self.src.eof_range());
         }
         t
     }
@@ -35,7 +35,7 @@ impl <'a> Parser<'a> {
     pub(super) fn expect_poll_kind(&mut self, kind: TokenKind) -> Option<Token> {
         match self.tokens.last() {
             Some(tok) if tok.kind != kind => {
-                self.syntax_error(SyntaxError::TokenExpectedWas(kind, tok.kind), tok.range);
+                self.report(SyntaxError::TokenExpectedWas(kind, tok.kind), tok.range);
                 None
             },
             _ => self.expect_poll(),

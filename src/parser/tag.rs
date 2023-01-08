@@ -19,7 +19,7 @@ impl <'a> Parser<'a> {
             TokenKind::ExclamationMark => {
                 let doctype = self.expect_poll()?;
                 if !self.tok_str(doctype).eq_ignore_ascii_case("DOCTYPE") {
-                    self.syntax_error(SyntaxError::TokenExpectedDoctype, doctype.range);
+                    self.report(SyntaxError::TokenExpectedDoctype, doctype.range);
                     return None;
                 }
                 (TagName::Literal(str_ids::_DOCTYPE), str_ids::_DOCTYPE)
@@ -39,7 +39,7 @@ impl <'a> Parser<'a> {
             if let TagAttrOrSpread::Attr(attr) = attr {
                 if !names_used.insert(attr.name_id) {
                     let name = self.string_pool.get(attr.name_id);
-                    self.syntax_error(SyntaxError::TagDuplicateAttr(name), attr.range)
+                    self.report(SyntaxError::TagDuplicateAttr(name), attr.range)
                 }
             }
         }
@@ -56,7 +56,7 @@ impl <'a> Parser<'a> {
         
         if !self_closing {
             let (children, Some(close)) = self.parse_nodes_until(|_self, tok| _self.is_close_tag(tok, name_id)) else {
-                self.syntax_error(SyntaxError::TagUnmatchedOpen, tag.range);
+                self.report(SyntaxError::TagUnmatchedOpen, tag.range);
                 return None;
             };
             tag.range.end = close.range.end;
@@ -84,7 +84,7 @@ impl <'a> Parser<'a> {
         if self.poll_if_kind(TokenKind::Equals).is_none() {
             return match question_mark {
                 Some(q) => {
-                    self.syntax_error(SyntaxError::TokenExpected(TokenKind::Equals), q.range);
+                    self.report(SyntaxError::TokenExpected(TokenKind::Equals), q.range);
                     None
                 },
                 None => Some(TagAttrOrSpread::Attr(TagAttribute {

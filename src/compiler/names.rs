@@ -45,7 +45,7 @@ impl <'a> Compiler<'a> {
         }
         
         let name = self.get_name(attr_id);
-        self.name_error(errors::NameError::NoSuchAttribute(subject.get_type(), name), attr.range);
+        self.report(errors::NameError::NoSuchAttribute(subject.get_type(), name), attr.range);
         None
     }
     
@@ -68,7 +68,7 @@ impl <'a> Compiler<'a> {
         } else if i >= -n && i < 0 {
             Some(list.get((i + n) as usize).clone())
         } else {
-            self.runtime_error(errors::RuntimeError::IndexOutOfRange(i, list.len()), range);
+            self.report(errors::RuntimeError::IndexOutOfRange(i, list.len()), range);
             None
         }
     }

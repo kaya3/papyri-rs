@@ -65,7 +65,7 @@ impl <'a> Parser<'a> {
         if decoded.len() == 1 {
             decoded[0]
         } else {
-            self.syntax_error(SyntaxError::TokenInvalidEntity, tok.range);
+            self.report(SyntaxError::TokenInvalidEntity, tok.range);
             char::REPLACEMENT_CHARACTER
         }
     }
@@ -82,7 +82,7 @@ impl <'a> Parser<'a> {
                 match char::from_u32(char_code) {
                     Some(c) => c,
                     None => {
-                        self.syntax_error(SyntaxError::TokenInvalidEscape, tok.range);
+                        self.report(SyntaxError::TokenInvalidEscape, tok.range);
                         char::REPLACEMENT_CHARACTER
                     },
                 }

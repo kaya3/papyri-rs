@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::errors::{NameError, RuntimeError, Warning, StackTrace, RuntimeWarning, DiagSourceRange};
+use crate::errors::{NameError, RuntimeError, Warning, StackTrace, DiagSourceRange};
 use crate::utils::{NameID, NameIDSet};
 use crate::utils::sourcefile::SourceRange;
 use super::base::Compiler;
@@ -147,7 +147,7 @@ impl <'a> Compiler<'a> {
         let r = self.frame().get(name_id, false);
         if r.is_none() {
             let name = self.get_name(name_id);
-            self.name_error(NameError::NoSuchVariable(name), range);
+            self.report(NameError::NoSuchVariable(name), range);
         }
         r
     }
@@ -157,11 +157,11 @@ impl <'a> Compiler<'a> {
         if r.is_none() {
             if default_value.is_none() {
                 let name = self.get_name(name_id);
-                self.runtime_error(RuntimeError::ParamMissingImplicit(name), range);
+                self.report(RuntimeError::ParamMissingImplicit(name), range);
             }
             if self.frame().get(name_id, false).is_some() {
                 let name = self.get_name(name_id);
-                self.runtime_warning(RuntimeWarning::NameNotImplicit(name), range);
+                self.report(Warning::NameNotImplicit(name), range);
             }
         }
         r.or(default_value)
@@ -170,7 +170,7 @@ impl <'a> Compiler<'a> {
     pub(super) fn set_var(&mut self, name_id: NameID, value: Value, implicit: bool, range: SourceRange) {
         if self.frame().set(name_id, value, implicit) {
             let name = self.get_name(name_id);
-            self.warning(Warning::NameAlreadyDeclared(name), range);
+            self.report_static(Warning::NameAlreadyDeclared(name), range);
         }
     }
     

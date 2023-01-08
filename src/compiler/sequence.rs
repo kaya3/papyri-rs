@@ -70,7 +70,7 @@ impl <'a> Compiler<'a> {
             SequenceError::ParagraphBreakNotAllowed => TypeError::ParagraphBreakNotAllowed,
             SequenceError::NoContentAllowed => TypeError::NoContentAllowed,
         };
-        self.type_error(e, range);
+        self.report(e, range);
     }
 }
 

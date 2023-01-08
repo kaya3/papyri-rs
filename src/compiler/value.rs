@@ -150,14 +150,14 @@ impl <'a> Compiler<'a> {
             Expr::Unit(..) => Value::UNIT,
             &Expr::Bool(b, ..) => b.into(),
             &Expr::Int(i, ..) => i.into(),
-            &Expr::BareString(range) => self.ctx.get_source_str(range).into(),
+            &Expr::BareString(range) => self.get_source_str(range).into(),
             &Expr::Verbatim(range) => self.evaluate_verbatim(range),
             
             Expr::FuncCall(call) => return self.evaluate_func_call(call, type_hint),
             Expr::FuncDef(def) => {
                 let v = Value::Func(self.compile_func_def(def));
                 if type_hint.is_html() {
-                    self.type_error(TypeError::ExpectedWas(type_hint.clone(), v.get_type()), def.range);
+                    self.report(TypeError::ExpectedWas(type_hint.clone(), v.get_type()), def.range);
                     return None;
                 }
                 v
@@ -195,7 +195,7 @@ impl <'a> Compiler<'a> {
         for part in parts.iter() {
             match part {
                 ast::TemplatePart::Literal(range) => {
-                    out += self.ctx.get_source_str(*range);
+                    out += self.get_source_str(*range);
                 }
                 ast::TemplatePart::LiteralChar(c) => {
                     out.push(*c);
@@ -231,7 +231,7 @@ impl <'a> Compiler<'a> {
     }
     
     pub(super) fn evaluate_verbatim(&mut self, range: SourceRange) -> Value {
-        token::Token::get_verbatim_text(self.ctx.get_source_str(range))
+        token::Token::get_verbatim_text(self.get_source_str(range))
             .into()
     }
     

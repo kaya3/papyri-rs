@@ -22,7 +22,7 @@ impl <'a> Parser<'a> {
         let body = Rc::new(self.parse_expr()?);
         
         if name_id.is_anonymous() && !allow_anonymous {
-            self.syntax_error(SyntaxError::AnonymousFunctionNotAllowed, at.range);
+            self.report(SyntaxError::AnonymousFunctionNotAllowed, at.range);
             return None;
         }
         Some(FuncDef {
@@ -54,7 +54,7 @@ impl <'a> Parser<'a> {
             TokenKind::DoubleAsterisk if allow_named => SpreadKind::Named,
             _ => {
                 let e = if tok.kind == TokenKind::Asterisk { SyntaxError::SpreadPositionalNotAllowed } else { SyntaxError::SpreadNamedNotAllowed };
-                self.syntax_error(e, tok.range);
+                self.report(e, tok.range);
                 SpreadKind::NoSpread
             },
         };
@@ -90,20 +90,20 @@ impl <'a> Parser<'a> {
                 
                 if !names_used.insert(param.name_id) {
                     let name = self.string_pool.get(param.name_id);
-                    self.syntax_error(SyntaxError::ParamDuplicateName(name), param.range);
+                    self.report(SyntaxError::ParamDuplicateName(name), param.range);
                 } else if is_positional && any_named_params {
-                    self.syntax_error(SyntaxError::ParamPositionalAfterNamed, param.range);
+                    self.report(SyntaxError::ParamPositionalAfterNamed, param.range);
                 } else if is_required && (if is_positional { any_optional_params } else { any_optional_named_params }) {
-                    self.syntax_error(SyntaxError::ParamRequiredAfterOptional, param.range);
+                    self.report(SyntaxError::ParamRequiredAfterOptional, param.range);
                 } else if is_positional && param.is_implicit {
-                    self.syntax_error(SyntaxError::ParamPositionalImplicit, param.range);
+                    self.report(SyntaxError::ParamPositionalImplicit, param.range);
                 } else if is_spread && param.is_implicit {
-                    self.syntax_error(SyntaxError::ParamSpreadImplicit, param.range);
+                    self.report(SyntaxError::ParamSpreadImplicit, param.range);
                 } else if param.is_implicit && param.default_value.is_some() {
-                    self.syntax_error(SyntaxError::ParamDefaultImplicit, param.range);
+                    self.report(SyntaxError::ParamDefaultImplicit, param.range);
                 } else if (is_positional && positional_spread) || (!is_positional && named_spread) {
                     let msg = if is_spread { SyntaxError::ParamMultipleSpread } else { SyntaxError::ParamAfterSpread };
-                    self.syntax_error(msg, param.range);
+                    self.report(msg, param.range);
                 }
                 
                 match (is_positional, is_spread) {
@@ -118,14 +118,14 @@ impl <'a> Parser<'a> {
                     },
                     (false, true) => {
                         if is_underscore {
-                            self.syntax_error(SyntaxError::ParamNamedSpreadUnderscore, param.range);
+                            self.report(SyntaxError::ParamNamedSpreadUnderscore, param.range);
                         }
                         any_named_params = true;
                         named_spread = true;
                     },
                     (true, true) => {
                         if !is_underscore {
-                            self.syntax_error(SyntaxError::ParamPositionalSpreadNoUnderscore, param.range);
+                            self.report(SyntaxError::ParamPositionalSpreadNoUnderscore, param.range);
                         }
                         positional_spread = true;
                     },
@@ -140,9 +140,9 @@ impl <'a> Parser<'a> {
         } else {
             let (c, spread_kind, _) = self.parse_param()?;
             if spread_kind != SpreadKind::NoSpread {
-                self.syntax_error(SyntaxError::ParamContentSpread, c.range);
+                self.report(SyntaxError::ParamContentSpread, c.range);
             } else if let Some(value) = c.default_value.as_ref() {
-                self.syntax_error(SyntaxError::ParamContentDefault, value.range());
+                self.report(SyntaxError::ParamContentDefault, value.range());
             }
             let range = c.range;
             params.push(c);
@@ -182,13 +182,13 @@ impl <'a> Parser<'a> {
             if !arg.name_id.is_anonymous() {
                 if !names_used.insert(arg.name_id) {
                     let name = self.string_pool.get(arg.name_id);
-                    self.syntax_error(SyntaxError::ArgDuplicateName(name), arg.range);
+                    self.report(SyntaxError::ArgDuplicateName(name), arg.range);
                 }
                 any_named = true;
             } else if arg.spread_kind == SpreadKind::Named {
                 any_named = true;
             } else if any_named {
-                self.syntax_error(SyntaxError::ArgPositionalAfterNamed, arg.range);
+                self.report(SyntaxError::ArgPositionalAfterNamed, arg.range);
             }
         };
         
@@ -222,7 +222,7 @@ impl <'a> Parser<'a> {
             None
         };
         if default_value.is_some() && spread_kind != SpreadKind::NoSpread {
-            self.syntax_error(SyntaxError::ParamSpreadDefault, default_value.as_ref().unwrap().range());
+            self.report(SyntaxError::ParamSpreadDefault, default_value.as_ref().unwrap().range());
         }
         
         let end = default_value.as_ref()
@@ -266,7 +266,7 @@ impl <'a> Parser<'a> {
         self.skip_whitespace();
         Some(if self.poll_if_kind(TokenKind::Equals).is_some() {
             if let Some(spread_range) = spread_range {
-                self.syntax_error(SyntaxError::ArgSpreadNamed, spread_range);
+                self.report(SyntaxError::ArgSpreadNamed, spread_range);
             }
             let value = self.parse_expr()?;
             Arg {

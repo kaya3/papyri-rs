@@ -88,7 +88,7 @@ impl Context {
     pub fn load_uncached(&mut self, path: &path::Path) -> Result<CompileResult, ModuleError> {
         self.source_files.load_from_path(path)
             .map(|src| self.compile(src))
-            .map_err(ModuleError::IOError)
+            .map_err(|e| ModuleError::IOError(path.into(), e))
     }
     
     /// Loads a Papyri source file from the filesystem and compiles it, or
@@ -102,7 +102,7 @@ impl Context {
     /// by another Papyri source file.
     pub fn load_cached(&mut self, path: &path::Path) -> Result<CachedCompileResult, ModuleError> {
         let k = fs::canonicalize(path)
-            .map_err(ModuleError::IOError)?;
+            .map_err(|e| ModuleError::IOError(path.into(), e))?;
         
         match self.module_cache.get(&k) {
             ModuleState::NotLoaded => {
@@ -123,8 +123,8 @@ impl Context {
                 result
             },
             ModuleState::Loaded(cached_result) => Ok(cached_result),
-            ModuleState::Busy => Err(ModuleError::CircularImport),
-            ModuleState::Error => Err(ModuleError::PreviousError),
+            ModuleState::Busy => Err(ModuleError::CircularImport(path.into())),
+            ModuleState::Error => Err(ModuleError::PreviousError(path.into())),
         }
     }
     

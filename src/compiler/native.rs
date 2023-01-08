@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use crate::errors::{RuntimeError, RuntimeWarning, ModuleError, TypeError, NameError};
+use crate::errors::{RuntimeError, Warning, ModuleError, TypeError, NameError};
 use crate::utils::{str_ids, text, relpath, SliceRef};
 use crate::utils::sourcefile::{SourceRange, SourceFileID};
 use crate::parser::Type;
@@ -65,7 +65,7 @@ crate::native_defs! {
             match PARAM.parse::<Int>() {
                 Ok(r) => r,
                 Err(e) => {
-                    compiler.runtime_error(RuntimeError::ParseIntError(e), call_range);
+                    compiler.report(RuntimeError::ParseIntError(e), call_range);
                     return None;
                 },
             }
@@ -129,7 +129,7 @@ crate::native_defs! {
         fn UNIQUE_ID(MAX_LENGTH: named Int = 128, BASE: content Str) {
             if MAX_LENGTH <= 0 {
                 let e = RuntimeError::ParamMustBePositive(compiler.get_name(str_ids::MAX_LENGTH), MAX_LENGTH);
-                compiler.runtime_error(e, call_range);
+                compiler.report(e, call_range);
                 return None;
             }
             
@@ -145,7 +145,7 @@ crate::native_defs! {
     impl REGEX for Regex {
         fn COMPILE(SOURCE: content Str) {
             compiler.compile_regex(SOURCE.as_ref())
-                .map_err(|e| compiler.runtime_error(e, call_range))
+                .map_err(|e| compiler.report(e, call_range))
                 .ok()?
         }
         
@@ -357,10 +357,10 @@ crate::native_defs! {
                     )?;
                 
                 if !matches!(k, Value::Int(_) | Value::Str(_)) {
-                    compiler.type_error(TypeError::SortKeyInvalid(k.get_type()), call_range);
+                    compiler.report(TypeError::SortKeyInvalid(k.get_type()), call_range);
                     return None;
                 } else if matches!((&key_type, &k), (Type::Int, Value::Str(_)) | (Type::Str, Value::Int(_))) {
-                    compiler.type_error(TypeError::SortKeyHeterogeneous, call_range);
+                    compiler.report(TypeError::SortKeyHeterogeneous, call_range);
                     return None;
                 } else if matches!(key_type, Type::Unit) {
                     key_type = k.get_type();
@@ -396,7 +396,7 @@ crate::native_defs! {
         fn GET(KEY: positional Str, DICT: content Dict) {
             let Some(v) = compiler.ctx.string_pool.get_id_if_present(KEY.as_ref())
                 .and_then(|key_id| DICT.get(&key_id)) else {
-                    compiler.name_error(NameError::NoSuchAttribute(Type::Any.dict(), KEY), call_range);
+                    compiler.report(NameError::NoSuchAttribute(Type::Any.dict(), KEY), call_range);
                     return None;
                 };
             v.clone()
@@ -440,7 +440,7 @@ crate::native_defs! {
             let base_path = PATH.trim_end_matches('/');
             relpath::find_papyri_source_files_in_dir(
                     &path,
-                    |p, e| compiler.module_error(p, ModuleError::IOError(e), call_range),
+                    |p, e| compiler.report_static(ModuleError::IOError(p.into(), e), call_range),
                 )?
                 .into_iter()
                 .map(|p| format!("{base_path}/{}", p.to_string_lossy())
@@ -454,13 +454,13 @@ crate::native_defs! {
         fn READ(PATH: content Str) {
             let path = compiler.resolve_relative_path(call_range.src_id, PATH.as_ref(), false);
             std::fs::read_to_string(path)
-                .map_err(|e| compiler.runtime_error(RuntimeError::FileReadError(PATH, e), call_range))
+                .map_err(|e| compiler.report(RuntimeError::FileReadError(PATH, e), call_range))
                 .ok()?
         }
         
         fn WRITE(PATH: positional Str, HTML: content HTML) {
             compiler.ctx.push_out_file(PATH, HTML)
-                .map_err(|e| compiler.runtime_error(e, call_range))
+                .map_err(|e| compiler.report(e, call_range))
                 .ok()?;
         }
     }
@@ -481,7 +481,7 @@ crate::native_defs! {
     fn IMPORT(PATH: content Str) {
         let path = compiler.resolve_relative_path(call_range.src_id, PATH.as_ref(), true);
         let (_, module_exports) = compiler.ctx.load_cached(&path)
-            .map_err(|e| compiler.module_error(&path, e, call_range))
+            .map_err(|e| compiler.report_static(e, call_range))
             .ok()?;
         
         module_exports
@@ -490,7 +490,7 @@ crate::native_defs! {
     fn INCLUDE(PATH: content Str) {
         let path = compiler.resolve_relative_path(call_range.src_id, PATH.as_ref(), true);
         let (module_out, module_exports) = compiler.ctx.load_cached(&path)
-            .map_err(|e| compiler.module_error(&path, e, call_range))
+            .map_err(|e| compiler.report_static(e, call_range))
             .ok()?;
         
         for (&k, v) in module_exports.as_ref().iter() {
@@ -500,7 +500,7 @@ crate::native_defs! {
     }
     
     fn RAISE(STR: content Str) {
-        compiler.runtime_error(RuntimeError::Raised(STR), call_range);
+        compiler.report(RuntimeError::Raised(STR), call_range);
         return None;
     }
 }
@@ -519,11 +519,11 @@ impl <'a> Compiler<'a> {
                     Some(lines)
                 } else {
                     let w = if cfg!(feature = "syntect") {
-                        RuntimeWarning::HighlightLanguageUnknown(language.into())
+                        Warning::HighlightLanguageUnknown(language.into())
                     } else {
-                        RuntimeWarning::HighlightNotEnabled
+                        Warning::HighlightNotEnabled
                     };
-                    self.runtime_warning(w, call_range);
+                    self.report(w, call_range);
                     None
                 }
             })
@@ -533,10 +533,10 @@ impl <'a> Compiler<'a> {
             enumerate_lines(lines, first_line_no)
         } else {
             if first_line_no != 1 {
-                self.runtime_warning(RuntimeWarning::InlineHighlightEnumerate, call_range);
+                self.report(Warning::InlineHighlightEnumerate, call_range);
             }
             if lines.len() > 1 {
-                self.runtime_warning(RuntimeWarning::InlineHighlightMultiline, call_range);
+                self.report(Warning::InlineHighlightMultiline, call_range);
             }
             HTML::seq(lines)
         };

@@ -1,4 +1,4 @@
-use crate::errors::{Warning, RuntimeWarning};
+use crate::errors;
 use crate::parser::{ast, Type};
 use super::base::Compiler;
 use super::html::HTML;
@@ -22,7 +22,7 @@ impl <'a> Compiler<'a> {
             if let Ok(r) = r { return r; }
         }
         
-        self.runtime_warning(RuntimeWarning::NoMatchingBranch, match_.range);
+        self.report(errors::Warning::NoMatchingBranch, match_.range);
         Some(Value::UNIT)
     }
     
@@ -190,7 +190,7 @@ impl <'a> Compiler<'a> {
     fn bind_one(&mut self, var: &ast::SimpleName, value: Value) {
         if self.frame().set(var.name_id, value, false) {
             let name = self.get_name(var.name_id);
-            self.warning(Warning::PatternNameAlreadyBound(name), var.range);
+            self.report_static(errors::Warning::PatternNameAlreadyBound(name), var.range);
         }
     }
 }

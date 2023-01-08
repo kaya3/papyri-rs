@@ -145,7 +145,7 @@ impl Type {
 impl <'a> Compiler<'a> {
     pub(super) fn coerce(&mut self, value: Value, expected: &Type, range: SourceRange) -> Option<Value> {
         expected.coerce_value(value, &|v| self.compile_value(v))
-            .map_err(|e| self.type_error(e, range))
+            .map_err(|e| self.report(e, range))
             .ok()
     }
     

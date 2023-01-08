@@ -107,7 +107,7 @@ macro_rules! native_defs {
         
         impl <'a> $crate::compiler::base::Compiler<'a> {
             #[allow(non_snake_case, unreachable_code)]
-            pub(super) fn evaluate_native_func(&mut self, f: NativeFunc, mut bindings: $crate::compiler::value::ValueMap, $call_range: $crate::utils::sourcefile::SourceRange) -> Option<$crate::compiler::value::Value> {
+            pub(super) fn evaluate_native_func(&mut self, f: NativeFunc, mut bindings: $crate::compiler::value::ValueMap, $call_range: $crate::utils::sourcefile::SourceRange) -> ::std::option::Option<$crate::compiler::value::Value> {
                 use $crate::utils::{str_ids, NameID};
                 use $crate::errors;
                 use $crate::compiler::value::Value;
@@ -117,7 +117,7 @@ macro_rules! native_defs {
                         .map(std::mem::take)
                         .unwrap_or_else(|| errors::ice("failed to unpack"))
                 };
-                Some(match f {
+                ::std::option::Option::Some(match f {
                     $($(NativeFunc::$type_name(native_names::$type_name::$m_name) => {
                         $(let $m_param_name: $m_param_type = take(str_ids::$m_param_name).expect_convert();)*
                         Value::from($m_body)
@@ -129,7 +129,7 @@ macro_rules! native_defs {
                 })
             }
             
-            pub(super) fn evaluate_native_attr(&mut self, subject: $crate::compiler::value::Value, attr_id: $crate::utils::NameID, attr_range: $crate::utils::sourcefile::SourceRange) -> Option<$crate::compiler::func::Func> {
+            pub(super) fn evaluate_native_attr(&mut self, subject: $crate::compiler::value::Value, attr_id: $crate::utils::NameID, attr_range: $crate::utils::sourcefile::SourceRange) -> ::std::option::Option<$crate::compiler::func::Func> {
                 use $crate::utils::str_ids;
                 use $crate::compiler::value::Value;
                 $(if false $(|| matches!(subject, Value::$type_variant(..)))? {
@@ -139,7 +139,7 @@ macro_rules! native_defs {
                         _ => {},
                     }
                 }) else*
-                None
+                ::std::option::Option::None
             }
         }
     }

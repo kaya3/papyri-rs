@@ -40,7 +40,7 @@ pub fn tokenize(src: Rc<SourceFile>, strip_comments: bool, diagnostics: &mut err
         };
         
         if let Some(msg) = std::mem::take(&mut error_kind) {
-            diagnostics.syntax_error(msg, src.clone(), tok.range);
+            diagnostics.report_static(msg, src.clone(), tok.range);
         }
         
         quote_dir = match kind {

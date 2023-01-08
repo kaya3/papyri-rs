@@ -56,7 +56,10 @@ impl <'a> Parser<'a> {
     
     fn parse_match_pattern(&mut self) -> Option<MatchPattern> {
         let mut p = self.parse_and_match_pattern()?;
-        while {self.skip_whitespace(); self.poll_if_kind(TokenKind::Bar).is_some()} {
+        loop {
+            self.skip_whitespace();
+            if self.poll_if_kind(TokenKind::Bar).is_none() { break; }
+            
             let q = self.parse_and_match_pattern()?;
             
             let mut name_ids = NameIDSet::default();
@@ -72,7 +75,10 @@ impl <'a> Parser<'a> {
     
     fn parse_and_match_pattern(&mut self) -> Option<MatchPattern> {
         let mut p = self.parse_primary_match_pattern()?;
-        while {self.skip_whitespace(); self.poll_if_kind(TokenKind::Ampersand).is_some()} {
+        loop {
+            self.skip_whitespace();
+            if self.poll_if_kind(TokenKind::Ampersand).is_none() { break; }
+            
             let pair = (p, self.parse_primary_match_pattern()?);
             p = MatchPattern::And(Box::new(pair));
         }
@@ -100,21 +106,21 @@ impl <'a> Parser<'a> {
             
             TokenKind::Equals => self.parse_expr().map(MatchPattern::EqualsValue),
             TokenKind::LAngle => self.parse_tag_pattern(tok),
-            TokenKind::LSqb => self.parse_seq_pattern(tok, TokenKind::Comma, TokenKind::RSqb).map(|(p, _)| p),
+            TokenKind::LSqb => self.parse_seq_pattern(tok, TokenKind::Comma, TokenKind::RSqb),
             TokenKind::LPar => self.parse_dict_pattern(tok),
-            TokenKind::LBrace => self.parse_seq_pattern(tok, TokenKind::Whitespace, TokenKind::RBrace).map(|(p, _)| p),
+            TokenKind::LBrace => self.parse_seq_pattern(tok, TokenKind::Whitespace, TokenKind::RBrace),
             TokenKind::Quote(open_kind, _) => self.parse_template_pattern(tok, open_kind),
             
             TokenKind::Name => {
-                self.syntax_error(SyntaxError::PatternBareName, tok.range);
+                self.report(SyntaxError::PatternBareName, tok.range);
                 None
             },
             TokenKind::Asterisk => {
-                self.syntax_error(SyntaxError::SpreadPositionalNotAllowed, tok.range);
+                self.report(SyntaxError::SpreadPositionalNotAllowed, tok.range);
                 None
             },
             TokenKind::DoubleAsterisk => {
-                self.syntax_error(SyntaxError::SpreadNamedNotAllowed, tok.range);
+                self.report(SyntaxError::SpreadNamedNotAllowed, tok.range);
                 None
             },
             _ => {
@@ -145,7 +151,7 @@ impl <'a> Parser<'a> {
         
         let name_tok = self.expect_poll_kind(TokenKind::Name)?;
         if self.tok_str(name_tok).starts_with('_') {
-            self.syntax_error(SyntaxError::PatternNamedUnderscore, name_tok.range);
+            self.report(SyntaxError::PatternNamedUnderscore, name_tok.range);
         }
         self.skip_whitespace();
         let equals = if allow_lone_name { self.poll_if_kind(TokenKind::Equals) } else { self.expect_poll_kind(TokenKind::Equals) };
@@ -154,7 +160,7 @@ impl <'a> Parser<'a> {
         Some(NamedMatchPattern::One(name_id, pattern))
     }
     
-    fn parse_seq_pattern(&mut self, open: Token, sep_kind: TokenKind, close_kind: TokenKind) -> Option<(MatchPattern, Token)> {
+    fn parse_seq_pattern(&mut self, open: Token, sep_kind: TokenKind, close_kind: TokenKind) -> Option<MatchPattern> {
         let (children, close) = self.parse_separated_until(
             open,
             Parser::parse_positional_match_pattern,
@@ -169,7 +175,7 @@ impl <'a> Parser<'a> {
                 PositionalMatchPattern::One(child) => child,
                 PositionalMatchPattern::Spread(child) => {
                     if spread_index.is_some() {
-                        self.syntax_error(SyntaxError::PatternMultipleSpreads, child.range())
+                        self.report(SyntaxError::PatternMultipleSpreads, child.range())
                     }
                     spread_index = Some(i as u32);
                     child
@@ -180,7 +186,7 @@ impl <'a> Parser<'a> {
         let is_list = open.kind == TokenKind::LSqb;
         if !is_list {
             for child in child_patterns.iter().filter(|p| !p.can_match_html()) {
-                self.syntax_error(SyntaxError::PatternCannotMatchHTML, child.range());
+                self.report(SyntaxError::PatternCannotMatchHTML, child.range());
             }
         }
         
@@ -199,7 +205,7 @@ impl <'a> Parser<'a> {
                 MatchPattern::ExactHTMLSeq(range, child_patterns)
             },
         };
-        Some((pattern, close))
+        Some(pattern)
     }
     
     fn parse_dict_pattern(&mut self, lpar: Token) -> Option<MatchPattern> {
@@ -260,7 +266,7 @@ impl <'a> Parser<'a> {
         };
         
         if close.kind == TokenKind::CloseTag && !self.is_close_tag(close, name_id) {
-            self.syntax_error(SyntaxError::PatternIncorrectCloseTag, close.range);
+            self.report(SyntaxError::PatternIncorrectCloseTag, close.range);
         }
         
         Some(MatchPattern::Tag(
@@ -293,10 +299,10 @@ impl <'a> Parser<'a> {
                     vars.push(var);
                 },
                 TemplatePart::Name(Name::Attr(attr)) => {
-                    self.syntax_error(SyntaxError::PatternAttrAccess, attr.range);
+                    self.report(SyntaxError::PatternAttrAccess, attr.range);
                 },
                 TemplatePart::Name(Name::Index(attr)) => {
-                    self.syntax_error(SyntaxError::PatternIndexAccess, attr.range);
+                    self.report(SyntaxError::PatternIndexAccess, attr.range);
                 },
                 TemplatePart::Whitespace => {
                     regex_str += r"\s+";
@@ -317,11 +323,11 @@ impl <'a> Parser<'a> {
         match name {
             Name::Simple(name) => Some(name),
             Name::Attr(attr) => {
-                self.syntax_error(SyntaxError::PatternAttrAccess, attr.range);
+                self.report(SyntaxError::PatternAttrAccess, attr.range);
                 None
             },
             Name::Index(index) => {
-                self.syntax_error(SyntaxError::PatternIndexAccess, index.range);
+                self.report(SyntaxError::PatternIndexAccess, index.range);
                 None
             },
         }
@@ -336,15 +342,15 @@ impl <'a> Parser<'a> {
             match part {
                 NamedMatchPattern::One(name_id, child) => {
                     if spread.is_some() {
-                        self.syntax_error(SyntaxError::PatternNamedAfterSpread, part_range);
+                        self.report(SyntaxError::PatternNamedAfterSpread, part_range);
                     } else if attrs.insert(name_id, child).is_some() {
                         let name = self.string_pool.get(name_id);
-                        self.syntax_error(SyntaxError::PatternDuplicateName(name), part_range);
+                        self.report(SyntaxError::PatternDuplicateName(name), part_range);
                     }
                 },
                 NamedMatchPattern::Spread(child) => {
                     if spread.is_some() {
-                        self.syntax_error(SyntaxError::ParamMultipleSpread, part_range);
+                        self.report(SyntaxError::ParamMultipleSpread, part_range);
                     }
                     spread = Some(child);
                 },
