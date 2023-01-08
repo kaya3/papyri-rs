@@ -100,9 +100,11 @@ impl Context {
     /// 
     /// This method should only be used to load a module included or imported
     /// by another Papyri source file.
-    pub fn load_cached(&mut self, path: &path::Path) -> Result<CachedCompileResult, ModuleError> {
-        let k = fs::canonicalize(path)
-            .map_err(|e| ModuleError::IOError(path.into(), e))?;
+    pub fn load_cached(&mut self, path: path::PathBuf) -> Result<CachedCompileResult, ModuleError> {
+        let k = match fs::canonicalize(&path) {
+            Ok(canonical_path) => canonical_path,
+            Err(e) => return Err(ModuleError::IOError(path.into(), e)),
+        };
         
         match self.module_cache.get(&k) {
             ModuleState::NotLoaded => {
@@ -110,7 +112,7 @@ impl Context {
                 
                 // compile with no `out_files`
                 let old_out_files = std::mem::take(&mut self.out_files);
-                let result = self.load_uncached(path)
+                let result = self.load_uncached(&path)
                     .map(|r| (r.out, Rc::new(r.exports)));
                 
                 self.out_files = old_out_files;

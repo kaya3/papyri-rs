@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::errors::{NameError, RuntimeError, Warning, StackTrace, DiagSourceRange};
+use crate::errors;
 use crate::utils::{NameID, NameIDSet};
 use crate::utils::sourcefile::SourceRange;
 use super::base::Compiler;
@@ -129,12 +129,12 @@ impl <'a> Compiler<'a> {
         self.call_stack.last().unwrap()
     }
     
-    pub(super) fn stack_trace(&self) -> StackTrace {
+    pub(super) fn stack_trace(&self) -> errors::StackTrace {
         self.call_stack.iter()
             .filter_map(|frame| frame.call.as_ref())
             .map(|&(ref func, call_range)| {
                 let func_name = format!("@{}", self.get_name(func.name_id()));
-                DiagSourceRange::at_func(
+                errors::DiagSourceRange::at_func(
                     self.get_source_file(call_range),
                     call_range,
                     &func_name,
@@ -143,34 +143,33 @@ impl <'a> Compiler<'a> {
             .collect()
     }
     
-    pub(super) fn get_var(&mut self, name_id: NameID, range: SourceRange) -> Option<Value> {
-        let r = self.frame().get(name_id, false);
-        if r.is_none() {
-            let name = self.get_name(name_id);
-            self.report(NameError::NoSuchVariable(name), range);
-        }
-        r
+    pub(super) fn get_var(&mut self, name_id: NameID) -> Result<Value, errors::PapyriError> {
+        self.frame()
+            .get(name_id, false)
+            .ok_or_else(|| {
+                let name = self.get_name(name_id);
+                errors::NameError::NoSuchVariable(name).into()
+            })
     }
     
-    pub(super) fn get_implicit(&mut self, name_id: NameID, default_value: Option<Value>, range: SourceRange) -> Option<Value> {
-        let r = self.frame().get(name_id, true);
-        if r.is_none() {
-            if default_value.is_none() {
+    pub(super) fn get_implicit(&mut self, name_id: NameID, default_value: Option<Value>) -> Result<Value, errors::PapyriError> {
+        self.frame()
+            .get(name_id, true)
+            .or(default_value)
+            .ok_or_else(|| {
                 let name = self.get_name(name_id);
-                self.report(RuntimeError::ParamMissingImplicit(name), range);
-            }
-            if self.frame().get(name_id, false).is_some() {
-                let name = self.get_name(name_id);
-                self.report(Warning::NameNotImplicit(name), range);
-            }
-        }
-        r.or(default_value)
+                if self.frame().get(name_id, false).is_some() {
+                    errors::RuntimeError::ParamExistsButNotImplicit(name)
+                } else {
+                    errors::RuntimeError::ParamMissingImplicit(name)
+                }.into()
+            })
     }
     
     pub(super) fn set_var(&mut self, name_id: NameID, value: Value, implicit: bool, range: SourceRange) {
         if self.frame().set(name_id, value, implicit) {
             let name = self.get_name(name_id);
-            self.report_static(Warning::NameAlreadyDeclared(name), range);
+            self.report_static(errors::Warning::NameAlreadyDeclared(name), range);
         }
     }
     

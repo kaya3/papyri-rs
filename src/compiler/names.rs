@@ -1,6 +1,5 @@
 use crate::errors;
 use crate::parser::{ast, Type};
-use crate::utils::sourcefile::SourceRange;
 use crate::utils::{str_ids, SliceRef};
 use super::base::Compiler;
 use super::html::HTML;
@@ -9,67 +8,55 @@ use super::value::Value;
 impl <'a> Compiler<'a> {
     /// Returns the value of the given variable, coerced to the given type, or
     /// `None` if a compilation error occurs.
-    pub(super) fn evaluate_name(&mut self, name: &ast::Name, type_hint: &Type) -> Option<Value> {
+    pub(super) fn evaluate_name(&mut self, name: &ast::Name, type_hint: &Type) -> Result<Value, errors::AlreadyReported> {
         let value = match name {
-            ast::Name::Simple(name) => {
-                self.get_var(name.name_id, name.range)?
-            },
-            ast::Name::Attr(attr) => {
-                self.evaluate_attr(attr)?
-            },
-            ast::Name::Index(index) => {
-                self.evaluate_index(index)?
-            },
+            ast::Name::Simple(name) => self.get_var(name.name_id),
+            ast::Name::Attr(attr) => self.evaluate_attr(attr),
+            ast::Name::Index(index) => self.evaluate_index(index),
         };
-        self.coerce(value, type_hint, name.range())
+        value.and_then(|v| self.coerce(v, type_hint))
+            .map_err(|e| self.report(e, name.range()))
     }
     
-    fn evaluate_attr(&mut self, attr: &ast::AttrName) -> Option<Value> {
+    fn evaluate_attr(&mut self, attr: &ast::AttrName) -> Result<Value, errors::PapyriError> {
         let subject = self.evaluate_name(&attr.subject, &Type::Any)?;
         let attr_id = attr.attr_name_id;
         
         if subject.is_unit() && attr.is_coalescing {
-            return Some(Value::UNIT);
+            return Ok(Value::UNIT);
         } else if let Value::Dict(ref vs) = subject {
             if let Some(v) = vs.get(&attr_id) {
-                return Some(v.clone());
+                return Ok(v.clone());
             }
         } else if let Value::HTML(HTML::Tag(ref t)) = subject {
             if attr_id == str_ids::TAG_NAME {
-                return Some(self.get_name(t.name_id).into())
+                return Ok(self.get_name(t.name_id).into())
             }
         }
         
-        if let Some(f) = self.evaluate_native_attr(subject.clone(), attr_id, attr.range) {
-            return Some(f.into());
-        }
-        
-        let name = self.get_name(attr_id);
-        self.report(errors::NameError::NoSuchAttribute(subject.get_type(), name), attr.range);
-        None
+        self.evaluate_native_attr(subject, attr_id)
+            .map(Value::from)
     }
     
-    fn evaluate_index(&mut self, index: &ast::IndexName) -> Option<Value> {
+    fn evaluate_index(&mut self, index: &ast::IndexName) -> Result<Value, errors::PapyriError> {
         let type_hint = Type::Any.list().option_if(index.is_coalescing);
-        let subject: Option<SliceRef<Value>> = self.evaluate_name(&index.subject, &type_hint)?
-            .expect_convert();
+        let Some(subject) = self.evaluate_name(&index.subject, &type_hint)?
+            .expect_convert::<Option<SliceRef<Value>>>() else {
+                return Ok(Value::UNIT);
+            };
         
-        if let Some(subject) = subject {
-            self.list_get(subject, index.index, index.range)
-        } else {
-            Some(Value::UNIT)
-        }
+        self.list_get(subject, index.index)
     }
     
-    pub(super) fn list_get(&mut self, list: SliceRef<Value>, i: i64, range: SourceRange) -> Option<Value> {
+    pub(super) fn list_get(&mut self, list: SliceRef<Value>, i: i64) -> Result<Value, errors::PapyriError> {
         let n = list.len() as i64;
         if i >= 0 && i < n {
-            Some(list.get(i as usize).clone())
+            Ok(list.get(i as usize).clone())
         } else if i >= -n && i < 0 {
-            Some(list.get((i + n) as usize).clone())
+            Ok(list.get((i + n) as usize).clone())
         } else {
-            self.report(errors::RuntimeError::IndexOutOfRange(i, list.len()), range);
-            None
+            let e = errors::RuntimeError::IndexOutOfRange(i, list.len());
+            Err(e.into())
         }
     }
 }

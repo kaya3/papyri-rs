@@ -34,7 +34,7 @@ fn matching_paren(s: &str) -> &'static str {
         "(" => ")",
         "{" => "}",
         "[" => "]",
-        _ => errors::ice("not a paren"),
+        _ => errors::ice("Not a paren"),
     }
 }
 

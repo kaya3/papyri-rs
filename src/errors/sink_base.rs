@@ -7,7 +7,7 @@ use crate::utils::text;
 #[allow(missing_docs)]
 /// The severity of a diagnostic which occurs while attempting to compiling a
 /// Papyri source file.
-pub enum Severity {Warning, Error}
+pub enum Severity {Debug, Warning, Error}
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord)]
 #[allow(missing_docs)]
@@ -28,6 +28,7 @@ impl ReportingLevel {
 impl std::fmt::Display for Severity {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
+            Severity::Debug => "Debug",
             Severity::Warning => "Warning",
             Severity::Error => "Error",
         })
@@ -180,6 +181,7 @@ impl <T: std::fmt::Display> DiagnosticSink<T> {
         match severity {
             Severity::Warning => self.num_warnings += 1,
             Severity::Error => self.num_errors += 1,
+            Severity::Debug => {},
         }
         if self.reporting_level.should_report(severity) {
             let range = DiagSourceRange::at(source_file, range);

@@ -207,7 +207,7 @@ impl HTMLSeqBuilder {
                     HTML::Text(t) => s += t.as_ref(),
                     HTML::Whitespace => s += " ",
                     HTML::RawNewline => s += "\n",
-                    _ => errors::ice("not a text node"),
+                    _ => errors::ice("Not a text node"),
                 }
             }
             self.children.push(s.into());

@@ -6,24 +6,20 @@ use super::value::{Value, ValueMap};
 use super::value_convert::TryConvert;
 
 impl <'a> Compiler<'a> {
-    pub(super) fn evaluate_match(&mut self, match_: &ast::Match, type_hint: &Type) -> Option<Value> {
+    pub(super) fn evaluate_match(&mut self, match_: &ast::Match, type_hint: &Type) -> Result<Value, errors::AlreadyReported> {
         let value = self.evaluate_node(&match_.value, &Type::Any)?;
         for (pattern, handler) in match_.branches.iter() {
             let frame = self.frame()
                 .to_inactive()
                 .new_empty_child_frame();
             let r = self.evaluate_in_frame(frame, |_self| {
-                if _self.bind_pattern(pattern, value.clone()) {
-                    Ok(_self.evaluate_node(handler, type_hint))
-                } else {
-                    Err(())
-                }
+                _self.bind_pattern(pattern, value.clone())
+                    .then(|| _self.evaluate_node(handler, type_hint))
             });
-            if let Ok(r) = r { return r; }
+            if let Some(r) = r { return r; }
         }
         
-        self.report(errors::Warning::NoMatchingBranch, match_.range);
-        Some(Value::UNIT)
+        Err(self.report(errors::RuntimeError::NoMatchingBranch, match_.range))
     }
     
     fn bind_pattern(&mut self, pattern: &ast::MatchPattern, value: Value) -> bool {

@@ -144,7 +144,7 @@ impl Main {
                         &path,
                         |p, e| eprintln!("File error: {e} in \"{}\"", p.to_string_lossy()),
                     );
-                    if let Some(paths) = paths {
+                    if let Ok(paths) = paths {
                         for p in paths {
                             source_paths.insert(path.join(p));
                         }

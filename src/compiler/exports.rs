@@ -13,17 +13,16 @@ impl <'a> Compiler<'a> {
         }
     }
     
-    pub(super) fn compile_export(&mut self, e: &ast::Export) {
+    pub(super) fn compile_export(&mut self, e: &ast::Export) -> Result<(), errors::AlreadyReported> {
         match e {
             ast::Export::Names(_, vars) => {
                 for &(name_id, ref arg) in vars.iter() {
-                    if let Some(v) = self.evaluate_node(arg, &Type::Any) {
-                        self.export(name_id, v, arg.range());
-                    }
+                    let v = self.evaluate_node(arg, &Type::Any)?;
+                    self.export(name_id, v, arg.range());
                 }
             },
             ast::Export::LetIn(_, let_in) => {
-                self.evaluate_let_in(let_in, &Type::Unit, true);
+                self.evaluate_let_in(let_in, &Type::Unit, true)?;
             },
             ast::Export::FuncDef(_, func_def) => {
                 let f = self.compile_func_def(func_def);
@@ -34,5 +33,6 @@ impl <'a> Compiler<'a> {
                 self.set_var(name_id, f, false, range);
             },
         }
+        Ok(())
     }
 }

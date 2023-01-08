@@ -8,6 +8,7 @@ use crate::utils::sourcefile::SourceRange;
 use super::base::Compiler;
 use super::html::HTML;
 use super::value::Value;
+use super::value_convert::TryConvert;
 
 pub(super) type AttrMap = IndexMap<NameID, Option<Rc<str>>, fxhash::FxBuildHasher>;
 
@@ -30,7 +31,7 @@ impl Tag {
     pub(super) fn str_attr(mut self, k: NameID, v: &str) -> Tag {
         let v = Some(Rc::from(v));
         if self.attributes.insert(k, v).is_some() {
-            errors::ice("duplicate attribute");
+            errors::ice("Duplicate attribute");
         }
         self
     }
@@ -58,23 +59,21 @@ impl From<Tag> for Value {
 }
 
 impl <'a> Compiler<'a> {
-    pub(super) fn compile_tag(&mut self, tag: &ast::Tag) -> HTML {
+    pub(super) fn compile_tag(&mut self, tag: &ast::Tag) -> Result<Tag, errors::AlreadyReported> {
         let tag_name_id = match tag.name {
             ast::TagName::Literal(name_id) => name_id,
-            ast::TagName::Name(ref name) => match self.evaluate_name(name, &Type::Str) {
-                Some(v) => {
-                    let name_str: Rc<str> = v.expect_convert();
-                    if text::is_identifier(&name_str) {
-                        self.string_pool_mut()
-                            .insert(name_str.to_ascii_lowercase())
-                    } else if name_str.eq_ignore_ascii_case("!DOCTYPE") {
-                        str_ids::_DOCTYPE
-                    } else {
-                        self.report(errors::NameError::InvalidTag(name_str), name.range());
-                        str_ids::ANONYMOUS
-                    }
-                },
-                None => str_ids::ANONYMOUS,
+            ast::TagName::Name(ref name) => {
+                let name_str: Rc<str> = self.evaluate_name(name, &Type::Str)?
+                    .expect_convert();
+                if text::is_identifier(&name_str) {
+                    self.string_pool_mut()
+                        .insert(name_str.to_ascii_lowercase())
+                } else if name_str.eq_ignore_ascii_case("!DOCTYPE") {
+                    str_ids::_DOCTYPE
+                } else {
+                    let e = errors::NameError::InvalidTag(name_str);
+                    return Err(self.report(e, name.range()));
+                }
             },
         };
         
@@ -86,31 +85,26 @@ impl <'a> Compiler<'a> {
                     match attr.value.as_ref() {
                         Some(node) => {
                             let expected_type = Type::Str.option_if(attr.question_mark);
-                            if let Some(v) = self.evaluate_node(node, &expected_type) {
-                                let s: Option<Rc<str>> = v.expect_convert();
-                                if s.is_some() { self.add_attr(&mut attrs, attr.name_id, s, range); }
-                            }
+                            let s: Option<Rc<str>> = self.evaluate_node(node, &expected_type)?
+                                .expect_convert();
+                            if s.is_some() { self.add_attr(&mut attrs, attr.name_id, s, range); }
                         },
                         None => { self.add_attr(&mut attrs, attr.name_id, None, range); },
                     }
                 },
                 ast::TagAttrOrSpread::Spread(spread) => {
-                    if let Some(dict) = self.try_evaluate::<AttrMap>(spread) {
-                        let range = spread.range();
-                        for (k, s) in dict.into_iter() {
-                            self.add_attr(&mut attrs, k, s, range);
-                        }
+                    let dict: AttrMap = self.evaluate_node(spread, &AttrMap::as_type())?
+                        .expect_convert();
+                    let range = spread.range();
+                    for (k, s) in dict.into_iter() {
+                        self.add_attr(&mut attrs, k, s, range);
                     }
                 },
             }
         }
         
         let children = self.compile_sequence(&tag.children, taginfo::ContentKind::for_(tag_name_id));
-        if tag_name_id.is_anonymous() {
-            children
-        } else {
-            Tag::new_with_attrs(tag_name_id, attrs, children).into()
-        }
+        Ok(Tag::new_with_attrs(tag_name_id, attrs, children))
     }
     
     fn add_attr(&mut self, attrs: &mut AttrMap, name_id: NameID, value: Option<Rc<str>>, range: SourceRange) {

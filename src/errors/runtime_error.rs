@@ -21,6 +21,7 @@ pub enum RuntimeError {
     
     ParamMissing(std::rc::Rc<str>),
     ParamMissingImplicit(std::rc::Rc<str>),
+    ParamExistsButNotImplicit(std::rc::Rc<str>),
     ParamMultipleValues(std::rc::Rc<str>),
     ParamMustBePositive(std::rc::Rc<str>, i64),
     
@@ -29,6 +30,7 @@ pub enum RuntimeError {
     RegexInvalidGroupName(std::rc::Rc<str>),
     
     Raised(std::rc::Rc<str>),
+    NoMatchingBranch,
     IndexOutOfRange(i64, usize),
     ParseIntError(std::num::ParseIntError),
     FileReadError(std::rc::Rc<str>, std::io::Error),
@@ -53,12 +55,14 @@ impl std::fmt::Display for RuntimeError {
             RuntimeError::AttrMultipleValues(name) => write!(f, "received multiple values for attribute '{name}'"),
             RuntimeError::ParamMissing(name) => write!(f, "missing required parameter '{name}'"),
             RuntimeError::ParamMissingImplicit(name) => write!(f, "missing required implicit parameter '{name}'"),
+            RuntimeError::ParamExistsButNotImplicit(name) => write!(f, "required implicit parameter '{name}'; this name exists but is not declared implicit"),
             RuntimeError::ParamMultipleValues(name) => write!(f, "received multiple values for parameter '{name}'"),
             RuntimeError::ParamMustBePositive(name, was) => write!(f, "parameter '{name}' must be positive (was {was})"),
             RuntimeError::RegexSyntaxError(e) => write!(f, "regex syntax error ({e})"),
             RuntimeError::RegexMixedGroupKinds => f.write_str("regex cannot have both named and unnamed capture groups"),
             RuntimeError::RegexInvalidGroupName(name) => write!(f, "regex group name '{name}' is not a valid identifier"),
             RuntimeError::Raised(msg) => f.write_str(msg),
+            RuntimeError::NoMatchingBranch => f.write_str("no matching branch in @match"),
             RuntimeError::IndexOutOfRange(i, len) => write!(f, "index out of bounds (index {i}, length {len})"),
             RuntimeError::ParseIntError(e) => write!(f, "failed to parse int ({e})"),
             RuntimeError::FileReadError(path, e) => write!(f, "failed to read file \"{path}\" ({e})"),

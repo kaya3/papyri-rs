@@ -44,7 +44,7 @@ impl <T> SliceRef<T> {
     /// Creates a new reference-counted pointer to a sub-slice of this slice,
     /// without copying.
     pub(crate) fn slice(&self, a: usize, b: usize) -> SliceRef<T> {
-        if a > b || self.a as usize + b > self.original.len() { errors::ice("illegal slice"); }
+        if a > b || self.a as usize + b > self.original.len() { errors::ice("Illegal slice"); }
         
         SliceRef {
             original: self.original.clone(),

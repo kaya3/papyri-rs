@@ -1,5 +1,4 @@
-use crate::errors::TypeError;
-use crate::utils::sourcefile::SourceRange;
+use crate::errors;
 use crate::utils::str_ids;
 use crate::parser::{token, Type};
 use super::base::Compiler;
@@ -72,7 +71,7 @@ impl Type {
             .all(|v| self.check_value(v))
     }
     
-    fn coerce_value(&self, value: Value, value_to_html: &impl Fn(Value) -> HTML) -> Result<Value, TypeError> {
+    fn coerce_value(&self, value: Value, value_to_html: &impl Fn(Value) -> HTML) -> Result<Value, errors::TypeError> {
         let expected = if let Type::Optional(t) = self {
             if value.is_unit() { return Ok(Value::UNIT); }
             t
@@ -130,10 +129,10 @@ impl Type {
             _ => {},
         }
         
-        Err(TypeError::ExpectedWas(expected.clone(), value.get_type()))
+        Err(errors::TypeError::ExpectedWas(expected.clone(), value.get_type()))
     }
     
-    fn coerce_all<'a, T: Iterator<Item=&'a mut Value>>(&self, vs: T, value_to_html: &impl Fn(Value) -> HTML) -> Result<(), TypeError> {
+    fn coerce_all<'a, T: Iterator<Item=&'a mut Value>>(&self, vs: T, value_to_html: &impl Fn(Value) -> HTML) -> Result<(), errors::TypeError> {
         for v in vs {
             let old_v = std::mem::take(v);
             *v = self.coerce_value(old_v, value_to_html)?;
@@ -143,17 +142,10 @@ impl Type {
 }
 
 impl <'a> Compiler<'a> {
-    pub(super) fn coerce(&mut self, value: Value, expected: &Type, range: SourceRange) -> Option<Value> {
-        expected.coerce_value(value, &|v| self.compile_value(v))
-            .map_err(|e| self.report(e, range))
-            .ok()
+    pub(super) fn coerce(&mut self, value: Value, expected: &Type) -> Result<Value, errors::PapyriError> {
+        let v = expected.coerce_value(value, &|v| self.compile_value(v))?;
+        Ok(v)
     }
-    
-    /*
-    pub(super) fn try_coerce(&mut self, value: Value, expected: &Type) -> Option<Value> {
-        expected.coerce_value(value, &|v| self.compile_value(v))
-            .ok()
-    }*/
 }
 
 #[cfg(test)]

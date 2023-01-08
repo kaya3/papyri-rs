@@ -86,6 +86,7 @@ macro_rules! native_defs {
             
             #[allow(non_snake_case, unused_must_use)]
             pub(super) fn to_frame(&self) -> $crate::compiler::frame::ActiveFrame {
+                use ::std::option::Option::None;
                 use $crate::utils::str_ids;
                 use $crate::compiler::value::ValueMap;
                 use $crate::compiler::frame::ActiveFrame;
@@ -107,7 +108,8 @@ macro_rules! native_defs {
         
         impl <'a> $crate::compiler::base::Compiler<'a> {
             #[allow(non_snake_case, unreachable_code)]
-            pub(super) fn evaluate_native_func(&mut self, f: NativeFunc, mut bindings: $crate::compiler::value::ValueMap, $call_range: $crate::utils::sourcefile::SourceRange) -> ::std::option::Option<$crate::compiler::value::Value> {
+            pub(super) fn evaluate_native_func(&mut self, f: NativeFunc, mut bindings: $crate::compiler::value::ValueMap, $call_range: $crate::utils::sourcefile::SourceRange) -> ::std::result::Result<$crate::compiler::value::Value, $crate::errors::PapyriError> {
+                use ::std::result::Result::Ok;
                 use $crate::utils::{str_ids, NameID};
                 use $crate::errors;
                 use $crate::compiler::value::Value;
@@ -117,7 +119,7 @@ macro_rules! native_defs {
                         .map(std::mem::take)
                         .unwrap_or_else(|| errors::ice("failed to unpack"))
                 };
-                ::std::option::Option::Some(match f {
+                Ok(match f {
                     $($(NativeFunc::$type_name(native_names::$type_name::$m_name) => {
                         $(let $m_param_name: $m_param_type = take(str_ids::$m_param_name).expect_convert();)*
                         Value::from($m_body)
@@ -129,17 +131,19 @@ macro_rules! native_defs {
                 })
             }
             
-            pub(super) fn evaluate_native_attr(&mut self, subject: $crate::compiler::value::Value, attr_id: $crate::utils::NameID, attr_range: $crate::utils::sourcefile::SourceRange) -> ::std::option::Option<$crate::compiler::func::Func> {
+            pub(super) fn evaluate_native_attr(&mut self, subject: $crate::compiler::value::Value, attr_id: $crate::utils::NameID) -> ::std::result::Result<$crate::compiler::func::Func, $crate::errors::PapyriError> {
+                use ::std::result::Result::Err;
                 use $crate::utils::str_ids;
+                use $crate::errors;
                 use $crate::compiler::value::Value;
                 $(if false $(|| matches!(subject, Value::$type_variant(..)))? {
                     let _cls = &self.ctx.natives.$type_name;
                     match attr_id {
-                        $($(str_ids::$m_name => return _cls.$m_name.clone().$m_bind(self, subject, attr_range),)?)*
+                        $($(str_ids::$m_name => return _cls.$m_name.clone().$m_bind(self, subject),)?)*
                         _ => {},
                     }
                 }) else*
-                ::std::option::Option::None
+                Err(errors::NameError::NoSuchAttribute(subject.get_type(), self.get_name(attr_id)).into())
             }
         }
     }

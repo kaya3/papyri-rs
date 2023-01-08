@@ -94,12 +94,14 @@ impl <'a> Compiler<'a> {
         errors::ice_at(msg, self.get_source_file(range).as_ref(), range)
     }
     
-    pub(super) fn report_static<T: Into<errors::PapyriError>>(&mut self, e: T, range: SourceRange) {
+    pub(super) fn report_static<T: Into<errors::PapyriError>>(&mut self, e: T, range: SourceRange) -> errors::AlreadyReported {
         self.ctx.diagnostics.report_static(e, self.get_source_file(range), range);
+        errors::AlreadyReported
     }
     
-    pub(super) fn report<T: Into<errors::PapyriError>>(&mut self, e: T, range: SourceRange) {
+    pub(super) fn report<T: Into<errors::PapyriError>>(&mut self, e: T, range: SourceRange) -> errors::AlreadyReported {
         self.ctx.diagnostics.report(e.into(), self.stack_trace(), self.get_source_file(range), range);
+        errors::AlreadyReported
     }
     
     pub(super) fn string_pool(&self) -> &StringPool {

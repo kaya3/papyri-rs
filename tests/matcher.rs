@@ -95,5 +95,5 @@ assert_ok! {
 
 assert_err! {
     literal_in_html("@match 5 {{5} -> OK}", SyntaxError::PatternCannotMatchHTML);
-    no_matching_branch("@match 5 {6 -> Fail}", Warning::NoMatchingBranch);
+    no_matching_branch("@match 5 {6 -> Fail}", RuntimeError::NoMatchingBranch);
 }

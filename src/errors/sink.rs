@@ -18,6 +18,7 @@ pub enum PapyriError {
     SyntaxError(SyntaxError),
     TypeError(TypeError),
     Warning(Warning),
+    AlreadyReported,
 }
 
 impl PapyriError {
@@ -29,10 +30,20 @@ impl PapyriError {
             PapyriError::SyntaxError(..) |
             PapyriError::TypeError(..) => Severity::Error,
             PapyriError::Warning(..) => Severity::Warning,
+            PapyriError::AlreadyReported => Severity::Debug,
         }
     }
 }
 
+/// Represents that a failure occurred but a diagnostic was already reported
+/// for it.
+pub struct AlreadyReported;
+
+impl From<AlreadyReported> for PapyriError {
+    fn from(_: AlreadyReported) -> PapyriError {
+        PapyriError::AlreadyReported
+    }
+}
 impl From<ModuleError> for PapyriError {
     fn from(e: ModuleError) -> PapyriError {
         PapyriError::ModuleError(e)
@@ -73,6 +84,7 @@ impl std::fmt::Display for PapyriError {
             PapyriError::SyntaxError(e) => write!(f, "Syntax error: {e}"),
             PapyriError::TypeError(e) => write!(f, "Type error: {e}"),
             PapyriError::Warning(e) => write!(f, "Warning: {e}"),
+            PapyriError::AlreadyReported => f.write_str("Diagnostic already reported"),
         }
     }
 }

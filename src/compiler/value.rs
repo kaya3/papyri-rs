@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use crate::errors::TypeError;
+use crate::errors;
 use crate::parser::{ast, token, text, Expr, Type};
 use crate::utils::{str_ids, SliceRef, taginfo, NameIDMap};
 use crate::utils::sourcefile::SourceRange;
@@ -145,7 +145,7 @@ impl <'a> Compiler<'a> {
     
     /// Evaluates an AST node to a value. Returns `None` if a compilation error
     /// occurs.
-    pub(super) fn evaluate_node(&mut self, node: &Expr, type_hint: &Type) -> Option<Value> {
+    pub(super) fn evaluate_node(&mut self, node: &Expr, type_hint: &Type) -> Result<Value, errors::AlreadyReported> {
         let v = match node {
             Expr::Unit(..) => Value::UNIT,
             &Expr::Bool(b, ..) => b.into(),
@@ -155,26 +155,26 @@ impl <'a> Compiler<'a> {
             
             Expr::FuncCall(call) => return self.evaluate_func_call(call, type_hint),
             Expr::FuncDef(def) => {
-                let v = Value::Func(self.compile_func_def(def));
+                let f = self.compile_func_def(def);
                 if type_hint.is_html() {
-                    self.report(TypeError::ExpectedWas(type_hint.clone(), v.get_type()), def.range);
-                    return None;
+                    return Err(self.report(errors::TypeError::ExpectedWas(type_hint.clone(), Type::Function), def.range));
                 }
-                v
+                f.into()
             },
             Expr::LetIn(let_in) => return self.evaluate_let_in(let_in, type_hint, false),
             Expr::Match(match_) => return self.evaluate_match(match_, type_hint),
             Expr::Name(name) => return self.evaluate_name(name, type_hint),
-            Expr::Template(parts, ..) => self.evaluate_template(parts),
+            Expr::Template(parts, ..) => self.evaluate_template(parts)?,
             
             Expr::Group(children, ..) => self.compile_sequence(children, taginfo::ContentKind::ALLOW_P).into(),
-            Expr::Tag(tag) => self.compile_tag(tag).into(),
-            Expr::List(children, range) => self.evaluate_list(children, type_hint, *range)?,
+            Expr::Tag(tag) => self.compile_tag(tag)?.into(),
+            Expr::List(children, range) => return self.evaluate_list(children, type_hint, *range),
         };
-        self.coerce(v, type_hint, node.range())
+        self.coerce(v, type_hint)
+            .map_err(|e| self.report(e, node.range()))
     }
     
-    pub(super) fn evaluate_list(&mut self, list: &[(Expr, bool)], type_hint: &Type, range: SourceRange) -> Option<Value> {
+    fn evaluate_list(&mut self, list: &[(Expr, bool)], type_hint: &Type, range: SourceRange) -> Result<Value, errors::AlreadyReported> {
         let child_type_hint = type_hint.component_type();
         let mut children = Vec::new();
         for &(ref child, is_spread) in list.iter() {
@@ -183,14 +183,16 @@ impl <'a> Compiler<'a> {
                 let grandchildren: SliceRef<Value> = self.evaluate_node(child, &child_type_hint.clone().list())?
                     .expect_convert();
                 children.extend(grandchildren.as_ref().iter().cloned());
-            } else if let Some(child) = self.evaluate_node(child, child_type_hint) {
+            } else {
+                let child = self.evaluate_node(child, child_type_hint)?;
                 children.push(child);
             }
         }
-        self.coerce(children.into(), type_hint, range)
+        self.coerce(children.into(), type_hint)
+            .map_err(|e| self.report(e, range))
     }
     
-    fn evaluate_template(&mut self, parts: &[ast::TemplatePart]) -> Value {
+    fn evaluate_template(&mut self, parts: &[ast::TemplatePart]) -> Result<Value, errors::AlreadyReported> {
         let mut out = "".to_string();
         for part in parts.iter() {
             match part {
@@ -201,10 +203,10 @@ impl <'a> Compiler<'a> {
                     out.push(*c);
                 },
                 ast::TemplatePart::Name(name) => {
-                    if let Some(v) = self.evaluate_name(name, &Type::Str.option()) {
-                        if let Some(s) = v.expect_convert::<Option<Rc<str>>>() {
-                            out += s.as_ref();
-                        }
+                    let s: Option<Rc<str>> = self.evaluate_name(name, &Type::Str.option())?
+                        .expect_convert();
+                    if let Some(s) = s {
+                        out += s.as_ref();
                     }
                 },
                 ast::TemplatePart::Whitespace => {
@@ -212,10 +214,10 @@ impl <'a> Compiler<'a> {
                 },
             }
         }
-        out.into()
+        Ok(out.into())
     }
     
-    pub(super) fn evaluate_let_in(&mut self, let_in: &ast::LetIn, type_hint: &Type, do_export: bool) -> Option<Value> {
+    pub(super) fn evaluate_let_in(&mut self, let_in: &ast::LetIn, type_hint: &Type, do_export: bool) -> Result<Value, errors::AlreadyReported> {
         let frame = self.frame()
             .to_inactive()
             .new_empty_child_frame();
@@ -235,17 +237,17 @@ impl <'a> Compiler<'a> {
             .into()
     }
     
-    pub(super) fn compile_code_fence(&mut self, range: SourceRange, is_multiline: bool) -> Option<HTML> {
+    pub(super) fn compile_code_fence(&mut self, range: SourceRange, is_multiline: bool) -> Result<HTML, errors::PapyriError> {
         let str_value = self.evaluate_verbatim(range);
         
         let f_name = if is_multiline { str_ids::CODE_BLOCK } else { str_ids::CODE };
-        let func = self.get_var(f_name, range)?;
-        let func: Func = self.coerce(func, &Type::Function, range)?
+        let func = self.get_var(f_name)?;
+        let func: Func = self.coerce(func, &Type::Function)?
             .expect_convert();
         
-        let bindings = func.bind_synthetic_call(self, true, str_value, range)?;
+        let bindings = func.bind_synthetic_call(self, true, str_value)?;
         let type_hint = if is_multiline { Type::Block } else { Type::Inline };
-        self.evaluate_func_call_with_bindings(func, bindings, &type_hint, range)
-            .map(Value::expect_convert)
+        Ok(self.evaluate_func_call_with_bindings(func, bindings, &type_hint, range)?
+            .expect_convert())
     }
 }

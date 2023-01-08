@@ -74,7 +74,7 @@ impl StringPool {
     pub(crate) fn get(&self, id: NameID) -> Rc<str> {
         let id = id.0.get() as usize;
         self.0.get_index(id)
-            .unwrap_or_else(|| errors::ice(&format!("no string with ID {id}")))
+            .unwrap_or_else(|| errors::ice(&format!("No string with ID {id}")))
             .clone()
     }
 }

@@ -1,9 +1,8 @@
 use std::rc::Rc;
 
 use crate::errors;
-use crate::parser::{Type, Expr};
+use crate::parser::Type;
 use crate::utils::{SliceRef, NameIDMap};
-use super::base::Compiler;
 use super::func::Func;
 use super::html::HTML;
 use super::regex_value::RegexValue;
@@ -20,16 +19,7 @@ impl Value {
     }
     pub(super) fn expect_convert<T: TryConvert>(self) -> T {
         self.try_convert()
-            .unwrap_or_else(|t| errors::ice(&format!("failed to convert: {t}")))
-    }
-}
-
-impl <'a> Compiler<'a> {
-    pub(super) fn try_evaluate<T: TryConvert>(&mut self, node: &Expr) -> Option<T> {
-        self.evaluate_node(node, &T::as_type())?
-            .try_convert()
-            .map_err(|e| self.report(e, node.range()))
-            .ok()
+            .unwrap_or_else(|t| errors::ice(&format!("Failed to convert: {t}")))
     }
 }
 

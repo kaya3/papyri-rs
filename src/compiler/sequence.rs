@@ -1,6 +1,5 @@
-use crate::errors::TypeError;
+use crate::errors;
 use crate::parser::{AST, Type};
-use crate::utils::sourcefile::SourceRange;
 use crate::utils::taginfo::ContentKind;
 use crate::utils::{str_ids, NameID};
 use super::base::Compiler;
@@ -21,56 +20,40 @@ impl <'a> Compiler<'a> {
         let mut builder = SequenceBuilder::new(content_kind);
         for child in sequence {
             if let Err(e) = self.compile_node(&mut builder, child) {
-                self.sequence_error(e, child.range());
+                self.report(e, child.range());
             }
         }
         
         builder.into_html().unwrap_or_else(|e| {
             let range = sequence[0].range().to_end(sequence.last().unwrap().range().end);
-            self.sequence_error(e, range);
+            self.report(e, range);
             HTML::Empty
         })
     }
     
-    fn compile_node(&mut self, builder: &mut SequenceBuilder, node: &AST) -> Result<(), SequenceError> {
+    fn compile_node(&mut self, builder: &mut SequenceBuilder, node: &AST) -> Result<(), errors::PapyriError> {
         match node {
             AST::Export(export) => {
-                self.compile_export(export);
-                Ok(())
+                self.compile_export(export)?;
             }
             AST::Expr(expr) => {
-                if let Some(v) = self.evaluate_node(expr, &Type::Html) {
-                    builder.push(v.expect_convert())
-                } else {
-                    Ok(())
-                }
+                let v = self.evaluate_node(expr, &Type::Html)?;
+                builder.push(self, v.expect_convert())?;
             },
             AST::FuncDef(def) => {
                 let f = self.compile_func_def(def).into();
                 self.set_var(def.name_id, f, false, def.signature.range);
-                Ok(())
             },
             &AST::CodeFence(range, is_multiline) => {
-                if let Some(h) = self.compile_code_fence(range, is_multiline) {
-                    builder.push(h)
-                } else {
-                    Ok(())
-                }
+                let h = self.compile_code_fence(range, is_multiline)?;
+                builder.push(self, h)?;
             },
-            AST::Text(text, ..) => builder.push(text.clone().into()),
-            AST::Char(c, ..) => builder.push(c.to_string().into()),
-            AST::Whitespace(..) => builder.push(HTML::Whitespace),
-            AST::ParagraphBreak(..) => builder.newline(),
+            AST::Text(text, ..) => builder.push(self, text.clone().into())?,
+            AST::Char(c, ..) => builder.push(self, c.to_string().into())?,
+            AST::Whitespace(..) => builder.push(self, HTML::Whitespace)?,
+            AST::ParagraphBreak(..) => builder.newline()?,
         }
-    }
-    
-    fn sequence_error(&mut self, e: SequenceError, range: SourceRange) {
-        let e = match e {
-            SequenceError::TagNotAllowed(name_id) => TypeError::TagNotAllowed(self.get_name(name_id)),
-            SequenceError::ParagraphBreakNotAllowed => TypeError::ParagraphBreakNotAllowed,
-            SequenceError::NoContentAllowed => TypeError::NoContentAllowed,
-        };
-        self.report(e, range);
+        Ok(())
     }
 }
 
@@ -79,12 +62,6 @@ struct SequenceBuilder {
     children: Vec<HTML>,
     next_child: Option<Box<SequenceBuilder>>,
     require_inline: bool,
-}
-
-enum SequenceError {
-    TagNotAllowed(NameID),
-    ParagraphBreakNotAllowed,
-    NoContentAllowed,
 }
 
 impl SequenceBuilder {
@@ -97,7 +74,7 @@ impl SequenceBuilder {
         }
     }
     
-    fn into_html(mut self) -> Result<HTML, SequenceError> {
+    fn into_html(mut self) -> Result<HTML, errors::TypeError> {
         if matches!(self.content_kind, ContentKind::AllowBlock(..)) && self.children.is_empty() {
             return self.next_child.map_or(Ok(HTML::Empty), |c| c.into_html());
         }
@@ -109,13 +86,13 @@ impl SequenceBuilder {
         let html = HTML::seq(self.children);
         
         if matches!(self.content_kind, ContentKind::RequireEmpty) && !html.is_empty() {
-            Err(SequenceError::NoContentAllowed)
+            Err(errors::TypeError::NoContentAllowed)
         } else {
             Ok(html)
         }
     }
     
-    fn newline(&mut self) -> Result<(), SequenceError> {
+    fn newline(&mut self) -> Result<(), errors::TypeError> {
         match self.content_kind {
             ContentKind::RequireBlock(..) |
             ContentKind::RequireOneOf(..) |
@@ -123,10 +100,12 @@ impl SequenceBuilder {
                 self.close_child()
             },
             ContentKind::RequireInline => {
-                self.push(HTML::tag(str_ids::BR, HTML::Empty))
+                self.close_child()?;
+                self.children.push(HTML::tag(str_ids::BR, HTML::Empty));
+                Ok(())
             },
             ContentKind::RequireInlineNoLineBreaks => {
-                Err(SequenceError::ParagraphBreakNotAllowed)
+                Err(errors::TypeError::ParagraphBreakNotAllowed)
             },
             ContentKind::RequireEmpty => {
                 // this is in the stdlib or a self-closing tag; safe to ignore a paragraph break
@@ -135,7 +114,7 @@ impl SequenceBuilder {
         }
     }
     
-    fn close_child(&mut self) -> Result<(), SequenceError> {
+    fn close_child(&mut self) -> Result<(), errors::TypeError> {
         if let Some(child) = std::mem::take(&mut self.next_child) {
             let html = child.into_html()?;
             if !html.is_empty() {
@@ -145,13 +124,15 @@ impl SequenceBuilder {
         Ok(())
     }
     
-    fn push(&mut self, child: HTML) -> Result<(), SequenceError> {
+    fn push(&mut self, compiler: &Compiler, child: HTML) -> Result<(), errors::PapyriError> {
         // do nothing
         if child.is_empty() { return Ok(()); }
         
         if self.require_inline {
             if let Some(block_kind) = child.block_kind() {
-                return Err(SequenceError::TagNotAllowed(block_kind));
+                let name = compiler.get_name(block_kind);
+                let e = errors::TypeError::TagNotAllowed(name);
+                return Err(e.into());
             }
         }
         
@@ -171,7 +152,7 @@ impl SequenceBuilder {
             self.next_child.get_or_insert_with(|| {
                 let child_content_kind = ContentKind::for_(self.content_kind.wrap_with());
                 Box::new(SequenceBuilder::new(child_content_kind))
-            }).push(child)
+            }).push(compiler, child)
         } else {
             // whitespace at start, ignore
             Ok(())

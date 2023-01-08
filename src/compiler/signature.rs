@@ -1,7 +1,6 @@
 use std::rc::Rc;
 
-use crate::utils::{NameID, str_ids, NameIDMap};
-use crate::utils::sourcefile::SourceRange;
+use crate::utils::{NameID, str_ids, NameIDMap, SliceRef};
 use crate::errors;
 use crate::parser::{ast, Type};
 use super::base::Compiler;
@@ -126,7 +125,6 @@ impl PartialParams {
             compiler,
             sig,
             bound: self,
-            any_errors: false,
         }
     }
 }
@@ -135,31 +133,24 @@ pub(super) struct ParamBinder<'a, 'b> {
     compiler: &'a mut Compiler<'b>,
     sig: RcFuncSignature,
     bound: PartialParams,
-    any_errors: bool,
 }
 
 impl <'a, 'b> ParamBinder<'a, 'b> {
-    pub(super) fn close_partial(mut self, call_range: SourceRange) -> Option<PartialParams> {
-        self.check_pos_count(call_range);
-        (!self.any_errors)
-            .then_some(self.bound)
+    pub(super) fn close_into_bound_function(mut self, f: Func) -> Result<Func, errors::PapyriError> {
+        self.check_pos_count()?;
+        let pair = (f, self.bound);
+        Ok(Func::Bound(Rc::new(pair)))
     }
     
-    pub(super) fn close_into_bound_function(self, f: Func, call_range: SourceRange) -> Option<Func> {
-        self.close_partial(call_range)
-            .map(|b| Func::Bound(Rc::new((f, b))))
-    }
-    
-    pub(super) fn compile_positional_arg(&mut self, arg: &ast::Arg) {
+    pub(super) fn compile_positional_arg(&mut self, arg: &ast::Arg) -> Result<(), errors::AlreadyReported> {
         let sig = self.sig.as_ref();
         
         if arg.is_spread() {
-            if let Some(Value::List(vs)) = self.compiler.evaluate_node(&arg.value, &Type::Any.list()) {
-                for v in vs.as_ref().iter() {
-                    self.add_positional_arg(v.clone(), arg.value.range());
-                }
-            } else {
-                self.any_errors = true;
+            let vs: SliceRef<Value> = self.compiler.evaluate_node(&arg.value, &Type::Any.list())?
+                .expect_convert();
+            for v in vs.as_ref().iter().cloned() {
+                self.add_positional_arg(v)
+                    .map_err(|e| self.compiler.report(e, arg.value.range()))?;
             }
         } else {
             let type_hint = if let Some(param) = sig.positional_params.get(self.bound.positional_arg_count) {
@@ -169,24 +160,22 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
             } else {
                 &Type::Any
             };
-            if let Some(v) = self.compiler.evaluate_node(&arg.value, type_hint) {
-                self.add_positional_arg(v, arg.value.range());
-            } else {
-                self.any_errors = true;
-            }
+            let v = self.compiler.evaluate_node(&arg.value, type_hint)?;
+            self.add_positional_arg(v)
+                .map_err(|e| self.compiler.report(e, arg.value.range()))?;
         }
+        Ok(())
     }
     
-    pub(super) fn compile_named_arg(&mut self, arg: &ast::Arg) {
+    pub(super) fn compile_named_arg(&mut self, arg: &ast::Arg) -> Result<(), errors::AlreadyReported> {
         let sig = self.sig.as_ref();
         
         if arg.is_spread() {
-            if let Some(Value::Dict(vs)) = self.compiler.evaluate_node(&arg.value, &Type::Any.dict()) {
-                for (&k, v) in vs.iter() {
-                    self.add_named_arg(k, v.clone(), arg.value.range());
-                }
-            } else {
-                self.any_errors = true;
+            let vs: Rc<ValueMap> = self.compiler.evaluate_node(&arg.value, &Type::Any.dict())?
+                .expect_convert();
+            for (&k, v) in vs.iter() {
+                self.add_named_arg(k, v.clone())
+                    .map_err(|e| self.compiler.report(e, arg.value.range()))?;
             }
         } else {
             let type_hint = if let Some(param) = sig.named_params.get(&arg.name_id) {
@@ -196,29 +185,29 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
             } else {
                 &Type::Any
             };
-            if let Some(v) = self.compiler.evaluate_node(&arg.value, type_hint) {
-                self.add_named_arg(arg.name_id, v, arg.value.range());
-            } else {
-                self.any_errors = true;
-            }
+            let v = self.compiler.evaluate_node(&arg.value, type_hint)?;
+            self.add_named_arg(arg.name_id, v)
+                .map_err(|e| self.compiler.report(e, arg.range))?;
         }
+        Ok(())
     }
     
-    pub(super) fn bind_implicit_args(&mut self, call_range: SourceRange) {
+    pub(super) fn bind_implicit_args(&mut self) -> Result<(), errors::PapyriError> {
         let sig = self.sig.as_ref();
         
         for param in sig.named_params.values() {
             if !param.is_implicit || self.bound.map.contains_key(&param.name_id) {
                 // do nothing
-            } else if let Some(v) = self.compiler.get_implicit(param.name_id, param.default_value.as_ref().map(|v| *v.clone()), call_range) {
-                self.bound.map.insert(param.name_id, v.clone());
-            } else {
-                self.any_errors = true;
+                continue;
             }
+            
+            let v = self.compiler.get_implicit(param.name_id, param.default_value.as_ref().map(|v| *v.clone()))?;
+            self.bound.map.insert(param.name_id, v);
         }
+        Ok(())
     }
     
-    pub(super) fn compile_content_arg(&mut self, node: &ast::Expr) {
+    pub(super) fn compile_content_arg(&mut self, node: &ast::Expr) -> Result<(), errors::AlreadyReported> {
         let sig = self.sig.as_ref();
         
         let type_hint = if self.bound.map.contains_key(&sig.content_param.name_id) {
@@ -230,33 +219,28 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
             &sig.content_param.type_
         };
         
-        if let Some(v) = self.compiler.evaluate_node(node, type_hint) {
-            self.add_content_arg(v, node.range());
-        } else {
-            self.any_errors = true;
-        }
+        let v = self.compiler.evaluate_node(node, type_hint)?;
+        self.add_content_arg(v)
+            .map_err(|e| self.compiler.report(e, node.range()))
     }
     
-    pub(super) fn add_positional_arg(&mut self, value: Value, range: SourceRange) {
+    pub(super) fn add_positional_arg(&mut self, value: Value) -> Result<(), errors::PapyriError> {
         let sig = self.sig.as_ref();
         
         if let Some(param) = sig.positional_params.get(self.bound.positional_arg_count) {
-            match self.compiler.coerce(value, &param.type_, range) {
-                Some(v) => { self.bound.map.insert(param.name_id, v); },
-                None => self.any_errors = true,
-            }
+            let v = self.compiler.coerce(value, &param.type_)?;
+            self.bound.map.insert(param.name_id, v);
         } else if let Some(param) = &sig.spread_param {
-            match self.compiler.coerce(value, param.type_.component_type(), range) {
-                Some(v) => self.bound.spread_pos.push(v),
-                None => self.any_errors = true,
-            }
+            let v = self.compiler.coerce(value, param.type_.component_type())?;
+            self.bound.spread_pos.push(v);
         } else {
-            self.any_errors = true;
+            // do nothing; `TypeError::TooManyPositionalArgs` will be reported later
         }
         self.bound.positional_arg_count += 1;
+        Ok(())
     }
     
-    pub(super) fn add_named_arg(&mut self, name_id: NameID, value: Value, range: SourceRange) {
+    pub(super) fn add_named_arg(&mut self, name_id: NameID, value: Value) -> Result<(), errors::PapyriError> {
         let sig = self.sig.as_ref();
         
         let (type_, map) = if let Some(param) = sig.named_params.get(&name_id) {
@@ -265,89 +249,75 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
             (param.type_.component_type(), &mut self.bound.spread_named)
         } else {
             let name = self.compiler.get_name(name_id);
-            self.compiler.report(errors::NameError::NoSuchParameter(name), range);
-            self.any_errors = true;
-            return;
+            let e = errors::NameError::NoSuchParameter(name);
+            return Err(e.into());
         };
-        match self.compiler.coerce(value, type_, range) {
-            Some(v) => {
-                if map.insert(name_id, v).is_some() {
-                    let name = self.compiler.get_name(name_id);
-                    self.compiler.report(errors::RuntimeError::ParamMultipleValues(name), range);
-                    self.any_errors = true;
-                }
-            },
-            None => { self.any_errors = true; },
+        
+        let v = self.compiler.coerce(value, type_)?;
+        if map.insert(name_id, v).is_some() {
+            let name = self.compiler.get_name(name_id);
+            let e = errors::RuntimeError::ParamMultipleValues(name);
+            return Err(e.into());
         }
+        Ok(())
     }
     
-    pub(super) fn add_content_arg(&mut self, content_value: Value, range: SourceRange) {
+    pub(super) fn add_content_arg(&mut self, content_value: Value) -> Result<(), errors::PapyriError> {
         let sig = self.sig.as_ref();
         let name_id = sig.content_param.name_id;
         
         if self.bound.map.contains_key(&name_id) {
             if !content_value.is_unit() {
-                self.compiler.report(
-                    errors::TypeError::ContentAlreadyBound,
-                    range,
-                );
-                self.any_errors = true;
+                let e = errors::TypeError::ContentAlreadyBound;
+                return Err(e.into());
             }
-        } else if let Some(v) = self.compiler.coerce(content_value, &sig.content_param.type_, range) {
+        } else {
+            let v = self.compiler.coerce(content_value, &sig.content_param.type_)?;
             if !name_id.is_anonymous() {
                 self.bound.map.insert(name_id, v);
             }
-        } else {
-            self.any_errors = true;
         }
+        Ok(())
     }
     
-    fn check_pos_count(&mut self, call_range: SourceRange) {
+    fn check_pos_count(&mut self) -> Result<(), errors::PapyriError> {
         let sig = self.sig.as_ref();
         
         if sig.spread_param.is_none() && self.bound.positional_arg_count > sig.positional_params.len() {
-            self.compiler.report(
-                errors::TypeError::TooManyPositionalArgs(
-                    sig.positional_params.len(),
-                    self.bound.positional_arg_count,
-                ),
-                call_range,
+            let e = errors::TypeError::TooManyPositionalArgs(
+                sig.positional_params.len(),
+                self.bound.positional_arg_count,
             );
-            self.any_errors = true;
+            return Err(e.into());
         }
+        Ok(())
     }
     
-    pub(super) fn build(mut self, call_range: SourceRange) -> Option<ValueMap> {
-        self.check_pos_count(call_range);
-        if self.any_errors { return None; }
+    pub(super) fn build(mut self) -> Result<ValueMap, errors::PapyriError> {
+        self.check_pos_count()?;
         
         let sig = self.sig.as_ref();
         
         if let Some(param) = &sig.spread_param {
-            let v = self.compiler.coerce(self.bound.spread_pos.into(), &param.type_, call_range)?;
+            let v = self.compiler.coerce(self.bound.spread_pos.into(), &param.type_)?;
             self.bound.map.insert(param.name_id, v);
         }
         if let Some(param) = &sig.spread_named_param {
-            let v = self.compiler.coerce(self.bound.spread_named.into(), &param.type_, call_range)?;
+            let v = self.compiler.coerce(self.bound.spread_named.into(), &param.type_)?;
             self.bound.map.insert(param.name_id, v);
         }
         
         let content_name_id = sig.content_param.name_id;
         if !content_name_id.is_anonymous() && !self.bound.map.contains_key(&content_name_id) {
-            self.compiler.ice_at("no content arg provided", call_range);
+            errors::ice("No content arg provided");
         }
         
         if self.bound.positional_arg_count < sig.positional_params.len() {
             for param in &sig.positional_params[self.bound.positional_arg_count..] {
                 let Some(v) = &param.default_value else {
-                    self.compiler.report(
-                        errors::TypeError::NotEnoughPositionalArgs(
-                            sig.positional_params.iter().filter(|p| p.default_value.is_none()).count(),
-                            self.bound.positional_arg_count,
-                        ),
-                        call_range,
-                    );
-                    return None;
+                    let expected_count = sig.positional_params.iter().filter(|p| p.default_value.is_none()).count();
+                    let e = errors::TypeError::NotEnoughPositionalArgs(expected_count, self.bound.positional_arg_count);
+                    return Err(e.into());
                 };
                 self.bound.map.insert(param.name_id, *v.clone());
             }
@@ -356,13 +326,13 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
             if self.bound.map.contains_key(&param.name_id) { continue; }
             let Some(v) = &param.default_value else {
                 let name = self.compiler.get_name(param.name_id);
-                self.compiler.report(errors::RuntimeError::ParamMissing(name), call_range);
-                return None;
+                let e = errors::RuntimeError::ParamMissing(name);
+                return Err(e.into());
             };
             self.bound.map.insert(param.name_id, *v.clone());
         }
         
-        Some(self.bound.map)
+        Ok(self.bound.map)
     }
 }
 
@@ -395,7 +365,10 @@ impl <'a> Compiler<'a> {
             .option_if(param.question_mark);
         
         let default_value = param.default_value.as_ref()
-            .and_then(|v| self.evaluate_node(v, &type_))
+            .and_then(|v| match self.evaluate_node(v, &type_) {
+                Ok(v) => Some(v),
+                Err(errors::AlreadyReported) => None,
+            })
             .or_else(|| param.question_mark.then_some(Value::UNIT))
             .map(Box::new);
         

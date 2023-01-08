@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use crate::errors::{RuntimeError, Warning, ModuleError, TypeError, NameError};
+use crate::errors;
 use crate::utils::{str_ids, text, relpath, SliceRef};
 use crate::utils::sourcefile::{SourceRange, SourceFileID};
 use crate::parser::Type;
@@ -62,13 +62,8 @@ crate::native_defs! {
         }
         
         fn PARSE(PARAM: content Str) {
-            match PARAM.parse::<Int>() {
-                Ok(r) => r,
-                Err(e) => {
-                    compiler.report(RuntimeError::ParseIntError(e), call_range);
-                    return None;
-                },
-            }
+            PARAM.parse::<Int>()
+                .map_err(errors::RuntimeError::ParseIntError)?
         }
     }
     
@@ -128,9 +123,9 @@ crate::native_defs! {
         @bind_content
         fn UNIQUE_ID(MAX_LENGTH: named Int = 128, BASE: content Str) {
             if MAX_LENGTH <= 0 {
-                let e = RuntimeError::ParamMustBePositive(compiler.get_name(str_ids::MAX_LENGTH), MAX_LENGTH);
-                compiler.report(e, call_range);
-                return None;
+                let name = compiler.get_name(str_ids::MAX_LENGTH);
+                let e = errors::RuntimeError::ParamMustBePositive(name, MAX_LENGTH);
+                return Err(e.into());
             }
             
             compiler.ctx.unique_ids.get_unique_id(BASE.as_ref(), MAX_LENGTH as usize)
@@ -144,9 +139,7 @@ crate::native_defs! {
     
     impl REGEX for Regex {
         fn COMPILE(SOURCE: content Str) {
-            compiler.compile_regex(SOURCE.as_ref())
-                .map_err(|e| compiler.report(e, call_range))
-                .ok()?
+            compiler.compile_regex(SOURCE.as_ref())?
         }
         
         @bind_positional
@@ -178,7 +171,7 @@ crate::native_defs! {
     impl FUNCTION for Func {
         @bind_positional
         fn BIND(FUNCTION: positional Func, ARGS: pos_spread List, KWARGS: named_spread Dict, PARAM: content Value) {
-            FUNCTION.bind_partial(compiler, ARGS.as_ref(), KWARGS.as_ref(), PARAM, call_range)?
+            FUNCTION.bind_partial(compiler, ARGS.as_ref(), KWARGS.as_ref(), PARAM)?
         }
         
         @bind_content
@@ -209,7 +202,7 @@ crate::native_defs! {
         fn ALL(FUNCTION: positional Func, LIST: content List) {
             for v in LIST.as_ref() {
                 if !compiler.eval_callback::<bool>(FUNCTION.clone(), v.clone(), call_range)? {
-                    return Some(false.into());
+                    return Ok(false.into());
                 }
             }
             true
@@ -219,7 +212,7 @@ crate::native_defs! {
         fn ANY(FUNCTION: positional Func, LIST: content List) {
             for v in LIST.as_ref() {
                 if compiler.eval_callback::<bool>(FUNCTION.clone(), v.clone(), call_range)? {
-                    return Some(true.into());
+                    return Ok(true.into());
                 }
             }
             false
@@ -264,7 +257,7 @@ crate::native_defs! {
         fn FIND(FUNCTION: positional Func, LIST: content List) {
             for v in LIST.as_ref() {
                 if compiler.eval_callback::<bool>(FUNCTION.clone(), v.clone(), call_range)? {
-                    return Some(v.clone());
+                    return Ok(v.clone());
                 }
             }
         }
@@ -284,7 +277,7 @@ crate::native_defs! {
         
         @bind_content
         fn GET(I: positional Int, LIST: content List) {
-            compiler.list_get(LIST, I, call_range)?
+            compiler.list_get(LIST, I)?
         }
         
         fn HTML_NODES(HTML: content HTML) {
@@ -344,7 +337,7 @@ crate::native_defs! {
         @bind_content
         fn SORTED(KEY: named Option<Func> = (), REVERSED: named bool = false, LIST: content List) {
             if LIST.is_empty() {
-                return Some(LIST.into());
+                return Ok(LIST.into());
             }
             
             let mut decorated = Vec::with_capacity(LIST.len());
@@ -352,16 +345,16 @@ crate::native_defs! {
             for v in LIST.as_ref().iter().cloned() {
                 let k = KEY.as_ref()
                     .map_or_else(
-                        || Some(v.clone()),
+                        || Ok(v.clone()),
                         |f| compiler.eval_callback::<Value>(f.clone(), v.clone(), call_range),
                     )?;
                 
                 if !matches!(k, Value::Int(_) | Value::Str(_)) {
-                    compiler.report(TypeError::SortKeyInvalid(k.get_type()), call_range);
-                    return None;
+                    let e = errors::TypeError::SortKeyInvalid(k.get_type());
+                    return Err(e.into());
                 } else if matches!((&key_type, &k), (Type::Int, Value::Str(_)) | (Type::Str, Value::Int(_))) {
-                    compiler.report(TypeError::SortKeyHeterogeneous, call_range);
-                    return None;
+                    let e = errors::TypeError::SortKeyHeterogeneous;
+                    return Err(e.into());
                 } else if matches!(key_type, Type::Unit) {
                     key_type = k.get_type();
                 }
@@ -396,8 +389,8 @@ crate::native_defs! {
         fn GET(KEY: positional Str, DICT: content Dict) {
             let Some(v) = compiler.ctx.string_pool.get_id_if_present(KEY.as_ref())
                 .and_then(|key_id| DICT.get(&key_id)) else {
-                    compiler.report(NameError::NoSuchAttribute(Type::Any.dict(), KEY), call_range);
-                    return None;
+                    let e = errors::NameError::NoSuchAttribute(Type::Any.dict(), KEY);
+                    return Err(e.into());
                 };
             v.clone()
         }
@@ -440,7 +433,7 @@ crate::native_defs! {
             let base_path = PATH.trim_end_matches('/');
             relpath::find_papyri_source_files_in_dir(
                     &path,
-                    |p, e| compiler.report_static(ModuleError::IOError(p.into(), e), call_range),
+                    |p, e| { compiler.report_static(errors::ModuleError::IOError(p.into(), e), call_range); },
                 )?
                 .into_iter()
                 .map(|p| format!("{base_path}/{}", p.to_string_lossy())
@@ -454,14 +447,11 @@ crate::native_defs! {
         fn READ(PATH: content Str) {
             let path = compiler.resolve_relative_path(call_range.src_id, PATH.as_ref(), false);
             std::fs::read_to_string(path)
-                .map_err(|e| compiler.report(RuntimeError::FileReadError(PATH, e), call_range))
-                .ok()?
+                .map_err(|e| errors::RuntimeError::FileReadError(PATH, e))?
         }
         
         fn WRITE(PATH: positional Str, HTML: content HTML) {
-            compiler.ctx.push_out_file(PATH, HTML)
-                .map_err(|e| compiler.report(e, call_range))
-                .ok()?;
+            compiler.ctx.push_out_file(PATH, HTML)?
         }
     }
     
@@ -475,23 +465,18 @@ crate::native_defs! {
             (LANGUAGE.as_ref().map(|l| l.as_ref()), SOURCE.as_ref())
         };
         
-        compiler.native_code_impl(language, CODE_BLOCK, FIRST_LINE_NO, src, call_range)?
+        compiler.native_code_impl(language, CODE_BLOCK, FIRST_LINE_NO, src, call_range)
     }
     
     fn IMPORT(PATH: content Str) {
         let path = compiler.resolve_relative_path(call_range.src_id, PATH.as_ref(), true);
-        let (_, module_exports) = compiler.ctx.load_cached(&path)
-            .map_err(|e| compiler.report_static(e, call_range))
-            .ok()?;
-        
+        let (_, module_exports) = compiler.ctx.load_cached(path)?;
         module_exports
     }
     
     fn INCLUDE(PATH: content Str) {
         let path = compiler.resolve_relative_path(call_range.src_id, PATH.as_ref(), true);
-        let (module_out, module_exports) = compiler.ctx.load_cached(&path)
-            .map_err(|e| compiler.report_static(e, call_range))
-            .ok()?;
+        let (module_out, module_exports) = compiler.ctx.load_cached(path)?;
         
         for (&k, v) in module_exports.as_ref().iter() {
             compiler.set_var(k, v.clone(), false, call_range);
@@ -500,13 +485,13 @@ crate::native_defs! {
     }
     
     fn RAISE(STR: content Str) {
-        compiler.report(RuntimeError::Raised(STR), call_range);
-        return None;
+        let e = errors::RuntimeError::Raised(STR);
+        return Err(e.into());
     }
 }
 
 impl <'a> Compiler<'a> {
-    fn native_code_impl(&mut self, language: Option<&str>, is_block: bool, first_line_no: i64, src: &str, call_range: SourceRange) -> Option<Tag> {
+    fn native_code_impl(&mut self, language: Option<&str>, is_block: bool, first_line_no: i64, src: &str, call_range: SourceRange) -> Tag {
         use super::highlight::{syntax_highlight, enumerate_lines, no_highlighting};
         
         let mut tag = Tag::new(str_ids::CODE, HTML::Empty);
@@ -519,9 +504,9 @@ impl <'a> Compiler<'a> {
                     Some(lines)
                 } else {
                     let w = if cfg!(feature = "syntect") {
-                        Warning::HighlightLanguageUnknown(language.into())
+                        errors::Warning::HighlightLanguageUnknown(language.into())
                     } else {
-                        Warning::HighlightNotEnabled
+                        errors::Warning::HighlightNotEnabled
                     };
                     self.report(w, call_range);
                     None
@@ -533,15 +518,15 @@ impl <'a> Compiler<'a> {
             enumerate_lines(lines, first_line_no)
         } else {
             if first_line_no != 1 {
-                self.report(Warning::InlineHighlightEnumerate, call_range);
+                self.report(errors::Warning::InlineHighlightEnumerate, call_range);
             }
             if lines.len() > 1 {
-                self.report(Warning::InlineHighlightMultiline, call_range);
+                self.report(errors::Warning::InlineHighlightMultiline, call_range);
             }
             HTML::seq(lines)
         };
         
-        Some(tag)
+        tag
     }
     
     fn escape_html_impl(&mut self, h: HTML) -> String {
@@ -565,13 +550,14 @@ impl <'a> Compiler<'a> {
         path
     }
     
-    fn eval_callback<T: TryConvert>(&mut self, callback: Func, arg: Value, call_range: SourceRange) -> Option<T> {
-        let bindings = callback.bind_synthetic_call(self, false, arg, call_range)?;
-        self.evaluate_func_call_with_bindings(
+    fn eval_callback<T: TryConvert>(&mut self, callback: Func, arg: Value, call_range: SourceRange) -> Result<T, errors::PapyriError> {
+        let bindings = callback.bind_synthetic_call(self, false, arg)?;
+        let v = self.evaluate_func_call_with_bindings(
             callback,
             bindings,
             &T::as_type(),
             call_range,
-        ).map(Value::expect_convert)
+        )?;
+        Ok(v.expect_convert())
     }
 }
