@@ -3,7 +3,7 @@ use std::rc::Rc;
 use crate::utils::{NameID, text};
 use crate::errors::RuntimeError;
 use super::base::Compiler;
-use super::value::{Value, ValueMap};
+use super::value::{Value, Dict};
 
 #[derive(Debug)]
 enum RegexKind {
@@ -33,7 +33,7 @@ impl RegexKind {
                 let v = m.iter()
                     .skip(1)
                     .map(|g| g.map_or(Value::UNIT, |s| s.as_str().into()));
-                ValueMap::from_iter(name_ids.iter().copied().zip(v))
+                Dict::from_iter(name_ids.iter().copied().zip(v))
                     .into()
             },
         }
@@ -45,6 +45,7 @@ pub struct RegexValue {
     regex: regex::Regex,
     kind: RegexKind,
 }
+pub(super) type RcRegex = Rc<RegexValue>;
 
 impl RegexValue {
     pub(super) fn as_str(&self) -> &str {
@@ -82,7 +83,7 @@ impl RegexValue {
 }
 
 impl <'a> Compiler<'a> {
-    pub(super) fn compile_regex(&mut self, regex_str: &str) -> Result<Rc<RegexValue>, RuntimeError> {
+    pub(super) fn compile_regex(&mut self, regex_str: &str) -> Result<RcRegex, RuntimeError> {
         let regex = regex::Regex::new(regex_str)
             .map_err(RuntimeError::RegexSyntaxError)?;
         

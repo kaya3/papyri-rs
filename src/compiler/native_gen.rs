@@ -88,12 +88,12 @@ macro_rules! native_defs {
             pub(super) fn to_frame(&self) -> $crate::compiler::frame::ActiveFrame {
                 use ::std::option::Option::None;
                 use $crate::utils::str_ids;
-                use $crate::compiler::value::ValueMap;
+                use $crate::compiler::value::Dict;
                 use $crate::compiler::frame::ActiveFrame;
-                let globals = ValueMap::from_iter([
+                let globals = Dict::from_iter([
                     $((
                         str_ids::$type_name,
-                        ValueMap::from_iter([
+                        Dict::from_iter([
                             $((
                                 str_ids::$m_name,
                                 self.$type_name.$m_name.clone().into()
@@ -108,7 +108,7 @@ macro_rules! native_defs {
         
         impl <'a> $crate::compiler::base::Compiler<'a> {
             #[allow(non_snake_case, unreachable_code)]
-            pub(super) fn evaluate_native_func(&mut self, f: NativeFunc, mut bindings: $crate::compiler::value::ValueMap, $call_range: $crate::utils::sourcefile::SourceRange) -> ::std::result::Result<$crate::compiler::value::Value, $crate::errors::PapyriError> {
+            pub(super) fn evaluate_native_func(&mut self, f: NativeFunc, mut bindings: $crate::compiler::value::Dict, $call_range: $crate::utils::sourcefile::SourceRange) -> ::std::result::Result<$crate::compiler::value::Value, $crate::errors::PapyriError> {
                 use ::std::result::Result::Ok;
                 use $crate::utils::{str_ids, NameID};
                 use $crate::errors;

@@ -2,7 +2,7 @@ use crate::errors;
 use crate::parser::{ast, Type};
 use super::base::Compiler;
 use super::html::HTML;
-use super::value::{Value, ValueMap};
+use super::value::{Value, Dict};
 use super::value_convert::TryConvert;
 
 impl <'a> Compiler<'a> {
@@ -94,7 +94,7 @@ impl <'a> Compiler<'a> {
                     *spread_index,
                     html_slice.len(),
                     |i| html_slice[i].clone().into(),
-                    |a, b| HTML::seq(html_slice[a..b].iter().cloned()).into(),
+                    |a, b| HTML::from_iter(html_slice[a..b].iter().cloned()).into(),
                 )
             },
             
@@ -109,7 +109,7 @@ impl <'a> Compiler<'a> {
                 
                 if let Some(spread_pattern) = dict_pattern.spread.as_ref() {
                     if !matches!(spread_pattern, ast::MatchPattern::Ignore(..)) {
-                        let remaining: ValueMap = dict_value.iter()
+                        let remaining: Dict = dict_value.iter()
                             .filter(|(&k, _)| !dict_pattern.attrs.contains_key(&k))
                             .map(|(&k, v)| (k, v.clone()))
                             .collect();
@@ -125,7 +125,7 @@ impl <'a> Compiler<'a> {
                 let tag_name = self.get_name(tag_value.name_id);
                 if !self.bind_pattern(&tag_pattern.name, tag_name.into()) { return false; }
                 
-                let vs: ValueMap = tag_value.attributes
+                let vs: Dict = tag_value.attributes
                     .iter()
                     .map(|(&k, v)| (
                         k,

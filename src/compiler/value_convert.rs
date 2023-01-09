@@ -2,11 +2,11 @@ use std::rc::Rc;
 
 use crate::errors;
 use crate::parser::Type;
-use crate::utils::{SliceRef, NameIDMap};
+use crate::utils::NameIDMap;
 use super::func::Func;
 use super::html::HTML;
-use super::regex_value::RegexValue;
-use super::value::{Value, ValueMap};
+use super::regex_value::RcRegex;
+use super::value::{Value, Dict, Int, RcStr, RcDict, List};
 
 pub(super) trait TryConvert where Self: Sized {
     fn as_type() -> Type;
@@ -55,16 +55,16 @@ impl TryConvert for bool {
     }
 }
 
-impl From<i64> for Value {
-    fn from(i: i64) -> Value {
+impl From<Int> for Value {
+    fn from(i: Int) -> Value {
         Value::Int(i)
     }
 }
-impl TryConvert for i64 {
+impl TryConvert for Int {
     fn as_type() -> Type {
         Type::Int
     }
-    fn try_convert(value: Value) -> Result<i64, ()> {
+    fn try_convert(value: Value) -> Result<Int, ()> {
         match value {
             Value::Int(i) => Ok(i),
             _ => Err(()),
@@ -82,16 +82,16 @@ impl From<String> for Value {
         Value::Str(Rc::from(s))
     }
 }
-impl From<Rc<str>> for Value {
-    fn from(s: Rc<str>) -> Value {
+impl From<RcStr> for Value {
+    fn from(s: RcStr) -> Value {
         Value::Str(s)
     }
 }
-impl TryConvert for Rc<str> {
+impl TryConvert for RcStr {
     fn as_type() -> Type {
         Type::Str
     }
-    fn try_convert(value: Value) -> Result<Rc<str>, ()> {
+    fn try_convert(value: Value) -> Result<RcStr, ()> {
         match value {
             Value::Str(s) => Ok(s),
             _ => Err(()),
@@ -144,16 +144,16 @@ impl TryConvert for Func {
     }
 }
 
-impl From<Rc<RegexValue>> for Value {
-    fn from(r: Rc<RegexValue>) -> Self {
+impl From<RcRegex> for Value {
+    fn from(r: RcRegex) -> Self {
         Value::Regex(r)
     }
 }
-impl TryConvert for Rc<RegexValue> {
+impl TryConvert for RcRegex {
     fn as_type() -> Type {
         Type::Regex
     }
-    fn try_convert(value: Value) -> Result<Rc<RegexValue>, ()> {
+    fn try_convert(value: Value) -> Result<RcRegex, ()> {
         match value {
             Value::Regex(r) => Ok(r),
             _ => Err(()),
@@ -171,16 +171,16 @@ impl <const N: usize> From<[Value; N]> for Value {
         Value::List(vs.as_slice().into())
     }
 }
-impl From<SliceRef<Value>> for Value {
-    fn from(vs: SliceRef<Value>) -> Value {
+impl From<List> for Value {
+    fn from(vs: List) -> Value {
         Value::List(vs)
     }
 }
-impl TryConvert for SliceRef<Value> {
+impl TryConvert for List {
     fn as_type() -> Type {
         Type::Any.list()
     }
-    fn try_convert(value: Value) -> Result<SliceRef<Value>, ()> {
+    fn try_convert(value: Value) -> Result<List, ()> {
         match value {
             Value::List(vs) => Ok(vs),
             _ => Err(()),
@@ -188,21 +188,21 @@ impl TryConvert for SliceRef<Value> {
     }
 }
 
-impl From<ValueMap> for Value {
-    fn from(vs: ValueMap) -> Value {
+impl From<Dict> for Value {
+    fn from(vs: Dict) -> Value {
         Value::Dict(Rc::new(vs))
     }
 }
-impl From<Rc<ValueMap>> for Value {
-    fn from(vs: Rc<ValueMap>) -> Value {
+impl From<RcDict> for Value {
+    fn from(vs: RcDict) -> Value {
         Value::Dict(vs)
     }
 }
-impl TryConvert for Rc<ValueMap> {
+impl TryConvert for RcDict {
     fn as_type() -> Type {
         Type::Any.dict()
     }
-    fn try_convert(value: Value) -> Result<Rc<ValueMap>, ()> {
+    fn try_convert(value: Value) -> Result<RcDict, ()> {
         match value {
             Value::Dict(vs) => Ok(vs),
             _ => Err(()),
@@ -215,7 +215,7 @@ impl <T: TryConvert> TryConvert for Vec<T> {
         T::as_type().list()
     }
     fn try_convert(value: Value) -> Result<Vec<T>, ()> {
-        SliceRef::try_convert(value)?
+        List::try_convert(value)?
             .as_ref()
             .iter()
             .cloned()
@@ -228,7 +228,7 @@ impl <T: TryConvert> TryConvert for NameIDMap<T> {
         T::as_type().dict()
     }
     fn try_convert(value: Value) -> Result<NameIDMap<T>, ()> {
-        let vs: Rc<ValueMap> = TryConvert::try_convert(value)?;
+        let vs: RcDict = TryConvert::try_convert(value)?;
         let mut out = NameIDMap::default();
         for (&k, v) in vs.iter() {
             out.insert(k, T::try_convert(v.clone())?);

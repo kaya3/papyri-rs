@@ -6,6 +6,7 @@ use crate::utils::str_ids;
 use super::highlight_papyri::syntax_highlight_papyri;
 use super::html::HTML;
 use super::tag::Tag;
+use super::value::Int;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum TokenKind {
@@ -128,19 +129,16 @@ impl <'a> LineHighlighter<'a> {
     }
     
     fn close_part(&mut self) {
-        if let Some(kind) = self.current_token_kind {
+        if let Some(kind) = std::mem::take(&mut self.current_token_kind) {
             let s = &self.src[self.current_range.clone()];
             self.parts.push(LineHighlighter::make_token(kind, s, 0));
             self.current_range.start = self.current_range.end;
-            self.current_token_kind = None;
         }
     }
     
     pub(super) fn take_line(&mut self) -> HTML {
         self.close_part();
-        let line = HTML::seq(std::mem::take(&mut self.parts));
-        self.current_token_kind = None;
-        line
+        HTML::from_iter(std::mem::take(&mut self.parts))
     }
     
     fn make_token(kind: TokenKind, s: &str, paren_no: u32) -> HTML {
@@ -182,16 +180,16 @@ impl <'a> LineHighlighter<'a> {
     }
 }
 
-pub(super) fn enumerate_lines(lines: Vec<HTML>, start: i64) -> HTML {
+pub(super) fn enumerate_lines(lines: Vec<HTML>, start: Int) -> HTML {
     let mut out = Vec::new();
     for (i, line) in lines.into_iter().enumerate() {
         let tag = Tag::new(str_ids::SPAN, line)
             .str_attr(str_ids::CLASS, "line")
-            .str_attr(str_ids::DATA_LINE_NO, &(i as i64 + start).to_string());
+            .str_attr(str_ids::DATA_LINE_NO, &(i as Int + start).to_string());
         out.push(tag.into());
         out.push(HTML::RawNewline);
     }
-    HTML::seq(out)
+    HTML::from_iter(out)
 }
 
 pub(super) fn no_highlighting(src: &str) -> Vec<HTML> {

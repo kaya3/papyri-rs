@@ -8,6 +8,7 @@ use super::frame::InactiveFrame;
 use super::html::HTML;
 use super::module_loader::ModuleCache;
 use super::native::NativeDefs;
+use super::value::RcStr;
 
 /// Holds the context for a compilation job.
 pub struct Context {
@@ -59,7 +60,7 @@ impl Context {
     /// Adds an output file to this context's collector. The operation may fail
     /// if this context has no output file collector, or if the path is not
     /// within the output directory.
-    pub(super) fn push_out_file(&mut self, path: Rc<str>, content: HTML) -> Result<(), errors::RuntimeError> {
+    pub(super) fn push_out_file(&mut self, path: RcStr, content: HTML) -> Result<(), errors::RuntimeError> {
         let Some(sink) = self.out_files.as_mut() else {
             return Err(errors::RuntimeError::WriteFileNotAllowed);
         };
@@ -104,15 +105,11 @@ impl <'a> Compiler<'a> {
         errors::AlreadyReported
     }
     
-    pub(super) fn string_pool(&self) -> &StringPool {
-        &self.ctx.string_pool
-    }
-    
     pub(super) fn string_pool_mut(&mut self) -> &mut StringPool {
         &mut self.ctx.string_pool
     }
     
-    pub(super) fn get_name(&self, name_id: NameID) -> Rc<str> {
-        self.string_pool().get(name_id)
+    pub(super) fn get_name(&self, name_id: NameID) -> RcStr {
+        self.ctx.string_pool.get(name_id)
     }
 }

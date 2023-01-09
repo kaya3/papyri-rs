@@ -6,7 +6,7 @@ use crate::utils::{NameID, NameIDSet};
 use crate::utils::sourcefile::SourceRange;
 use super::base::Compiler;
 use super::func::Func;
-use super::value::{Value, ValueMap};
+use super::value::{Value, Dict};
 
 #[derive(Debug)]
 pub(super) struct ActiveFrame {
@@ -22,12 +22,12 @@ pub(super) struct InactiveFrame {
 #[derive(Debug)]
 struct Frame {
     lexical_parent: Option<InactiveFrame>,
-    locals: ValueMap,
+    locals: Dict,
     implicit: NameIDSet,
 }
 
 impl ActiveFrame {
-    pub(super) fn new(lexical_parent: Option<InactiveFrame>, locals: ValueMap, call: Option<(Func, SourceRange)>) -> ActiveFrame {
+    pub(super) fn new(lexical_parent: Option<InactiveFrame>, locals: Dict, call: Option<(Func, SourceRange)>) -> ActiveFrame {
         ActiveFrame {
             f: Rc::new(RefCell::new(Frame {
                 lexical_parent,
@@ -73,7 +73,7 @@ impl ActiveFrame {
 }
 
 impl InactiveFrame {
-    pub(super) fn new_child_frame(&self, locals: ValueMap, func: Func, call_range: SourceRange) -> ActiveFrame {
+    pub(super) fn new_child_frame(&self, locals: Dict, func: Func, call_range: SourceRange) -> ActiveFrame {
         ActiveFrame::new(
             Some(self.clone()),
             locals,
@@ -84,7 +84,7 @@ impl InactiveFrame {
     pub(super) fn new_empty_child_frame(&self) -> ActiveFrame {
         ActiveFrame::new(
             Some(self.clone()),
-            ValueMap::default(),
+            Dict::default(),
             None,
         )
     }

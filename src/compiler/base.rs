@@ -1,7 +1,7 @@
 use super::context::Context;
 use super::frame::ActiveFrame;
 use super::html::HTML;
-use super::value::ValueMap;
+use super::value::Dict;
 
 /// The result of compiling a Papyri source file. The output may be incomplete
 /// if there were errors during compilation. 
@@ -12,13 +12,13 @@ pub struct CompileResult {
     pub out: HTML,
     
     /// The values exported by this Papyri source file.
-    pub exports: ValueMap,
+    pub exports: Dict,
 }
 
 pub(super) struct Compiler<'a> {
     pub(super) ctx: &'a mut Context,
     pub(super) call_stack: Vec<ActiveFrame>,
-    pub(super) exports: ValueMap,
+    pub(super) exports: Dict,
 }
 
 impl <'a> Compiler<'a> {
@@ -28,7 +28,7 @@ impl <'a> Compiler<'a> {
         Compiler {
             ctx,
             call_stack,
-            exports: ValueMap::default(),
+            exports: Dict::default(),
         }
     }
 }

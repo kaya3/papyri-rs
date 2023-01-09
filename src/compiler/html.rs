@@ -3,6 +3,7 @@ use std::rc::Rc;
 use crate::errors;
 use crate::utils::{NameID, taginfo, text};
 use super::tag::Tag;
+use super::value::RcStr;
 
 #[derive(Debug, Clone)]
 /// Some HTML content, possibly empty. HTML content is classified as either
@@ -26,7 +27,7 @@ pub enum HTML {
     
     /// Raw text content. May contain special characters which will need to be
     /// escaped when rendering to HTML.
-    Text(Rc<str>),
+    Text(RcStr),
     
     /// A single space. Sequences of whitespace are collapsed to this.
     Whitespace,
@@ -36,9 +37,23 @@ pub enum HTML {
     RawNewline,
 }
 
-impl <T: AsRef<str> + Into<Rc<str>>> From<T> for HTML {
-    fn from(s: T) -> Self {
+impl <T: AsRef<str> + Into<RcStr>> From<T> for HTML {
+    fn from(s: T) -> HTML {
         HTML::text(s)
+    }
+}
+
+impl FromIterator<HTML> for HTML {
+    /// Converts a sequence of HTML items into one normalised HTML item. Empty
+    /// items are dropped, consecutive text nodes are merged, and nested
+    /// sequences are flattened. The result is then wrapped in an `HTML::Sequence`
+    /// only if there are at least two items.
+    fn from_iter<T: IntoIterator<Item=HTML>>(iter: T) -> HTML {
+        let mut builder = HTMLSeqBuilder::new();
+        for child in iter {
+            builder.push(child);
+        }
+        builder.build()
     }
 }
 
@@ -46,7 +61,7 @@ impl HTML {
     /// Converts a string to a normalised HTML item. Empty strings become
     /// `HTML::Empty`, single spaces become `HTML::Whitespace`, and newlines
     /// become `HTML::RawNewline`.
-    pub(super) fn text<T: AsRef<str> + Into<Rc<str>>>(s: T) -> HTML {
+    pub(super) fn text<T: AsRef<str> + Into<RcStr>>(s: T) -> HTML {
         match s.as_ref() {
             "" => HTML::Empty,
             " " => HTML::Whitespace,
@@ -61,16 +76,9 @@ impl HTML {
         Tag::new(name_id, content).into()
     }
     
-    /// Converts a sequence of HTML items into one normalised HTML item. Empty
-    /// items are dropped, consecutive text nodes are merged, and nested
-    /// sequences are flattened. The result is then wrapped in an `HTML::Sequence`
-    /// only if there are at least two items.
-    pub(super) fn seq<T: IntoIterator<Item=HTML>>(content: T) -> HTML {
-        let mut builder = HTMLSeqBuilder::new();
-        for child in content.into_iter() {
-            builder.push(child);
-        }
-        builder.build()
+    /// Wraps this HTML content in a tag.
+    pub(super) fn in_tag(self, name_id: NameID) -> HTML {
+        HTML::tag(name_id, self)
     }
     
     /// Indicates whether this HTML item is `HTML::Empty`. Whitespace and

@@ -1,22 +1,14 @@
-use std::rc::Rc;
-
 use crate::errors;
-use crate::utils::{str_ids, text, relpath, SliceRef};
+use crate::utils::{str_ids, text, relpath};
 use crate::utils::sourcefile::{SourceRange, SourceFileID};
 use crate::parser::Type;
 use super::base::Compiler;
 use super::func::Func;
 use super::html::HTML;
-use super::regex_value::RegexValue;
+use super::regex_value::RcRegex;
 use super::tag::Tag;
-use super::value::{Value, ValueMap};
+use super::value::{Value, Int, RcStr, List, RcDict};
 use super::value_convert::TryConvert;
-
-type Int = i64;
-type Str = Rc<str>;
-type Regex = Rc<RegexValue>;
-type List = SliceRef<Value>;
-type Dict = Rc<ValueMap>;
 
 crate::native_defs! {
     let compiler, call_range;
@@ -61,7 +53,7 @@ crate::native_defs! {
             -PARAM
         }
         
-        fn PARSE(PARAM: content Str) {
+        fn PARSE(PARAM: content RcStr) {
             PARAM.parse::<Int>()
                 .map_err(errors::RuntimeError::ParseIntError)?
         }
@@ -69,41 +61,41 @@ crate::native_defs! {
     
     impl STR for Str {
         @bind_positional
-        fn ENDS_WITH(A: positional Str, B: positional Str) {
+        fn ENDS_WITH(A: positional RcStr, B: positional RcStr) {
             A.ends_with(B.as_ref())
         }
         
         @bind_content
-        fn ESCAPE_HTML(STR: content Str) {
+        fn ESCAPE_HTML(STR: content RcStr) {
             compiler.escape_html_impl(STR.into())
         }
         
-        fn FROM(PARAM: content Str) {
+        fn FROM(PARAM: content RcStr) {
             PARAM
         }
         
         @bind_content
-        fn IS_EMPTY(STR: content Str) {
+        fn IS_EMPTY(STR: content RcStr) {
             STR.is_empty()
         }
         
         @bind_content
-        fn IS_WHITESPACE(STR: content Str) {
+        fn IS_WHITESPACE(STR: content RcStr) {
             text::is_whitespace(STR.as_ref())
         }
         
         @bind_content
-        fn LEN(STR: content Str) {
+        fn LEN(STR: content RcStr) {
             STR.len() as Int
         }
         
         @bind_content
-        fn LOWER(STR: content Str) {
+        fn LOWER(STR: content RcStr) {
             STR.to_lowercase()
         }
         
         @bind_content
-        fn SPLIT(SEP: positional Str, STR: content Str) {
+        fn SPLIT(SEP: positional RcStr, STR: content RcStr) {
             STR.as_ref()
                 .split(SEP.as_ref())
                 .map(Value::from)
@@ -111,17 +103,17 @@ crate::native_defs! {
         }
         
         @bind_positional
-        fn STARTS_WITH(A: positional Str, B: positional Str) {
+        fn STARTS_WITH(A: positional RcStr, B: positional RcStr) {
             A.starts_with(B.as_ref())
         }
         
         @bind_content
-        fn TRIM(STR: content Str) {
+        fn TRIM(STR: content RcStr) {
             STR.trim()
         }
         
         @bind_content
-        fn UNIQUE_ID(MAX_LENGTH: named Int = 128, BASE: content Str) {
+        fn UNIQUE_ID(MAX_LENGTH: named Int = 128, BASE: content RcStr) {
             if MAX_LENGTH <= 0 {
                 let name = compiler.get_name(str_ids::MAX_LENGTH);
                 let e = errors::RuntimeError::ParamMustBePositive(name, MAX_LENGTH);
@@ -132,45 +124,45 @@ crate::native_defs! {
         }
         
         @bind_content
-        fn UPPER(STR: content Str) {
+        fn UPPER(STR: content RcStr) {
             STR.to_uppercase()
         }
     }
     
     impl REGEX for Regex {
-        fn COMPILE(SOURCE: content Str) {
+        fn COMPILE(SOURCE: content RcStr) {
             compiler.compile_regex(SOURCE.as_ref())?
         }
         
         @bind_positional
-        fn COUNT(REGEX: positional Regex, STR: content Str) {
+        fn COUNT(REGEX: positional RcRegex, STR: content RcStr) {
             REGEX.count(STR.as_ref()) as Int
         }
         
         @bind_positional
-        fn FIND(REGEX: positional Regex, STR: content Str) {
+        fn FIND(REGEX: positional RcRegex, STR: content RcStr) {
             REGEX.find(STR.as_ref())
         }
         
         @bind_positional
-        fn FIND_ALL(REGEX: positional Regex, STR: content Str) {
+        fn FIND_ALL(REGEX: positional RcRegex, STR: content RcStr) {
             REGEX.find_all(STR.as_ref())
         }
         
         @bind_positional
-        fn SPLIT(REGEX: positional Regex, STR: content Str) {
+        fn SPLIT(REGEX: positional RcRegex, STR: content RcStr) {
             REGEX.split(STR.as_ref())
         }
         
         @bind_positional
-        fn TEST(REGEX: positional Regex, STR: content Str) {
+        fn TEST(REGEX: positional RcRegex, STR: content RcStr) {
             REGEX.test(STR.as_ref())
         }
     }
     
     impl FUNCTION for Func {
         @bind_positional
-        fn BIND(FUNCTION: positional Func, ARGS: pos_spread List, KWARGS: named_spread Dict, PARAM: content Value) {
+        fn BIND(FUNCTION: positional Func, ARGS: pos_spread List, KWARGS: named_spread RcDict, PARAM: content Value) {
             FUNCTION.bind_partial(compiler, ARGS.as_ref(), KWARGS.as_ref(), PARAM)?
         }
         
@@ -297,14 +289,14 @@ crate::native_defs! {
             if LIST.is_empty() {
                 HTML::Empty
             } else if SEP.is_empty() {
-                HTML::seq(LIST)
+                HTML::from_iter(LIST)
             } else {
                 let mut out = Vec::with_capacity(2 * LIST.len() - 1);
                 for (i, v) in LIST.into_iter().enumerate() {
                     if i > 0 { out.push(SEP.clone()); }
                     out.push(v);
                 }
-                HTML::seq(out)
+                HTML::from_iter(out)
             }
         }
         
@@ -367,7 +359,7 @@ crate::native_defs! {
             
             match decorated.first().unwrap().0 {
                 Value::Int(_) => decorated.sort_by_key(|p| p.0.clone().expect_convert::<Int>()),
-                Value::Str(_) => decorated.sort_by_key(|p| p.0.clone().expect_convert::<Str>()),
+                Value::Str(_) => decorated.sort_by_key(|p| p.0.clone().expect_convert::<RcStr>()),
                 _ => compiler.ice_at("failed to unwrap sort key", call_range),
             }
             
@@ -386,7 +378,7 @@ crate::native_defs! {
     }
     
     impl DICT {
-        fn GET(KEY: positional Str, DICT: content Dict) {
+        fn GET(KEY: positional RcStr, DICT: content RcDict) {
             let Some(v) = compiler.ctx.string_pool.get_id_if_present(KEY.as_ref())
                 .and_then(|key_id| DICT.get(&key_id)) else {
                     let e = errors::NameError::NoSuchAttribute(Type::Any.dict(), KEY);
@@ -395,32 +387,32 @@ crate::native_defs! {
             v.clone()
         }
         
-        fn IS_EMPTY(DICT: content Dict) {
+        fn IS_EMPTY(DICT: content RcDict) {
             DICT.is_empty()
         }
         
-        fn ITEMS(DICT: content Dict) {
+        fn ITEMS(DICT: content RcDict) {
             DICT.iter()
                 .map(|(&k, v)| [compiler.get_name(k).into(), v.clone()].into())
                 .collect::<Vec<Value>>()
         }
         
-        fn KEYS(DICT: content Dict) {
+        fn KEYS(DICT: content RcDict) {
             DICT.keys()
                 .copied()
                 .map(|k| compiler.get_name(k).into())
                 .collect::<Vec<Value>>()
         }
         
-        fn LEN(DICT: content Dict) {
+        fn LEN(DICT: content RcDict) {
             DICT.len() as Int
         }
         
-        fn NEW(KWARGS: named_spread Dict) {
+        fn NEW(KWARGS: named_spread RcDict) {
             KWARGS
         }
         
-        fn VALUES(DICT: content Dict) {
+        fn VALUES(DICT: content RcDict) {
             DICT.values()
                 .cloned()
                 .collect::<Vec<Value>>()
@@ -428,7 +420,7 @@ crate::native_defs! {
     }
     
     impl FILE {
-        fn LIST(PATH: content Str) {
+        fn LIST(PATH: content RcStr) {
             let path = compiler.resolve_relative_path(call_range.src_id, PATH.as_ref(), false);
             let base_path = PATH.trim_end_matches('/');
             relpath::find_papyri_source_files_in_dir(
@@ -444,18 +436,18 @@ crate::native_defs! {
                 .collect::<Vec<Value>>()
         }
         
-        fn READ(PATH: content Str) {
+        fn READ(PATH: content RcStr) {
             let path = compiler.resolve_relative_path(call_range.src_id, PATH.as_ref(), false);
             std::fs::read_to_string(path)
                 .map_err(|e| errors::RuntimeError::FileReadError(PATH, e))?
         }
         
-        fn WRITE(PATH: positional Str, HTML: content HTML) {
+        fn WRITE(PATH: positional RcStr, HTML: content HTML) {
             compiler.ctx.push_out_file(PATH, HTML)?
         }
     }
     
-    fn CODE(LANGUAGE: implicit Option<Str> = (), CODE_BLOCK: named bool = false, FIRST_LINE_NO: named Int = 1, SOURCE: content Str) {
+    fn CODE(LANGUAGE: implicit Option<RcStr> = (), CODE_BLOCK: named bool = false, FIRST_LINE_NO: named Int = 1, SOURCE: content RcStr) {
         let with_hint = CODE_BLOCK.then(|| text::get_source_language_hint(SOURCE.as_ref()))
             .flatten();
         
@@ -468,13 +460,13 @@ crate::native_defs! {
         compiler.native_code_impl(language, CODE_BLOCK, FIRST_LINE_NO, src, call_range)
     }
     
-    fn IMPORT(PATH: content Str) {
+    fn IMPORT(PATH: content RcStr) {
         let path = compiler.resolve_relative_path(call_range.src_id, PATH.as_ref(), true);
         let (_, module_exports) = compiler.ctx.load_cached(path)?;
         module_exports
     }
     
-    fn INCLUDE(PATH: content Str) {
+    fn INCLUDE(PATH: content RcStr) {
         let path = compiler.resolve_relative_path(call_range.src_id, PATH.as_ref(), true);
         let (module_out, module_exports) = compiler.ctx.load_cached(path)?;
         
@@ -484,14 +476,14 @@ crate::native_defs! {
         module_out
     }
     
-    fn RAISE(STR: content Str) {
+    fn RAISE(STR: content RcStr) {
         let e = errors::RuntimeError::Raised(STR);
         return Err(e.into());
     }
 }
 
 impl <'a> Compiler<'a> {
-    fn native_code_impl(&mut self, language: Option<&str>, is_block: bool, first_line_no: i64, src: &str, call_range: SourceRange) -> Tag {
+    fn native_code_impl(&mut self, language: Option<&str>, is_block: bool, first_line_no: Int, src: &str, call_range: SourceRange) -> Tag {
         use super::highlight::{syntax_highlight, enumerate_lines, no_highlighting};
         
         let mut tag = Tag::new(str_ids::CODE, HTML::Empty);
@@ -523,7 +515,7 @@ impl <'a> Compiler<'a> {
             if lines.len() > 1 {
                 self.report(errors::Warning::InlineHighlightMultiline, call_range);
             }
-            HTML::seq(lines)
+            HTML::from_iter(lines)
         };
         
         tag

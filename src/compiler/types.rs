@@ -115,7 +115,7 @@ impl Type {
             (Type::Block, _) => {
                 let mut r = value_to_html(value);
                 if r.is_inline() {
-                    r = HTML::tag(str_ids::P, r);
+                    r = r.in_tag(str_ids::P);
                 }
                 return Ok(r.into());
             },

@@ -1,11 +1,11 @@
 use std::rc::Rc;
 
-use crate::utils::{NameID, str_ids, NameIDMap, SliceRef};
+use crate::utils::{NameID, str_ids, NameIDMap};
 use crate::errors;
 use crate::parser::{ast, Type};
 use super::base::Compiler;
 use super::func::Func;
-use super::value::{Value, ValueMap};
+use super::value::{Value, Dict, List, RcDict};
 
 #[derive(Debug)]
 pub struct FuncParam {
@@ -100,8 +100,8 @@ impl FuncSignature {
 pub struct PartialParams {
     positional_arg_count: usize,
     spread_pos: Vec<Value>,
-    spread_named: ValueMap,
-    map: ValueMap,
+    spread_named: Dict,
+    map: Dict,
 }
 
 impl Default for PartialParams {
@@ -115,8 +115,8 @@ impl PartialParams {
         PartialParams {
             positional_arg_count: 0,
             spread_pos: Vec::new(),
-            spread_named: ValueMap::default(),
-            map: ValueMap::default(),
+            spread_named: Dict::default(),
+            map: Dict::default(),
         }
     }
     
@@ -142,16 +142,24 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
         Ok(Func::Bound(Rc::new(pair)))
     }
     
-    pub(super) fn compile_positional_arg(&mut self, arg: &ast::Arg) -> Result<(), errors::AlreadyReported> {
+    pub(super) fn compile_arg(&mut self, arg: &ast::Arg) -> Result<(), errors::AlreadyReported> {
+        if arg.is_positional() {
+            self.compile_positional_arg(arg)
+        } else {
+            self.compile_named_arg(arg)
+        }.map_err(|e| self.compiler.report(e, arg.range))
+    }
+    
+    fn compile_positional_arg(&mut self, arg: &ast::Arg) -> Result<(), errors::PapyriError> {
         let sig = self.sig.as_ref();
         
         if arg.is_spread() {
-            let vs: SliceRef<Value> = self.compiler.evaluate_node(&arg.value, &Type::Any.list())?
+            let vs: List = self.compiler.evaluate_node(&arg.value, &Type::Any.list())?
                 .expect_convert();
             for v in vs.as_ref().iter().cloned() {
-                self.add_positional_arg(v)
-                    .map_err(|e| self.compiler.report(e, arg.value.range()))?;
+                self.add_positional_arg(v)?;
             }
+            Ok(())
         } else {
             let type_hint = if let Some(param) = sig.positional_params.get(self.bound.positional_arg_count) {
                 &param.type_
@@ -162,21 +170,19 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
             };
             let v = self.compiler.evaluate_node(&arg.value, type_hint)?;
             self.add_positional_arg(v)
-                .map_err(|e| self.compiler.report(e, arg.value.range()))?;
         }
-        Ok(())
     }
     
-    pub(super) fn compile_named_arg(&mut self, arg: &ast::Arg) -> Result<(), errors::AlreadyReported> {
+    fn compile_named_arg(&mut self, arg: &ast::Arg) -> Result<(), errors::PapyriError> {
         let sig = self.sig.as_ref();
         
         if arg.is_spread() {
-            let vs: Rc<ValueMap> = self.compiler.evaluate_node(&arg.value, &Type::Any.dict())?
+            let vs: RcDict = self.compiler.evaluate_node(&arg.value, &Type::Any.dict())?
                 .expect_convert();
             for (&k, v) in vs.iter() {
-                self.add_named_arg(k, v.clone())
-                    .map_err(|e| self.compiler.report(e, arg.value.range()))?;
+                self.add_named_arg(k, v.clone())?;
             }
+            Ok(())
         } else {
             let type_hint = if let Some(param) = sig.named_params.get(&arg.name_id) {
                 &param.type_
@@ -187,9 +193,7 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
             };
             let v = self.compiler.evaluate_node(&arg.value, type_hint)?;
             self.add_named_arg(arg.name_id, v)
-                .map_err(|e| self.compiler.report(e, arg.range))?;
         }
-        Ok(())
     }
     
     pub(super) fn bind_implicit_args(&mut self) -> Result<(), errors::PapyriError> {
@@ -280,6 +284,7 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
         Ok(())
     }
     
+    /// Checks that this binder has not received too many positional arguments.
     fn check_pos_count(&mut self) -> Result<(), errors::PapyriError> {
         let sig = self.sig.as_ref();
         
@@ -288,12 +293,13 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
                 sig.positional_params.len(),
                 self.bound.positional_arg_count,
             );
-            return Err(e.into());
+            Err(e.into())
+        } else {
+            Ok(())
         }
-        Ok(())
     }
     
-    pub(super) fn build(mut self) -> Result<ValueMap, errors::PapyriError> {
+    pub(super) fn build(mut self) -> Result<Dict, errors::PapyriError> {
         self.check_pos_count()?;
         
         let sig = self.sig.as_ref();

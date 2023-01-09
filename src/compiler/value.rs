@@ -7,8 +7,13 @@ use crate::utils::sourcefile::SourceRange;
 use super::base::Compiler;
 use super::func::Func;
 use super::html::HTML;
-use super::regex_value::RegexValue;
+use super::regex_value::RcRegex;
 use super::tag::Tag;
+
+pub(super) type Int = i64;
+pub(super) type RcStr = Rc<str>;
+pub(super) type List = SliceRef<Value>;
+pub(super) type RcDict = Rc<Dict>;
 
 #[derive(Debug, Clone)]
 /// A value represented during compilation of a Papyri source file.
@@ -17,17 +22,17 @@ pub enum Value {
     Bool(bool),
     
     /// A 64-bit signed integer value.
-    Int(i64),
+    Int(Int),
     
     /// A string value.
-    Str(Rc<str>),
+    Str(RcStr),
     
     /// A list of values.
-    List(SliceRef<Value>),
+    List(List),
     
     /// A dictionary of values. The dictionary keys are strings, and must be
     /// valid identifiers not beginning with underscores.
-    Dict(Rc<ValueMap>),
+    Dict(RcDict),
     
     /// Some HTML content, represented as a value. HTML text content is instead
     /// represented as `Value::Str`.
@@ -38,10 +43,10 @@ pub enum Value {
     Func(Func),
     
     /// A regular expression.
-    Regex(Rc<RegexValue>),
+    Regex(RcRegex),
 }
 
-pub type ValueMap = NameIDMap<Value>;
+pub type Dict = NameIDMap<Value>;
 
 impl Value {
     /// The unit value, of type `none`.
@@ -111,24 +116,25 @@ impl <'a> Compiler<'a> {
             Value::Int(t) => text::substitutions(&t.to_string()).into(),
             Value::Str(t) => t.into(),
             Value::Dict(vs) => {
-                let rows: Vec<HTML> = vs.iter()
-                    .map(|(&k, v)| HTML::tag(str_ids::TR, HTML::seq([
-                        HTML::tag(str_ids::TH, self.get_name(k).into()),
-                        HTML::tag(str_ids::TD, self.compile_value(v.clone())),
-                    ])))
+                let rows = vs.iter()
+                    .map(|(&k, v)| {
+                        HTML::from_iter([
+                            HTML::tag(str_ids::TH, self.get_name(k).into()),
+                            HTML::tag(str_ids::TD, self.compile_value(v.clone())),
+                        ]).in_tag(str_ids::TR)
+                    })
                     .collect();
-                
-                Tag::new(str_ids::TABLE, HTML::seq(rows))
+                Tag::new(str_ids::TABLE, rows)
                     .str_attr(str_ids::CLASS, "tabular-data")
                     .into()
             },
             Value::List(vs) => {
-                let items: Vec<_> = vs.as_ref()
+                vs.as_ref()
                     .iter()
                     .cloned()
-                    .map(|child| HTML::tag(str_ids::LI, self.compile_value(child)))
-                    .collect();
-                HTML::tag(str_ids::UL, HTML::seq(items))
+                    .map(|child| self.compile_value(child).in_tag(str_ids::LI))
+                    .collect::<HTML>()
+                    .in_tag(str_ids::UL)
             },
             Value::HTML(html) => html,
             
@@ -180,7 +186,7 @@ impl <'a> Compiler<'a> {
         for &(ref child, is_spread) in list.iter() {
             if is_spread {
                 // can't necessarily use `type_hint` here, because it might not be a list type
-                let grandchildren: SliceRef<Value> = self.evaluate_node(child, &child_type_hint.clone().list())?
+                let grandchildren: List = self.evaluate_node(child, &child_type_hint.clone().list())?
                     .expect_convert();
                 children.extend(grandchildren.as_ref().iter().cloned());
             } else {
@@ -203,7 +209,7 @@ impl <'a> Compiler<'a> {
                     out.push(*c);
                 },
                 ast::TemplatePart::Name(name) => {
-                    let s: Option<Rc<str>> = self.evaluate_name(name, &Type::Str.option())?
+                    let s: Option<RcStr> = self.evaluate_name(name, &Type::Str.option())?
                         .expect_convert();
                     if let Some(s) = s {
                         out += s.as_ref();

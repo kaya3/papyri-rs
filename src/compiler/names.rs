@@ -1,9 +1,9 @@
 use crate::errors;
 use crate::parser::{ast, Type};
-use crate::utils::{str_ids, SliceRef};
+use crate::utils::str_ids;
 use super::base::Compiler;
 use super::html::HTML;
-use super::value::Value;
+use super::value::{Value, Int, List};
 
 impl <'a> Compiler<'a> {
     /// Returns the value of the given variable, coerced to the given type, or
@@ -41,15 +41,15 @@ impl <'a> Compiler<'a> {
     fn evaluate_index(&mut self, index: &ast::IndexName) -> Result<Value, errors::PapyriError> {
         let type_hint = Type::Any.list().option_if(index.is_coalescing);
         let Some(subject) = self.evaluate_name(&index.subject, &type_hint)?
-            .expect_convert::<Option<SliceRef<Value>>>() else {
+            .expect_convert::<Option<List>>() else {
                 return Ok(Value::UNIT);
             };
         
         self.list_get(subject, index.index)
     }
     
-    pub(super) fn list_get(&mut self, list: SliceRef<Value>, i: i64) -> Result<Value, errors::PapyriError> {
-        let n = list.len() as i64;
+    pub(super) fn list_get(&mut self, list: List, i: Int) -> Result<Value, errors::PapyriError> {
+        let n = list.len() as Int;
         if i >= 0 && i < n {
             Ok(list.get(i as usize).clone())
         } else if i >= -n && i < 0 {

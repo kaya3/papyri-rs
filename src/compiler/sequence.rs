@@ -83,7 +83,7 @@ impl SequenceBuilder {
         while matches!(self.children.last(), Some(c) if c.is_whitespace()) {
             self.children.pop();
         }
-        let html = HTML::seq(self.children);
+        let html = HTML::from_iter(self.children);
         
         if matches!(self.content_kind, ContentKind::RequireEmpty) && !html.is_empty() {
             Err(errors::TypeError::NoContentAllowed)
@@ -118,7 +118,8 @@ impl SequenceBuilder {
         if let Some(child) = std::mem::take(&mut self.next_child) {
             let html = child.into_html()?;
             if !html.is_empty() {
-                self.children.push(HTML::tag(self.content_kind.wrap_with(), html));
+                let name_id = self.content_kind.wrap_with();
+                self.children.push(html.in_tag(name_id));
             }
         }
         Ok(())

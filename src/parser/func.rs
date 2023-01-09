@@ -149,7 +149,7 @@ impl <'a> Parser<'a> {
             (true, range)
         };
         
-        if let Some(lpar) = lpar { range = lpar.range.to_end(range.end); }
+        if let Some(lpar) = lpar { range.start = lpar.range.start; }
         
         Some(Signature {
             range,

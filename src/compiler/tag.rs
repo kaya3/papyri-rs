@@ -7,10 +7,10 @@ use crate::utils::{str_ids, NameID, taginfo, text};
 use crate::utils::sourcefile::SourceRange;
 use super::base::Compiler;
 use super::html::HTML;
-use super::value::Value;
+use super::value::{Value, RcStr};
 use super::value_convert::TryConvert;
 
-pub(super) type AttrMap = IndexMap<NameID, Option<Rc<str>>, fxhash::FxBuildHasher>;
+pub(super) type AttrMap = IndexMap<NameID, Option<RcStr>, fxhash::FxBuildHasher>;
 
 #[derive(Debug, Clone)]
 pub struct Tag {
@@ -63,7 +63,7 @@ impl <'a> Compiler<'a> {
         let tag_name_id = match tag.name {
             ast::TagName::Literal(name_id) => name_id,
             ast::TagName::Name(ref name) => {
-                let name_str: Rc<str> = self.evaluate_name(name, &Type::Str)?
+                let name_str: RcStr = self.evaluate_name(name, &Type::Str)?
                     .expect_convert();
                 if text::is_identifier(&name_str) {
                     self.string_pool_mut()
@@ -85,11 +85,11 @@ impl <'a> Compiler<'a> {
                     match attr.value.as_ref() {
                         Some(node) => {
                             let expected_type = Type::Str.option_if(attr.question_mark);
-                            let s: Option<Rc<str>> = self.evaluate_node(node, &expected_type)?
+                            let s: Option<RcStr> = self.evaluate_node(node, &expected_type)?
                                 .expect_convert();
-                            if s.is_some() { self.add_attr(&mut attrs, attr.name_id, s, range); }
+                            if s.is_some() { self.add_attr(&mut attrs, attr.name_id, s, range)?; }
                         },
-                        None => { self.add_attr(&mut attrs, attr.name_id, None, range); },
+                        None => { self.add_attr(&mut attrs, attr.name_id, None, range)?; },
                     }
                 },
                 ast::TagAttrOrSpread::Spread(spread) => {
@@ -97,7 +97,7 @@ impl <'a> Compiler<'a> {
                         .expect_convert();
                     let range = spread.range();
                     for (k, s) in dict.into_iter() {
-                        self.add_attr(&mut attrs, k, s, range);
+                        self.add_attr(&mut attrs, k, s, range)?;
                     }
                 },
             }
@@ -107,10 +107,11 @@ impl <'a> Compiler<'a> {
         Ok(Tag::new_with_attrs(tag_name_id, attrs, children))
     }
     
-    fn add_attr(&mut self, attrs: &mut AttrMap, name_id: NameID, value: Option<Rc<str>>, range: SourceRange) {
+    fn add_attr(&mut self, attrs: &mut AttrMap, name_id: NameID, value: Option<RcStr>, range: SourceRange) -> Result<(), errors::AlreadyReported> {
         if attrs.insert(name_id, value).is_some() {
             let name = self.get_name(name_id);
-            self.report(errors::RuntimeError::AttrMultipleValues(name), range);
+            return Err(self.report(errors::RuntimeError::AttrMultipleValues(name), range));
         }
+        Ok(())
     }
 }

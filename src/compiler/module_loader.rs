@@ -9,7 +9,7 @@ use super::base::{Compiler, CompileResult};
 use super::context::Context;
 use super::frame::{InactiveFrame, ActiveFrame};
 use super::html::HTML;
-use super::value::ValueMap;
+use super::value::RcDict;
 
 /// A module cache is used to compile a set of Papyri source files, including
 /// loading of other Papyri source files by the `@import` and `@include`
@@ -24,7 +24,7 @@ pub struct ModuleCache {
     cache: IndexMap<Box<path::Path>, ModuleState, fxhash::FxBuildHasher>,
 }
 
-type CachedCompileResult = (HTML, Rc<ValueMap>);
+type CachedCompileResult = (HTML, RcDict);
 
 #[derive(Debug, Clone)]
 enum ModuleState {
