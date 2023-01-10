@@ -1,11 +1,11 @@
-use crate::errors::SyntaxError;
+use crate::errors::{SyntaxError, Reported};
 use crate::utils::{taginfo, str_ids, NameIDSet, NameID};
 use super::ast::*;
 use super::base::Parser;
 use super::token::{Token, TokenKind};
 
 impl <'a> Parser<'a> {
-    pub(super) fn parse_tag(&mut self, langle: Token) -> Option<Expr> {
+    pub(super) fn parse_tag(&mut self, langle: Token) -> Reported<Expr> {
         let name_tok = self.expect_poll()?;
         let (name, name_id) = match name_tok.kind {
             TokenKind::Name => {
@@ -19,8 +19,7 @@ impl <'a> Parser<'a> {
             TokenKind::ExclamationMark => {
                 let doctype = self.expect_poll()?;
                 if !self.tok_str(doctype).eq_ignore_ascii_case("DOCTYPE") {
-                    self.report(SyntaxError::TokenExpectedDoctype, doctype.range);
-                    return None;
+                    return Err(self.report(SyntaxError::TokenExpectedDoctype, doctype.range));
                 }
                 (TagName::Literal(str_ids::_DOCTYPE), str_ids::_DOCTYPE)
             },
@@ -39,7 +38,7 @@ impl <'a> Parser<'a> {
             if let TagAttrOrSpread::Attr(attr) = attr {
                 if !names_used.insert(attr.name_id) {
                     let name = self.string_pool.get(attr.name_id);
-                    self.report(SyntaxError::TagDuplicateAttr(name), attr.range)
+                    self.report(SyntaxError::TagDuplicateAttr(name), attr.range);
                 }
             }
         }
@@ -52,20 +51,19 @@ impl <'a> Parser<'a> {
         };
         
         let self_closing = self.tok_str(rangle) == "/>"
-            || (!name_id.is_anonymous() && taginfo::is_self_closing(name_id));
+            || taginfo::is_self_closing(name_id);
         
         if !self_closing {
             let (children, Some(close)) = self.parse_nodes_until(|_self, tok| _self.is_close_tag(tok, name_id)) else {
-                self.report(SyntaxError::TagUnmatchedOpen, tag.range);
-                return None;
+                return Err(self.report(SyntaxError::TagUnmatchedOpen, tag.range));
             };
             tag.range.end = close.range.end;
             tag.children = children.into_boxed_slice();
         }
-        Some(Expr::Tag(Box::new(tag)))
+        Ok(Expr::Tag(Box::new(tag)))
     }
     
-    fn parse_tag_attribute(&mut self) -> Option<TagAttrOrSpread> {
+    fn parse_tag_attribute(&mut self) -> Reported<TagAttrOrSpread> {
         self.skip_whitespace();
         let (spread_kind, _) = self.poll_if_spread(false, true);
         if spread_kind != SpreadKind::NoSpread {
@@ -74,7 +72,7 @@ impl <'a> Parser<'a> {
         }
         
         self.skip_whitespace();
-        let name_tok = self.poll_if_kind(TokenKind::Name)?;
+        let name_tok = self.expect_poll_kind(TokenKind::Name)?;
         let name_id = self.tok_name_id(name_tok);
         
         self.skip_whitespace();
@@ -84,10 +82,9 @@ impl <'a> Parser<'a> {
         if self.poll_if_kind(TokenKind::Equals).is_none() {
             return match question_mark {
                 Some(q) => {
-                    self.report(SyntaxError::TokenExpected(TokenKind::Equals), q.range);
-                    None
+                    Err(self.report(SyntaxError::TokenExpected(TokenKind::Equals), q.range))
                 },
-                None => Some(TagAttrOrSpread::Attr(TagAttribute {
+                None => Ok(TagAttrOrSpread::Attr(TagAttribute {
                     range: name_tok.range,
                     name_id,
                     question_mark: false,
@@ -98,7 +95,7 @@ impl <'a> Parser<'a> {
         
         let value = self.parse_expr()?;
         let range = name_tok.range.to_end(value.range().end);
-        Some(TagAttrOrSpread::Attr(TagAttribute {
+        Ok(TagAttrOrSpread::Attr(TagAttribute {
             range,
             name_id,
             question_mark: question_mark.is_some(),

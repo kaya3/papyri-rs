@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use crate::errors::{Diagnostics, SyntaxError};
+use crate::errors::{Diagnostics, SyntaxError, Reported};
 use crate::utils::StringPool;
 use crate::utils::sourcefile::SourceFile;
 use super::base::Parser;
@@ -22,21 +22,17 @@ impl <'a> Parser<'a> {
     
     /// Removes and returns the next token from the queue, if it exists;
     /// otherwise, an "unexpected EOF" error is emitted.
-    pub(super) fn expect_poll(&mut self) -> Option<Token> {
-        let t = self.poll();
-        if t.is_none() {
-            self.report(SyntaxError::UnexpectedEOF, self.src.eof_range());
-        }
-        t
+    pub(super) fn expect_poll(&mut self) -> Reported<Token> {
+        self.poll()
+            .ok_or_else(|| self.report(SyntaxError::UnexpectedEOF, self.src.eof_range()))
     }
     
     /// Removes and returns the next token from the queue, if it exists and
     /// matches the given kind; otherwise, a syntax error is emitted.
-    pub(super) fn expect_poll_kind(&mut self, kind: TokenKind) -> Option<Token> {
+    pub(super) fn expect_poll_kind(&mut self, kind: TokenKind) -> Reported<Token> {
         match self.tokens.last() {
             Some(tok) if tok.kind != kind => {
-                self.report(SyntaxError::TokenExpectedWas(kind, tok.kind), tok.range);
-                None
+                Err(self.report(SyntaxError::TokenExpectedWas(kind, tok.kind), tok.range))
             },
             _ => self.expect_poll(),
         }

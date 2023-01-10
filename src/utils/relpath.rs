@@ -22,7 +22,7 @@ pub fn make_relative(base: &Path, rel: &Path) -> Option<PathBuf> {
 /// 
 /// Any filesystem errors which occur are reported to the `on_error` callback;
 /// `None` is returned if the given base path is erroneous.
-pub fn find_papyri_source_files_in_dir(path: &Path, mut on_error: impl FnMut(&Path, std::io::Error)) -> Result<Vec<PathBuf>, errors::AlreadyReported> {
+pub fn find_papyri_source_files_in_dir(path: &Path, mut on_error: impl FnMut(&Path, std::io::Error)) -> errors::Reported<Vec<PathBuf>> {
     let canonical_path = std::fs::canonicalize(path)
         .map_err(|e| {
             on_error(path, e);

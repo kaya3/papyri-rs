@@ -71,7 +71,7 @@ impl Type {
             .all(|v| self.check_value(v))
     }
     
-    fn coerce_value(&self, value: Value, value_to_html: &impl Fn(Value) -> HTML) -> Result<Value, errors::TypeError> {
+    fn coerce_value(&self, value: Value, value_to_html: &impl Fn(Value) -> HTML) -> errors::PapyriResult<Value> {
         let expected = if let Type::Optional(t) = self {
             if value.is_unit() { return Ok(Value::UNIT); }
             t
@@ -129,10 +129,10 @@ impl Type {
             _ => {},
         }
         
-        Err(errors::TypeError::ExpectedWas(expected.clone(), value.get_type()))
+        Err(errors::TypeError::ExpectedWas(expected.clone(), value.get_type()).into())
     }
     
-    fn coerce_all<'a, T: Iterator<Item=&'a mut Value>>(&self, vs: T, value_to_html: &impl Fn(Value) -> HTML) -> Result<(), errors::TypeError> {
+    fn coerce_all<'a, T: Iterator<Item=&'a mut Value>>(&self, vs: T, value_to_html: &impl Fn(Value) -> HTML) -> errors::PapyriResult {
         for v in vs {
             let old_v = std::mem::take(v);
             *v = self.coerce_value(old_v, value_to_html)?;
@@ -142,7 +142,7 @@ impl Type {
 }
 
 impl <'a> Compiler<'a> {
-    pub(super) fn coerce(&mut self, value: Value, expected: &Type) -> Result<Value, errors::PapyriError> {
+    pub(super) fn coerce(&mut self, value: Value, expected: &Type) -> errors::PapyriResult<Value> {
         let v = expected.coerce_value(value, &|v| self.compile_value(v))?;
         Ok(v)
     }

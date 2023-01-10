@@ -9,17 +9,18 @@ impl <'a> Parser<'a> {
         errors::ice_at(msg, self.src.as_ref(), range)
     }
     
-    pub(super) fn report<T: Into<errors::PapyriError>>(&mut self, e: T, range: SourceRange) {
+    pub(super) fn report<T: Into<errors::PapyriError>>(&mut self, e: T, range: SourceRange) -> errors::AlreadyReported {
         self.diagnostics.report_static(e, self.src.clone(), range);
+        errors::AlreadyReported
     }
     
     /// Reports a syntax error caused by an unexpected token.
-    pub(super) fn err_unexpected_token(&mut self, tok: Token) {
-        self.report(errors::SyntaxError::TokenUnexpected(tok.kind), tok.range);
+    pub(super) fn err_unexpected_token(&mut self, tok: Token) -> errors::AlreadyReported {
+        self.report(errors::SyntaxError::TokenUnexpected(tok.kind), tok.range)
     }
     
     /// Reports a syntax error caused by an unmatched opening or closing token.
-    pub(super) fn err_unmatched(&mut self, tok: Token) {
-        self.report(errors::SyntaxError::TokenUnmatched(tok.kind), tok.range);
+    pub(super) fn err_unmatched(&mut self, tok: Token) -> errors::AlreadyReported {
+        self.report(errors::SyntaxError::TokenUnmatched(tok.kind), tok.range)
     }
 }

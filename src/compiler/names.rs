@@ -8,7 +8,7 @@ use super::value::{Value, Int, List};
 impl <'a> Compiler<'a> {
     /// Returns the value of the given variable, coerced to the given type, or
     /// `None` if a compilation error occurs.
-    pub(super) fn evaluate_name(&mut self, name: &ast::Name, type_hint: &Type) -> Result<Value, errors::AlreadyReported> {
+    pub(super) fn evaluate_name(&mut self, name: &ast::Name, type_hint: &Type) -> errors::Reported<Value> {
         let value = match name {
             ast::Name::Simple(name) => self.get_var(name.name_id),
             ast::Name::Attr(attr) => self.evaluate_attr(attr),
@@ -18,7 +18,7 @@ impl <'a> Compiler<'a> {
             .map_err(|e| self.report(e, name.range()))
     }
     
-    fn evaluate_attr(&mut self, attr: &ast::AttrName) -> Result<Value, errors::PapyriError> {
+    fn evaluate_attr(&mut self, attr: &ast::AttrName) -> errors::PapyriResult<Value> {
         let subject = self.evaluate_name(&attr.subject, &Type::Any)?;
         let attr_id = attr.attr_name_id;
         
@@ -38,7 +38,7 @@ impl <'a> Compiler<'a> {
             .map(Value::from)
     }
     
-    fn evaluate_index(&mut self, index: &ast::IndexName) -> Result<Value, errors::PapyriError> {
+    fn evaluate_index(&mut self, index: &ast::IndexName) -> errors::PapyriResult<Value> {
         let type_hint = Type::Any.list().option_if(index.is_coalescing);
         let Some(subject) = self.evaluate_name(&index.subject, &type_hint)?
             .expect_convert::<Option<List>>() else {
@@ -48,7 +48,7 @@ impl <'a> Compiler<'a> {
         self.list_get(subject, index.index)
     }
     
-    pub(super) fn list_get(&mut self, list: List, i: Int) -> Result<Value, errors::PapyriError> {
+    pub(super) fn list_get(&mut self, list: List, i: Int) -> errors::PapyriResult<Value> {
         let n = list.len() as Int;
         if i >= 0 && i < n {
             Ok(list.get(i as usize).clone())

@@ -31,7 +31,7 @@ impl <'a> Compiler<'a> {
         })
     }
     
-    fn compile_node(&mut self, builder: &mut SequenceBuilder, node: &AST) -> Result<(), errors::PapyriError> {
+    fn compile_node(&mut self, builder: &mut SequenceBuilder, node: &AST) -> errors::PapyriResult {
         match node {
             AST::Export(export) => {
                 self.compile_export(export)?;
@@ -74,7 +74,7 @@ impl SequenceBuilder {
         }
     }
     
-    fn into_html(mut self) -> Result<HTML, errors::TypeError> {
+    fn into_html(mut self) -> errors::PapyriResult<HTML> {
         if matches!(self.content_kind, ContentKind::AllowBlock(..)) && self.children.is_empty() {
             return self.next_child.map_or(Ok(HTML::Empty), |c| c.into_html());
         }
@@ -86,13 +86,13 @@ impl SequenceBuilder {
         let html = HTML::from_iter(self.children);
         
         if matches!(self.content_kind, ContentKind::RequireEmpty) && !html.is_empty() {
-            Err(errors::TypeError::NoContentAllowed)
+            Err(errors::TypeError::NoContentAllowed.into())
         } else {
             Ok(html)
         }
     }
     
-    fn newline(&mut self) -> Result<(), errors::TypeError> {
+    fn newline(&mut self) -> errors::PapyriResult {
         match self.content_kind {
             ContentKind::RequireBlock(..) |
             ContentKind::RequireOneOf(..) |
@@ -105,7 +105,7 @@ impl SequenceBuilder {
                 Ok(())
             },
             ContentKind::RequireInlineNoLineBreaks => {
-                Err(errors::TypeError::ParagraphBreakNotAllowed)
+                Err(errors::TypeError::ParagraphBreakNotAllowed.into())
             },
             ContentKind::RequireEmpty => {
                 // this is in the stdlib or a self-closing tag; safe to ignore a paragraph break
@@ -114,7 +114,7 @@ impl SequenceBuilder {
         }
     }
     
-    fn close_child(&mut self) -> Result<(), errors::TypeError> {
+    fn close_child(&mut self) -> errors::PapyriResult {
         if let Some(child) = std::mem::take(&mut self.next_child) {
             let html = child.into_html()?;
             if !html.is_empty() {
@@ -125,7 +125,7 @@ impl SequenceBuilder {
         Ok(())
     }
     
-    fn push(&mut self, compiler: &Compiler, child: HTML) -> Result<(), errors::PapyriError> {
+    fn push(&mut self, compiler: &Compiler, child: HTML) -> errors::PapyriResult {
         // do nothing
         if child.is_empty() { return Ok(()); }
         

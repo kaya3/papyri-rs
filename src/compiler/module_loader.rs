@@ -2,7 +2,7 @@ use std::{fs, path};
 use std::rc::Rc;
 use indexmap::IndexMap;
 
-use crate::errors::ModuleError;
+use crate::errors::{ModuleError, PapyriResult};
 use crate::parser;
 use crate::utils::{sourcefile, taginfo};
 use super::base::{Compiler, CompileResult};
@@ -85,10 +85,10 @@ impl Context {
     /// Loads a Papyri source file from the filesystem and compiles it. This
     /// only fails if the source file cannot be read; any other errors which
     /// occur during compilation are reported through `self.diagnostics`.
-    pub fn load_uncached(&mut self, path: &path::Path) -> Result<CompileResult, ModuleError> {
+    pub fn load_uncached(&mut self, path: &path::Path) -> PapyriResult<CompileResult> {
         self.source_files.load_from_path(path)
             .map(|src| self.compile(src))
-            .map_err(|e| ModuleError::IOError(path.into(), e))
+            .map_err(|e| ModuleError::IOError(path.into(), e).into())
     }
     
     /// Loads a Papyri source file from the filesystem and compiles it, or
@@ -100,10 +100,14 @@ impl Context {
     /// 
     /// This method should only be used to load a module included or imported
     /// by another Papyri source file.
-    pub fn load_cached(&mut self, path: path::PathBuf) -> Result<CachedCompileResult, ModuleError> {
+    pub fn load_cached(&mut self, path: path::PathBuf) -> PapyriResult<CachedCompileResult> {
+        // use `match` instead of `.map_err` here because otherwise rustc thinks `path` is moved
         let k = match fs::canonicalize(&path) {
             Ok(canonical_path) => canonical_path,
-            Err(e) => return Err(ModuleError::IOError(path.into(), e)),
+            Err(e) => {
+                let e = ModuleError::IOError(path.into(), e);
+                return Err(e.into())
+            },
         };
         
         match self.module_cache.get(&k) {
@@ -125,8 +129,8 @@ impl Context {
                 result
             },
             ModuleState::Loaded(cached_result) => Ok(cached_result),
-            ModuleState::Busy => Err(ModuleError::CircularImport(path.into())),
-            ModuleState::Error => Err(ModuleError::PreviousError(path.into())),
+            ModuleState::Busy => Err(ModuleError::CircularImport(path.into()).into()),
+            ModuleState::Error => Err(ModuleError::PreviousError(path.into()).into()),
         }
     }
     

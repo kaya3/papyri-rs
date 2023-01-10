@@ -60,14 +60,16 @@ impl Context {
     /// Adds an output file to this context's collector. The operation may fail
     /// if this context has no output file collector, or if the path is not
     /// within the output directory.
-    pub(super) fn push_out_file(&mut self, path: RcStr, content: HTML) -> Result<(), errors::RuntimeError> {
+    pub(super) fn push_out_file(&mut self, path: RcStr, content: HTML) -> errors::PapyriResult {
         let Some(sink) = self.out_files.as_mut() else {
-            return Err(errors::RuntimeError::WriteFileNotAllowed);
+            let e = errors::RuntimeError::WriteFileNotAllowed;
+            return Err(e.into());
         };
         if sink.try_push(path.as_ref(), content) {
             Ok(())
         } else {
-            Err(errors::RuntimeError::PathNotInOutDir(path))
+            let e = errors::RuntimeError::PathNotInOutDir(path);
+            Err(e.into())
         }
     }
     

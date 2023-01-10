@@ -13,9 +13,9 @@ pub(super) trait TryConvert where Self: Sized {
     fn try_convert(value: Value) -> Result<Self, ()>;
 }
 impl Value {
-    pub(super) fn try_convert<T: TryConvert>(self) -> Result<T, errors::TypeError> {
+    pub(super) fn try_convert<T: TryConvert>(self) -> errors::PapyriResult<T> {
         T::try_convert(self.clone())
-            .map_err(|_| errors::TypeError::ExpectedWas(T::as_type(), self.get_type()))
+            .map_err(|_| errors::TypeError::ExpectedWas(T::as_type(), self.get_type()).into())
     }
     pub(super) fn expect_convert<T: TryConvert>(self) -> T {
         self.try_convert()

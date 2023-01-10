@@ -20,7 +20,7 @@ pub enum SyntaxError {
     TokenVerbatimTooManyBackticks,
     TokenVerbatimEOF,
     
-    ExpectedValue,
+    ExpectedExpr,
     UnexpectedEOF,
     
     TagCloseMalformed,
@@ -85,7 +85,7 @@ impl std::fmt::Display for SyntaxError {
             SyntaxError::TokenVerbatimMultilineNotEnoughBackticks => f.write_str("multiline string literal must be delimited by at least three backticks"),
             SyntaxError::TokenVerbatimTooManyBackticks => f.write_str("too many backticks in string literal closing delimiter"),
             SyntaxError::TokenVerbatimEOF => f.write_str("unexpected end of source in string literal"),
-            SyntaxError::ExpectedValue => f.write_str("expected value"),
+            SyntaxError::ExpectedExpr => f.write_str("expected expression"),
             SyntaxError::UnexpectedEOF => f.write_str("unexpected end of source"),
             SyntaxError::TagCloseMalformed => f.write_str("malformed closing tag"),
             SyntaxError::TagUnmatchedOpen => f.write_str("unmatched opening tag"),

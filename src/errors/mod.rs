@@ -17,6 +17,14 @@ mod sink_base;
 pub use sink_base::{StackTrace, ReportingLevel, DiagSourceRange};
 pub use sink::{Diagnostics, PapyriError, AlreadyReported};
 
+/// A result type for which `Err` means a diagnostic must be reported by the
+/// caller.
+pub type PapyriResult<T=()> = Result<T, PapyriError>;
+
+/// A result type for which `Err` means a diagnostic has already been reported
+/// by the callee.
+pub type Reported<T=()> = Result<T, AlreadyReported>;
+
 /// Reports an internal compiler error, indicating a bug or mistake in the
 /// Papyri compiler. Use `ice_at` instead if the error corresponds with some
 /// code in a Papyri source file.

@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use crate::errors::SyntaxError;
+use crate::errors::{SyntaxError, Reported};
 use crate::utils::sourcefile::SourceRange;
 use crate::utils::{str_ids, NameIDSet};
 use super::ast::*;
@@ -9,7 +9,7 @@ use super::token::{Token, TokenKind, Keyword};
 use super::types::Type;
 
 impl <'a> Parser<'a> {
-    pub(super) fn parse_func_def(&mut self, at: Token, allow_anonymous: bool) -> Option<FuncDef> {
+    pub(super) fn parse_func_def(&mut self, at: Token, allow_anonymous: bool) -> Reported<FuncDef> {
         self.skip_whitespace();
         let name_id = self.poll_if_kind(TokenKind::Name)
             .map_or(
@@ -22,10 +22,9 @@ impl <'a> Parser<'a> {
         let body = Rc::new(self.parse_expr()?);
         
         if name_id.is_anonymous() && !allow_anonymous {
-            self.report(SyntaxError::AnonymousFunctionNotAllowed, at.range);
-            return None;
+            return Err(self.report(SyntaxError::AnonymousFunctionNotAllowed, at.range));
         }
-        Some(FuncDef {
+        Ok(FuncDef {
             range: at.range.to_end(body.range().end),
             name_id,
             signature,
@@ -33,11 +32,11 @@ impl <'a> Parser<'a> {
         })
     }
     
-    pub(super) fn parse_func_call(&mut self, at: Token) -> Option<FuncCall> {
+    pub(super) fn parse_func_call(&mut self, at: Token) -> Reported<FuncCall> {
         let func = self.parse_name(at)?;
         let args = self.parse_args()?.into_boxed_slice();
         let content = self.parse_expr_or_ellipsis()?;
-        Some(FuncCall {
+        Ok(FuncCall {
             range: func.range().to_end(content.range().end),
             func,
             args,
@@ -61,7 +60,7 @@ impl <'a> Parser<'a> {
         (spread_kind, Some(tok.range))
     }
     
-    fn parse_signature(&mut self) -> Option<Signature> {
+    fn parse_signature(&mut self) -> Reported<Signature> {
         let mut params = Vec::new();
         let mut positional_count = 0;
         let mut positional_spread = false;
@@ -151,7 +150,7 @@ impl <'a> Parser<'a> {
         
         if let Some(lpar) = lpar { range.start = lpar.range.start; }
         
-        Some(Signature {
+        Ok(Signature {
             range,
             params: params.into_boxed_slice(),
             positional_count,
@@ -162,10 +161,10 @@ impl <'a> Parser<'a> {
         })
     }
     
-    pub(super) fn parse_args(&mut self) -> Option<Vec<Arg>> {
+    pub(super) fn parse_args(&mut self) -> Reported<Vec<Arg>> {
         self.skip_whitespace();
         let Some(lpar) = self.poll_if_kind(TokenKind::LPar) else {
-            return Some(Vec::new());
+            return Ok(Vec::new());
         };
         
         let (args, _) = self.parse_separated_until(
@@ -192,10 +191,10 @@ impl <'a> Parser<'a> {
             }
         };
         
-        Some(args)
+        Ok(args)
     }
     
-    fn parse_param(&mut self) -> Option<(Param, SpreadKind, bool)> {
+    fn parse_param(&mut self) -> Reported<(Param, SpreadKind, bool)> {
         self.skip_whitespace();
         let (spread_kind, spread_range) = self.poll_if_spread(true, true);
         self.skip_whitespace();
@@ -209,7 +208,11 @@ impl <'a> Parser<'a> {
         let (is_implicit, type_annotation, type_annotation_range) = if self.poll_if_kind(TokenKind::Colon).is_some() {
             self.skip_whitespace();
             let is_implicit = self.poll_if_kind(TokenKind::Keyword(Keyword::Implicit)).is_some();
-            let (type_, type_range) = self.parse_type();
+            let (type_, type_range) = self.parse_type()
+                .map_or_else(
+                    |_| (Type::Any, None),
+                    |(t, r)| (t, Some(r)),
+                );
             (is_implicit, type_, type_range)
         } else {
             (false, Type::Any, None)
@@ -241,10 +244,10 @@ impl <'a> Parser<'a> {
             type_annotation,
             default_value: default_value.map(Box::new),
         };
-        Some((p, spread_kind, underscore))
+        Ok((p, spread_kind, underscore))
     }
     
-    pub(super) fn parse_arg(&mut self) -> Option<Arg> {
+    pub(super) fn parse_arg(&mut self) -> Reported<Arg> {
         self.skip_whitespace();
         let (spread_kind, spread_range) = self.poll_if_spread(true, true);
         
@@ -253,7 +256,7 @@ impl <'a> Parser<'a> {
             let value = self.parse_expr()?;
             let v_range = value.range();
             let range = spread_range.map_or(v_range, |r| r.to_end(v_range.end));
-            return Some(Arg {
+            return Ok(Arg {
                 range,
                 spread_kind,
                 name_id: str_ids::ANONYMOUS,
@@ -264,7 +267,7 @@ impl <'a> Parser<'a> {
         let range_start = spread_range.unwrap_or(name_tok.range);
         
         self.skip_whitespace();
-        Some(if self.poll_if_kind(TokenKind::Equals).is_some() {
+        Ok(if self.poll_if_kind(TokenKind::Equals).is_some() {
             if let Some(spread_range) = spread_range {
                 self.report(SyntaxError::ArgSpreadNamed, spread_range);
             }

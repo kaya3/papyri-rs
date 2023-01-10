@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use crate::errors::{Diagnostics, SyntaxError};
+use crate::errors::{Diagnostics, SyntaxError, Reported};
 use crate::utils::{StringPool, NameID};
 use crate::utils::sourcefile::{SourceFile, SourceRange};
 use super::ast::*;
@@ -60,7 +60,7 @@ impl <'a> Parser<'a> {
             };
             if closer(self, tok) {
                 break Some(tok);
-            } else if let Some(child) = self.parse_node(tok) {
+            } else if let Ok(child) = self.parse_node(tok) {
                 nodes.push(child);
             }
         };
@@ -71,57 +71,57 @@ impl <'a> Parser<'a> {
         (nodes, end)
     }
     
-    pub(super) fn parse_separated_until<T>(&mut self, open: Token, parse: impl Fn(&mut Self) -> Option<T>, sep_kind: TokenKind, close_kind: TokenKind) -> Option<(Vec<T>, Token)> {
+    pub(super) fn parse_separated_until<T>(&mut self, open: Token, parse: impl Fn(&mut Self) -> Reported<T>, sep_kind: TokenKind, close_kind: TokenKind) -> Reported<(Vec<T>, Token)> {
         let mut children = Vec::new();
         let mut expect_end = false;
         let close = loop {
             self.skip_whitespace();
-            let close = if expect_end { self.expect_poll_kind(close_kind) } else { self.poll_if_kind(close_kind) };
+            let close = if expect_end { self.expect_poll_kind(close_kind).ok() } else { self.poll_if_kind(close_kind) };
             if let Some(close) = close {
                 break close;
             }
             
-            if let Some(child) = parse(self) {
-                children.push(child);
-            } else {
-                self.err_unmatched(open);
-                self.report(SyntaxError::TokenExpectedWasEOF(close_kind), self.src.eof_range());
-                return None;
-            }
+            let child = parse(self)
+                .map_err(|_| {
+                    self.err_unmatched(open);
+                    self.report(SyntaxError::TokenExpectedWasEOF(close_kind), self.src.eof_range())
+                })?;
+            children.push(child);
+            
             self.skip_whitespace();
             expect_end = sep_kind != TokenKind::Whitespace && self.poll_if_kind(sep_kind).is_none();
         };
         
-        Some((children, close))
+        Ok((children, close))
     }
     
-    pub(super) fn parse_expr_or_ellipsis(&mut self) -> Option<Expr> {
+    pub(super) fn parse_expr_or_ellipsis(&mut self) -> Reported<Expr> {
         self.skip_whitespace();
         if let Some(ellipsis) = self.poll_if_kind(TokenKind::Ellipsis) {
-            Some(self.parse_ellipsis_group(ellipsis))
+            Ok(self.parse_ellipsis_group(ellipsis))
         } else {
             self.parse_expr()
         }
     }
     
-    pub(super) fn parse_expr(&mut self) -> Option<Expr> {
+    pub(super) fn parse_expr(&mut self) -> Reported<Expr> {
         self.skip_whitespace();
         let tok = self.expect_poll()?;
         self.parse_expr_tok(tok)
     }
     
-    pub(super) fn parse_expr_tok(&mut self, tok: Token) -> Option<Expr> {
+    pub(super) fn parse_expr_tok(&mut self, tok: Token) -> Reported<Expr> {
         match tok.kind {
-            TokenKind::Dot => Some(Expr::Unit(tok.range)),
-            TokenKind::Boolean(b) => Some(Expr::Bool(b, tok.range)),
-            TokenKind::Name => Some(Expr::BareString(tok.range)),
+            TokenKind::Dot => Ok(Expr::Unit(tok.range)),
+            TokenKind::Boolean(b) => Ok(Expr::Bool(b, tok.range)),
+            TokenKind::Name => Ok(Expr::BareString(tok.range)),
             
             TokenKind::Number => {
                 self.parse_number(tok)
-                    .map(|value| Expr::Int(value, tok.range))
+                    .map(|i| Expr::Int(i, tok.range))
             },
             
-            TokenKind::Verbatim(..) => Some(Expr::Verbatim(tok.range)),
+            TokenKind::Verbatim(..) => Ok(Expr::Verbatim(tok.range)),
             TokenKind::VarName => self.parse_name(tok).map(Expr::Name),
             
             TokenKind::FuncName => {
@@ -132,8 +132,7 @@ impl <'a> Parser<'a> {
             
             TokenKind::Keyword(k) => match k {
                 Keyword::Export => {
-                    self.report(SyntaxError::ExportNotAllowed, tok.range);
-                    None
+                    Err(self.report(SyntaxError::ExportNotAllowed, tok.range))
                 },
                 Keyword::Fn => {
                     self.parse_func_def(tok, true)
@@ -153,24 +152,23 @@ impl <'a> Parser<'a> {
                 },
             },
             
-            TokenKind::LBrace => Some(self.parse_group(tok)),
+            TokenKind::LBrace => Ok(self.parse_group(tok)),
             TokenKind::LSqb => self.parse_list(tok),
             TokenKind::LAngle if self.has_next(|t| matches!(t.kind, TokenKind::Name | TokenKind::VarName | TokenKind::ExclamationMark)) => {
                 self.parse_tag(tok)
             },
             TokenKind::Quote(open_kind, _) => {
                 let (parts, range) = self.parse_template_parts(tok, open_kind)?;
-                Some(Expr::Template(parts.into_boxed_slice(), range))
+                Ok(Expr::Template(parts.into_boxed_slice(), range))
             },
             
             _ => {
-                self.report(SyntaxError::ExpectedValue, tok.range);
-                None
+                Err(self.report(SyntaxError::ExpectedExpr, tok.range))
             }
         }
     }
     
-    fn parse_node(&mut self, tok: Token) -> Option<AST> {
+    fn parse_node(&mut self, tok: Token) -> Reported<AST> {
         match tok.kind {
             TokenKind::Keyword(Keyword::Export) => {
                 self.parse_export(tok)
@@ -182,7 +180,7 @@ impl <'a> Parser<'a> {
                     .map(Box::new)
                     .map(AST::FuncDef)
             },
-            TokenKind::Verbatim(k) => Some(AST::CodeFence(tok.range, k == VerbatimKind::Multiline)),
+            TokenKind::Verbatim(k) => Ok(AST::CodeFence(tok.range, k == VerbatimKind::Multiline)),
             
             TokenKind::FuncName |
             TokenKind::Keyword(..) |
@@ -201,34 +199,32 @@ impl <'a> Parser<'a> {
             TokenKind::CloseTag |
             TokenKind::RBrace |
             TokenKind::RSqb => {
-                self.err_unmatched(tok);
-                None
+                Err(self.err_unmatched(tok))
             },
             
             TokenKind::Comment => self.ice_at("comment should not occur here", tok.range),
             
-            TokenKind::Whitespace => Some(AST::Whitespace(tok.range)),
-            TokenKind::Newline => Some(AST::ParagraphBreak(tok.range)),
+            TokenKind::Whitespace => Ok(AST::Whitespace(tok.range)),
+            TokenKind::Newline => Ok(AST::ParagraphBreak(tok.range)),
             TokenKind::Escape => {
                 let c = self.unescape_char(tok);
-                Some(AST::Char(c, tok.range))
+                Ok(AST::Char(c, tok.range))
             },
             TokenKind::Entity => {
                 let c = self.decode_entity(tok);
-                Some(AST::Char(c, tok.range))
+                Ok(AST::Char(c, tok.range))
             },
-            _ => Some(self.parse_text(tok)),
+            _ => Ok(self.parse_text(tok)),
         }
     }
     
-    fn parse_number(&mut self, token: Token) -> Option<i64> {
+    fn parse_number(&mut self, token: Token) -> Reported<i64> {
         self.tok_str(token)
             .parse::<i64>()
             .map_err(|e| self.report(SyntaxError::TokenInvalidNumber(e), token.range))
-            .ok()
     }
     
-    pub(super) fn parse_name(&mut self, token: Token) -> Option<Name> {
+    pub(super) fn parse_name(&mut self, token: Token) -> Reported<Name> {
         let mut name = Name::Simple(SimpleName {
             name_id: self.tok_name_id(token),
             range: token.range,
@@ -255,7 +251,7 @@ impl <'a> Parser<'a> {
                 }));
             }
         }
-        Some(name)
+        Ok(name)
     }
     
     fn seq_range(open: Token, children: &[AST], close: Option<Token>) -> SourceRange {
@@ -270,7 +266,7 @@ impl <'a> Parser<'a> {
     pub(super) fn parse_ellipsis_group(&mut self, open: Token) -> Expr {
         let mut children = Vec::new();
         while let Some(tok) = self.poll_if(|_self, tok| !matches!(tok.kind, TokenKind::CloseTag | TokenKind::RBrace)) {
-            if let Some(child) = self.parse_node(tok) {
+            if let Ok(child) = self.parse_node(tok) {
                 children.push(child);
             }
         }
@@ -294,7 +290,7 @@ impl <'a> Parser<'a> {
         }
     }
     
-    fn parse_list(&mut self, open: Token) -> Option<Expr> {
+    fn parse_list(&mut self, open: Token) -> Reported<Expr> {
         let (children, close) = self.parse_separated_until(
             open,
             |_self| {
@@ -304,41 +300,41 @@ impl <'a> Parser<'a> {
                 } else if !arg.is_positional() {
                     _self.report(SyntaxError::ArgNamedNotAllowed, arg.range);
                 }
-                Some((arg.value, arg.spread_kind == SpreadKind::Positional))
+                Ok((arg.value, arg.spread_kind == SpreadKind::Positional))
             },
             TokenKind::Comma,
             TokenKind::RSqb,
         )?;
         
-        Some(Expr::List(
+        Ok(Expr::List(
             children.into_boxed_slice(),
             open.range.to_end(close.range.end),
         ))
     }
     
-    fn parse_export(&mut self, at: Token) -> Option<Export> {
+    fn parse_export(&mut self, at: Token) -> Reported<Export> {
         self.skip_whitespace();
         if let Some(fn_tok) = self.poll_if_kind(TokenKind::Keyword(Keyword::Fn)) {
             // @export @fn ...
             let f = self.parse_func_def(fn_tok, false)?;
             let range = at.range.to_end(f.range.end);
-            Some(Export::FuncDef(range, f))
+            Ok(Export::FuncDef(range, f))
         } else if let Some(let_tok) = self.poll_if_kind(TokenKind::Keyword(Keyword::Let)) {
             // @export @let ...
             let let_in = self.parse_let_in(let_tok, true)?;
             let range = at.range.to_end(let_in.range.end);
-            Some(Export::LetIn(range, let_in))
+            Ok(Export::LetIn(range, let_in))
         } else {
             // @export(...).
             let vars = self.parse_some_named_args(at)?;
             self.skip_whitespace();
             let dot = self.expect_poll_kind(TokenKind::Dot)?;
             let range = at.range.to_end(dot.range.end);
-            Some(Export::Names(range, vars))
+            Ok(Export::Names(range, vars))
         }
     }
     
-    fn parse_let_in(&mut self, at: Token, is_export: bool) -> Option<LetIn> {
+    fn parse_let_in(&mut self, at: Token, is_export: bool) -> Reported<LetIn> {
         let vars = self.parse_some_named_args(at)?;
         let child = self.parse_expr_or_ellipsis()?;
         
@@ -346,7 +342,7 @@ impl <'a> Parser<'a> {
             self.report(SyntaxError::LetInLiteral, child.range());
         }
         
-        Some(LetIn {
+        Ok(LetIn {
             range: at.range.to_end(child.range().end),
             is_implicit: at.kind == TokenKind::Keyword(Keyword::Implicit),
             vars,
@@ -354,16 +350,13 @@ impl <'a> Parser<'a> {
         })
     }
     
-    fn parse_some_named_args(&mut self, at: Token) -> Option<Box<[(NameID, Expr)]>> {
-        let args = match self.parse_args() {
-            Some(args) if !args.is_empty() => args,
-            _ => {
-                self.report(SyntaxError::DeclMissingArgs, at.range);
-                return None;
-            },
-        };
+    fn parse_some_named_args(&mut self, at: Token) -> Reported<Box<[(NameID, Expr)]>> {
+        let args = self.parse_args()?;
+        if args.is_empty() {
+            return Err(self.report(SyntaxError::DeclMissingArgs, at.range))
+        }
         
-        Some(args.into_iter()
+        Ok(args.into_iter()
             .filter_map(|arg| {
                 if arg.is_spread() {
                     let e = if arg.is_positional() { SyntaxError::SpreadPositionalNotAllowed } else { SyntaxError::SpreadNamedNotAllowed };

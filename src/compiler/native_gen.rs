@@ -108,8 +108,7 @@ macro_rules! native_defs {
         
         impl <'a> $crate::compiler::base::Compiler<'a> {
             #[allow(non_snake_case, unreachable_code)]
-            pub(super) fn evaluate_native_func(&mut self, f: NativeFunc, mut bindings: $crate::compiler::value::Dict, $call_range: $crate::utils::sourcefile::SourceRange) -> ::std::result::Result<$crate::compiler::value::Value, $crate::errors::PapyriError> {
-                use ::std::result::Result::Ok;
+            pub(super) fn evaluate_native_func(&mut self, f: NativeFunc, mut bindings: $crate::compiler::value::Dict, $call_range: $crate::utils::sourcefile::SourceRange) -> $crate::errors::PapyriResult<$crate::compiler::value::Value> {
                 use $crate::utils::{str_ids, NameID};
                 use $crate::errors;
                 use $crate::compiler::value::Value;
@@ -119,7 +118,7 @@ macro_rules! native_defs {
                         .map(std::mem::take)
                         .unwrap_or_else(|| errors::ice("failed to unpack"))
                 };
-                Ok(match f {
+                errors::PapyriResult::Ok(match f {
                     $($(NativeFunc::$type_name(native_names::$type_name::$m_name) => {
                         $(let $m_param_name: $m_param_type = take(str_ids::$m_param_name).expect_convert();)*
                         Value::from($m_body)
@@ -131,8 +130,7 @@ macro_rules! native_defs {
                 })
             }
             
-            pub(super) fn evaluate_native_attr(&mut self, subject: $crate::compiler::value::Value, attr_id: $crate::utils::NameID) -> ::std::result::Result<$crate::compiler::func::Func, $crate::errors::PapyriError> {
-                use ::std::result::Result::Err;
+            pub(super) fn evaluate_native_attr(&mut self, subject: $crate::compiler::value::Value, attr_id: $crate::utils::NameID) -> $crate::errors::PapyriResult<$crate::compiler::func::Func> {
                 use $crate::utils::str_ids;
                 use $crate::errors;
                 use $crate::compiler::value::Value;
@@ -143,7 +141,7 @@ macro_rules! native_defs {
                         _ => {},
                     }
                 }) else*
-                Err(errors::NameError::NoSuchAttribute(subject.get_type(), self.get_name(attr_id)).into())
+                errors::PapyriResult::Err(errors::NameError::NoSuchAttribute(subject.get_type(), self.get_name(attr_id)).into())
             }
         }
     }

@@ -151,7 +151,7 @@ impl <'a> Compiler<'a> {
     
     /// Evaluates an AST node to a value. Returns `None` if a compilation error
     /// occurs.
-    pub(super) fn evaluate_node(&mut self, node: &Expr, type_hint: &Type) -> Result<Value, errors::AlreadyReported> {
+    pub(super) fn evaluate_node(&mut self, node: &Expr, type_hint: &Type) -> errors::Reported<Value> {
         let v = match node {
             Expr::Unit(..) => Value::UNIT,
             &Expr::Bool(b, ..) => b.into(),
@@ -180,7 +180,7 @@ impl <'a> Compiler<'a> {
             .map_err(|e| self.report(e, node.range()))
     }
     
-    fn evaluate_list(&mut self, list: &[(Expr, bool)], type_hint: &Type, range: SourceRange) -> Result<Value, errors::AlreadyReported> {
+    fn evaluate_list(&mut self, list: &[(Expr, bool)], type_hint: &Type, range: SourceRange) -> errors::Reported<Value> {
         let child_type_hint = type_hint.component_type();
         let mut children = Vec::new();
         for &(ref child, is_spread) in list.iter() {
@@ -198,7 +198,7 @@ impl <'a> Compiler<'a> {
             .map_err(|e| self.report(e, range))
     }
     
-    fn evaluate_template(&mut self, parts: &[ast::TemplatePart]) -> Result<Value, errors::AlreadyReported> {
+    fn evaluate_template(&mut self, parts: &[ast::TemplatePart]) -> errors::Reported<Value> {
         let mut out = "".to_string();
         for part in parts.iter() {
             match part {
@@ -223,7 +223,7 @@ impl <'a> Compiler<'a> {
         Ok(out.into())
     }
     
-    pub(super) fn evaluate_let_in(&mut self, let_in: &ast::LetIn, type_hint: &Type, do_export: bool) -> Result<Value, errors::AlreadyReported> {
+    pub(super) fn evaluate_let_in(&mut self, let_in: &ast::LetIn, type_hint: &Type, do_export: bool) -> errors::Reported<Value> {
         let frame = self.frame()
             .to_inactive()
             .new_empty_child_frame();
@@ -243,7 +243,7 @@ impl <'a> Compiler<'a> {
             .into()
     }
     
-    pub(super) fn compile_code_fence(&mut self, range: SourceRange, is_multiline: bool) -> Result<HTML, errors::PapyriError> {
+    pub(super) fn compile_code_fence(&mut self, range: SourceRange, is_multiline: bool) -> errors::PapyriResult<HTML> {
         let str_value = self.evaluate_verbatim(range);
         
         let f_name = if is_multiline { str_ids::CODE_BLOCK } else { str_ids::CODE };

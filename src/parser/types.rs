@@ -1,4 +1,4 @@
-use crate::errors::{SyntaxError, Warning};
+use crate::errors::{SyntaxError, Warning, Reported};
 use crate::utils::sourcefile::SourceRange;
 
 use super::base::Parser;
@@ -126,11 +126,9 @@ impl std::fmt::Debug for Type {
 
 impl <'a> Parser<'a> {
     /// Parses a type annotation, not including the initial `:`.
-    pub(super) fn parse_type(&mut self) -> (Type, Option<SourceRange>) {
+    pub(super) fn parse_type(&mut self) -> Reported<(Type, SourceRange)> {
         self.skip_whitespace();
-        let Some(begin_token) = self.expect_poll_kind(TokenKind::Name) else {
-            return (Type::Any, None);
-        };
+        let begin_token = self.expect_poll_kind(TokenKind::Name)?;
         let mut t = match self.tok_str(begin_token) {
             "any" => Type::Any,
             "none" => Type::Unit,
@@ -169,6 +167,6 @@ impl <'a> Parser<'a> {
             }
             range.end = group_tok.range.end;
         }
-        (t, Some(range))
+        Ok((t, range))
     }
 }

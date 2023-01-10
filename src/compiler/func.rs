@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use crate::errors;
+use crate::errors::{PapyriResult, Reported};
 use crate::parser::{ast, Type};
 use crate::utils::NameID;
 use crate::utils::sourcefile::SourceRange;
@@ -41,7 +41,7 @@ impl Func {
         }
     }
     
-    pub(super) fn bind_content(self, compiler: &mut Compiler, content_arg: Value) -> Result<Func, errors::PapyriError> {
+    pub(super) fn bind_content(self, compiler: &mut Compiler, content_arg: Value) -> PapyriResult<Func> {
         let mut binder = self.get_partials()
             .open(compiler, self.signature());
         
@@ -49,7 +49,7 @@ impl Func {
         binder.close_into_bound_function(self)
     }
     
-    pub(super) fn bind_positional(self, compiler: &mut Compiler, arg: Value) -> Result<Func, errors::PapyriError> {
+    pub(super) fn bind_positional(self, compiler: &mut Compiler, arg: Value) -> PapyriResult<Func> {
         let mut binder = self.get_partials()
             .open(compiler, self.signature());
         
@@ -57,7 +57,7 @@ impl Func {
         binder.close_into_bound_function(self)
     }
     
-    pub(super) fn bind_partial(self, compiler: &mut Compiler, positional_args: &[Value], named_args: &Dict, content_arg: Value) -> Result<Func, errors::PapyriError> {
+    pub(super) fn bind_partial(self, compiler: &mut Compiler, positional_args: &[Value], named_args: &Dict, content_arg: Value) -> PapyriResult<Func> {
         let mut binder = self.get_partials()
             .open(compiler, self.signature());
         
@@ -74,7 +74,7 @@ impl Func {
         binder.close_into_bound_function(self)
     }
     
-    pub(super) fn bind_synthetic_call(&self, compiler: &mut Compiler, bind_implicits: bool, content_value: Value) -> Result<Dict, errors::PapyriError> {
+    pub(super) fn bind_synthetic_call(&self, compiler: &mut Compiler, bind_implicits: bool, content_value: Value) -> PapyriResult<Dict> {
         let mut binder = self.get_partials()
             .open(compiler, self.signature());
         if bind_implicits {
@@ -84,7 +84,7 @@ impl Func {
         binder.build()
     }
     
-    fn bind_call(&self, compiler: &mut Compiler, call: &ast::FuncCall) -> Result<Dict, errors::PapyriError> {
+    fn bind_call(&self, compiler: &mut Compiler, call: &ast::FuncCall) -> PapyriResult<Dict> {
         let mut binder = self.get_partials()
             .open(compiler, self.signature());
         
@@ -115,7 +115,7 @@ impl <'a> Compiler<'a> {
         }))
     }
     
-    pub(super) fn evaluate_func_call(&mut self, call: &ast::FuncCall, type_hint: &Type) -> Result<Value, errors::AlreadyReported> {
+    pub(super) fn evaluate_func_call(&mut self, call: &ast::FuncCall, type_hint: &Type) -> Reported<Value> {
         let func_type = Type::Function
             .option_if(call.func.is_coalescing());
         let Some(func) = self.evaluate_name(&call.func, &func_type)?
@@ -128,7 +128,7 @@ impl <'a> Compiler<'a> {
         self.evaluate_func_call_with_bindings(func, bindings, type_hint, call.range)
     }
     
-    pub(super) fn evaluate_func_call_with_bindings(&mut self, func: Func, bindings: Dict, type_hint: &Type, call_range: SourceRange) -> Result<Value, errors::AlreadyReported> {
+    pub(super) fn evaluate_func_call_with_bindings(&mut self, func: Func, bindings: Dict, type_hint: &Type, call_range: SourceRange) -> Reported<Value> {
         match func {
             Func::NonNative(ref f) => {
                 let frame = f.closure.new_child_frame(bindings, func.clone(), call_range);

@@ -136,13 +136,13 @@ pub(super) struct ParamBinder<'a, 'b> {
 }
 
 impl <'a, 'b> ParamBinder<'a, 'b> {
-    pub(super) fn close_into_bound_function(mut self, f: Func) -> Result<Func, errors::PapyriError> {
+    pub(super) fn close_into_bound_function(mut self, f: Func) -> errors::PapyriResult<Func> {
         self.check_pos_count()?;
         let pair = (f, self.bound);
         Ok(Func::Bound(Rc::new(pair)))
     }
     
-    pub(super) fn compile_arg(&mut self, arg: &ast::Arg) -> Result<(), errors::AlreadyReported> {
+    pub(super) fn compile_arg(&mut self, arg: &ast::Arg) -> errors::Reported {
         if arg.is_positional() {
             self.compile_positional_arg(arg)
         } else {
@@ -150,7 +150,7 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
         }.map_err(|e| self.compiler.report(e, arg.range))
     }
     
-    fn compile_positional_arg(&mut self, arg: &ast::Arg) -> Result<(), errors::PapyriError> {
+    fn compile_positional_arg(&mut self, arg: &ast::Arg) -> errors::PapyriResult {
         let sig = self.sig.as_ref();
         
         if arg.is_spread() {
@@ -173,7 +173,7 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
         }
     }
     
-    fn compile_named_arg(&mut self, arg: &ast::Arg) -> Result<(), errors::PapyriError> {
+    fn compile_named_arg(&mut self, arg: &ast::Arg) -> errors::PapyriResult {
         let sig = self.sig.as_ref();
         
         if arg.is_spread() {
@@ -196,7 +196,7 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
         }
     }
     
-    pub(super) fn bind_implicit_args(&mut self) -> Result<(), errors::PapyriError> {
+    pub(super) fn bind_implicit_args(&mut self) -> errors::PapyriResult {
         let sig = self.sig.as_ref();
         
         for param in sig.named_params.values() {
@@ -211,7 +211,7 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
         Ok(())
     }
     
-    pub(super) fn compile_content_arg(&mut self, node: &ast::Expr) -> Result<(), errors::AlreadyReported> {
+    pub(super) fn compile_content_arg(&mut self, node: &ast::Expr) -> errors::Reported {
         let sig = self.sig.as_ref();
         
         let type_hint = if self.bound.map.contains_key(&sig.content_param.name_id) {
@@ -228,7 +228,7 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
             .map_err(|e| self.compiler.report(e, node.range()))
     }
     
-    pub(super) fn add_positional_arg(&mut self, value: Value) -> Result<(), errors::PapyriError> {
+    pub(super) fn add_positional_arg(&mut self, value: Value) -> errors::PapyriResult {
         let sig = self.sig.as_ref();
         
         if let Some(param) = sig.positional_params.get(self.bound.positional_arg_count) {
@@ -244,7 +244,7 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
         Ok(())
     }
     
-    pub(super) fn add_named_arg(&mut self, name_id: NameID, value: Value) -> Result<(), errors::PapyriError> {
+    pub(super) fn add_named_arg(&mut self, name_id: NameID, value: Value) -> errors::PapyriResult {
         let sig = self.sig.as_ref();
         
         let (type_, map) = if let Some(param) = sig.named_params.get(&name_id) {
@@ -266,7 +266,7 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
         Ok(())
     }
     
-    pub(super) fn add_content_arg(&mut self, content_value: Value) -> Result<(), errors::PapyriError> {
+    pub(super) fn add_content_arg(&mut self, content_value: Value) -> errors::PapyriResult {
         let sig = self.sig.as_ref();
         let name_id = sig.content_param.name_id;
         
@@ -285,7 +285,7 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
     }
     
     /// Checks that this binder has not received too many positional arguments.
-    fn check_pos_count(&mut self) -> Result<(), errors::PapyriError> {
+    fn check_pos_count(&mut self) -> errors::PapyriResult {
         let sig = self.sig.as_ref();
         
         if sig.spread_param.is_none() && self.bound.positional_arg_count > sig.positional_params.len() {
@@ -299,7 +299,7 @@ impl <'a, 'b> ParamBinder<'a, 'b> {
         }
     }
     
-    pub(super) fn build(mut self) -> Result<Dict, errors::PapyriError> {
+    pub(super) fn build(mut self) -> errors::PapyriResult<Dict> {
         self.check_pos_count()?;
         
         let sig = self.sig.as_ref();

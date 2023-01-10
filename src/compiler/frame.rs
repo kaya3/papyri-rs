@@ -143,7 +143,7 @@ impl <'a> Compiler<'a> {
             .collect()
     }
     
-    pub(super) fn get_var(&mut self, name_id: NameID) -> Result<Value, errors::PapyriError> {
+    pub(super) fn get_var(&mut self, name_id: NameID) -> errors::PapyriResult<Value> {
         self.frame()
             .get(name_id, false)
             .ok_or_else(|| {
@@ -152,7 +152,7 @@ impl <'a> Compiler<'a> {
             })
     }
     
-    pub(super) fn get_implicit(&mut self, name_id: NameID, default_value: Option<Value>) -> Result<Value, errors::PapyriError> {
+    pub(super) fn get_implicit(&mut self, name_id: NameID, default_value: Option<Value>) -> errors::PapyriResult<Value> {
         self.frame()
             .get(name_id, true)
             .or(default_value)

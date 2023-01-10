@@ -59,23 +59,8 @@ impl From<Tag> for Value {
 }
 
 impl <'a> Compiler<'a> {
-    pub(super) fn compile_tag(&mut self, tag: &ast::Tag) -> Result<Tag, errors::AlreadyReported> {
-        let tag_name_id = match tag.name {
-            ast::TagName::Literal(name_id) => name_id,
-            ast::TagName::Name(ref name) => {
-                let name_str: RcStr = self.evaluate_name(name, &Type::Str)?
-                    .expect_convert();
-                if text::is_identifier(&name_str) {
-                    self.string_pool_mut()
-                        .insert(name_str.to_ascii_lowercase())
-                } else if name_str.eq_ignore_ascii_case("!DOCTYPE") {
-                    str_ids::_DOCTYPE
-                } else {
-                    let e = errors::NameError::InvalidTag(name_str);
-                    return Err(self.report(e, name.range()));
-                }
-            },
-        };
+    pub(super) fn compile_tag(&mut self, tag: &ast::Tag) -> errors::Reported<Tag> {
+        let tag_name_id = self.compile_tag_name(&tag.name)?;
         
         let mut attrs = AttrMap::default();
         for attr in tag.attrs.iter() {
@@ -107,7 +92,26 @@ impl <'a> Compiler<'a> {
         Ok(Tag::new_with_attrs(tag_name_id, attrs, children))
     }
     
-    fn add_attr(&mut self, attrs: &mut AttrMap, name_id: NameID, value: Option<RcStr>, range: SourceRange) -> Result<(), errors::AlreadyReported> {
+    fn compile_tag_name(&mut self, name: &ast::TagName) -> errors::Reported<NameID> {
+        match name {
+            ast::TagName::Literal(name_id) => Ok(*name_id),
+            ast::TagName::Name(name) => {
+                let name_str: RcStr = self.evaluate_name(name, &Type::Str)?
+                    .expect_convert();
+                if text::is_identifier(&name_str) {
+                    Ok(self.string_pool_mut()
+                        .insert(name_str.to_ascii_lowercase()))
+                } else if name_str.eq_ignore_ascii_case("!DOCTYPE") {
+                    Ok(str_ids::_DOCTYPE)
+                } else {
+                    let e = errors::NameError::InvalidTag(name_str);
+                    return Err(self.report(e, name.range()));
+                }
+            },
+        }
+    }
+    
+    fn add_attr(&mut self, attrs: &mut AttrMap, name_id: NameID, value: Option<RcStr>, range: SourceRange) -> errors::Reported {
         if attrs.insert(name_id, value).is_some() {
             let name = self.get_name(name_id);
             return Err(self.report(errors::RuntimeError::AttrMultipleValues(name), range));

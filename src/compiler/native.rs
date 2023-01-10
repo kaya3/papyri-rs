@@ -542,7 +542,7 @@ impl <'a> Compiler<'a> {
         path
     }
     
-    fn eval_callback<T: TryConvert>(&mut self, callback: Func, arg: Value, call_range: SourceRange) -> Result<T, errors::PapyriError> {
+    fn eval_callback<T: TryConvert>(&mut self, callback: Func, arg: Value, call_range: SourceRange) -> errors::PapyriResult<T> {
         let bindings = callback.bind_synthetic_call(self, false, arg)?;
         let v = self.evaluate_func_call_with_bindings(
             callback,

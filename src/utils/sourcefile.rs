@@ -172,7 +172,7 @@ impl SourceFileCache {
     }
     
     /// Loads a source file from the given path.
-    pub(crate) fn load_from_path(&mut self, path: &path::Path) -> Result<Rc<SourceFile>, std::io::Error> {
+    pub(crate) fn load_from_path(&mut self, path: &path::Path) -> std::io::Result<Rc<SourceFile>> {
         let src = fs::read_to_string(path)?;
         let s = Rc::new(SourceFile::new(
             self.next_id(),

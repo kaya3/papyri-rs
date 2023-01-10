@@ -1,4 +1,5 @@
 #[allow(missing_docs)]
+#[derive(Debug)]
 /// Represents a warning which occurs during compilation of a Papyri source
 /// file.
 pub enum Warning {

@@ -1,17 +1,16 @@
+use crate::errors::Reported;
 use crate::utils::sourcefile::SourceRange;
 use super::ast::*;
 use super::base::Parser;
 use super::token::{Token, TokenKind, QuoteKind};
 
 impl <'a> Parser<'a> {
-    pub(super) fn parse_template_parts(&mut self, open: Token, open_kind: QuoteKind) -> Option<(Vec<TemplatePart>, SourceRange)> {
+    pub(super) fn parse_template_parts(&mut self, open: Token, open_kind: QuoteKind) -> Reported<(Vec<TemplatePart>, SourceRange)> {
         let mut parts: Vec<TemplatePart> = Vec::new();
         let mut brace_stack: Vec<Token> = Vec::new();
         let close = loop {
-            let Some(tok) = self.expect_poll() else {
-                self.err_unmatched(open);
-                return None;
-            };
+            let tok = self.expect_poll()
+                .map_err(|_| self.err_unmatched(open))?;
             match tok.kind {
                 TokenKind::Quote(k, _) if k == open_kind => break tok,
                 
@@ -33,7 +32,7 @@ impl <'a> Parser<'a> {
                 },
                 
                 TokenKind::VarName => {
-                    if let Some(name) = self.parse_name(tok) {
+                    if let Ok(name) = self.parse_name(tok) {
                         parts.push(TemplatePart::Name(name));
                     }
                 },
@@ -62,7 +61,7 @@ impl <'a> Parser<'a> {
             self.err_unmatched(tok);
         }
         
-        Some((
+        Ok((
             parts,
             open.range.to_end(close.range.end),
         ))

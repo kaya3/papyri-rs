@@ -9,6 +9,7 @@ use super::type_error::TypeError;
 use super::warning::Warning;
 
 #[allow(missing_docs)]
+#[derive(Debug)]
 /// Represents an error or warning which occurs while attempting to compile a
 /// Papyri source file.
 pub enum PapyriError {

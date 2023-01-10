@@ -13,7 +13,7 @@ impl <'a> Compiler<'a> {
         }
     }
     
-    pub(super) fn compile_export(&mut self, e: &ast::Export) -> Result<(), errors::AlreadyReported> {
+    pub(super) fn compile_export(&mut self, e: &ast::Export) -> errors::Reported {
         match e {
             ast::Export::Names(_, vars) => {
                 for &(name_id, ref arg) in vars.iter() {

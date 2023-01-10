@@ -20,7 +20,7 @@ impl <'a, T: io::Write> Renderer<'a, T> {
     }
     
     /// Renders an HTML item to this renderer's output writer.
-    fn render(&mut self, html: &HTML) -> Result<(), io::Error> {
+    fn render(&mut self, html: &HTML) -> io::Result<()> {
         match html {
             HTML::Tag(tag) => {
                 self.render_tag(tag)?;
@@ -48,7 +48,7 @@ impl <'a, T: io::Write> Renderer<'a, T> {
         Ok(())
     }
     
-    fn render_tag(&mut self, tag: &Tag) -> Result<(), io::Error> {
+    fn render_tag(&mut self, tag: &Tag) -> io::Result<()> {
         let name = self.string_pool.get(tag.name_id);
         if self.as_html {
             write!(self.writer, "<{name}")?;
@@ -82,7 +82,7 @@ impl <'a, T: io::Write> Renderer<'a, T> {
 
 impl Context {
     /// Renders the given HTML content to the writer.
-    pub fn render<T: io::Write>(&self, html: &HTML, as_html: bool, writer: &mut T) -> Result<(), io::Error> {
+    pub fn render<T: io::Write>(&self, html: &HTML, as_html: bool, writer: &mut T) -> io::Result<()> {
         Renderer::new(&self.string_pool, as_html, writer)
             .render(html)
     }

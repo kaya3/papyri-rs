@@ -6,7 +6,7 @@ use super::value::{Value, Dict};
 use super::value_convert::TryConvert;
 
 impl <'a> Compiler<'a> {
-    pub(super) fn evaluate_match(&mut self, match_: &ast::Match, type_hint: &Type) -> Result<Value, errors::AlreadyReported> {
+    pub(super) fn evaluate_match(&mut self, match_: &ast::Match, type_hint: &Type) -> errors::Reported<Value> {
         let value = self.evaluate_node(&match_.value, &Type::Any)?;
         for (pattern, handler) in match_.branches.iter() {
             let frame = self.frame()
@@ -41,7 +41,7 @@ impl <'a> Compiler<'a> {
             ast::MatchPattern::Or(pair, name_ids) => {
                 let (left, right) = pair.as_ref();
                 let r = self.bind_pattern(left, value.clone())
-                    || {self.frame().unset_all(name_ids); self.bind_pattern(right, value)};
+                    || { self.frame().unset_all(name_ids); self.bind_pattern(right, value) };
                 if r {
                     self.frame().set_all_if_not_present(name_ids, Value::UNIT);
                 }

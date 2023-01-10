@@ -219,7 +219,8 @@ impl Main {
             if let Some(p) = utils::relpath::make_relative(in_dir, src_path) {
                 out_dir.join(p)
             } else {
-                return Err(format!("No sensible output path for \"{}\"", src_path.to_string_lossy()));
+                let e = format!("No sensible output path for \"{}\"", src_path.to_string_lossy());
+                return Err(e);
             }
         } else {
             src_path.to_path_buf()

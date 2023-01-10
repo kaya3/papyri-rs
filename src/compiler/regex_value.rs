@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use crate::utils::{NameID, text};
-use crate::errors::RuntimeError;
+use crate::errors::{RuntimeError, PapyriResult};
 use super::base::Compiler;
 use super::value::{Value, Dict};
 
@@ -83,7 +83,7 @@ impl RegexValue {
 }
 
 impl <'a> Compiler<'a> {
-    pub(super) fn compile_regex(&mut self, regex_str: &str) -> Result<RcRegex, RuntimeError> {
+    pub(super) fn compile_regex(&mut self, regex_str: &str) -> PapyriResult<RcRegex> {
         let regex = regex::Regex::new(regex_str)
             .map_err(RuntimeError::RegexSyntaxError)?;
         
@@ -96,13 +96,15 @@ impl <'a> Compiler<'a> {
             for name in regex.capture_names().skip(1) {
                 let name = name.unwrap();
                 if !text::is_identifier(name) {
-                    return Err(RuntimeError::RegexInvalidGroupName(name.into()));
+                    let e = RuntimeError::RegexInvalidGroupName(name.into());
+                    return Err(e.into());
                 }
                 names.push(self.ctx.string_pool.insert(name));
             }
             RegexKind::NamedGroups(names.into_boxed_slice())
         } else {
-            return Err(RuntimeError::RegexMixedGroupKinds);
+            let e = RuntimeError::RegexMixedGroupKinds;
+            return Err(e.into());
         };
         
         Ok(Rc::new(RegexValue {regex, kind}))
