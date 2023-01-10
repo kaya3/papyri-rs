@@ -328,46 +328,7 @@ crate::native_defs! {
         
         @bind_content
         fn SORTED(KEY: named Option<Func> = (), REVERSED: named bool = false, LIST: content List) {
-            if LIST.is_empty() {
-                return Ok(LIST.into());
-            }
-            
-            let mut decorated = Vec::with_capacity(LIST.len());
-            let mut key_type = Type::Unit;
-            for v in LIST.as_ref().iter().cloned() {
-                let k = KEY.as_ref()
-                    .map_or_else(
-                        || Ok(v.clone()),
-                        |f| compiler.eval_callback::<Value>(f.clone(), v.clone(), call_range),
-                    )?;
-                
-                if !matches!(k, Value::Int(_) | Value::Str(_)) {
-                    let e = errors::TypeError::SortKeyInvalid(k.get_type());
-                    return Err(e.into());
-                } else if matches!((&key_type, &k), (Type::Int, Value::Str(_)) | (Type::Str, Value::Int(_))) {
-                    let e = errors::TypeError::SortKeyHeterogeneous;
-                    return Err(e.into());
-                } else if matches!(key_type, Type::Unit) {
-                    key_type = k.get_type();
-                }
-                
-                decorated.push((k, v));
-            }
-            
-            // gives correct stability behaviour
-            if REVERSED { decorated.reverse(); }
-            
-            match decorated.first().unwrap().0 {
-                Value::Int(_) => decorated.sort_by_key(|p| p.0.clone().expect_convert::<Int>()),
-                Value::Str(_) => decorated.sort_by_key(|p| p.0.clone().expect_convert::<RcStr>()),
-                _ => compiler.ice_at("failed to unwrap sort key", call_range),
-            }
-            
-            let mut undecorated: Vec<Value> = decorated.into_iter()
-                .map(|p| p.1)
-                .collect();
-            if REVERSED { undecorated.reverse(); }
-            undecorated
+            compiler.native_sorted_impl(KEY, REVERSED, LIST, call_range)?
         }
         
         fn REVERSED(LIST: content List) {
@@ -448,16 +409,7 @@ crate::native_defs! {
     }
     
     fn CODE(LANGUAGE: implicit Option<RcStr> = (), CODE_BLOCK: named bool = false, FIRST_LINE_NO: named Int = 1, SOURCE: content RcStr) {
-        let with_hint = CODE_BLOCK.then(|| text::get_source_language_hint(SOURCE.as_ref()))
-            .flatten();
-        
-        let (language, src) = if let Some((l, s)) = with_hint {
-            (Some(l), s)
-        } else {
-            (LANGUAGE.as_ref().map(|l| l.as_ref()), SOURCE.as_ref())
-        };
-        
-        compiler.native_code_impl(language, CODE_BLOCK, FIRST_LINE_NO, src, call_range)
+        compiler.native_code_impl(LANGUAGE, CODE_BLOCK, FIRST_LINE_NO, SOURCE.as_ref(), call_range)
     }
     
     fn IMPORT(PATH: content RcStr) {
@@ -483,28 +435,71 @@ crate::native_defs! {
 }
 
 impl <'a> Compiler<'a> {
-    fn native_code_impl(&mut self, language: Option<&str>, is_block: bool, first_line_no: Int, src: &str, call_range: SourceRange) -> Tag {
-        use super::highlight::{syntax_highlight, enumerate_lines, no_highlighting};
+    fn native_sorted_impl(&mut self, key_func: Option<Func>, reversed: bool, list: List, call_range: SourceRange) -> errors::PapyriResult<List> {
+        if list.is_empty() {
+            return Ok(list);
+        }
+        
+        let mut decorated = Vec::with_capacity(list.len());
+        let mut key_type = Type::Unit;
+        for v in list.as_ref().iter().cloned() {
+            let k = key_func.as_ref()
+                .map_or_else(
+                    || Ok(v.clone()),
+                    |f| self.eval_callback::<Value>(f.clone(), v.clone(), call_range),
+                )?;
+            
+            if !matches!(k, Value::Int(_) | Value::Str(_)) {
+                let e = errors::TypeError::SortKeyInvalid(k.get_type());
+                return Err(e.into());
+            } else if matches!((&key_type, &k), (Type::Int, Value::Str(_)) | (Type::Str, Value::Int(_))) {
+                let e = errors::TypeError::SortKeyHeterogeneous;
+                return Err(e.into());
+            } else if matches!(key_type, Type::Unit) {
+                key_type = k.get_type();
+            }
+            
+            decorated.push((k, v));
+        }
+        
+        // gives correct stability behaviour
+        if reversed { decorated.reverse(); }
+        
+        match decorated.first().unwrap().0 {
+            Value::Int(_) => decorated.sort_by_key(|p| p.0.clone().expect_convert::<Int>()),
+            Value::Str(_) => decorated.sort_by_key(|p| p.0.clone().expect_convert::<RcStr>()),
+            _ => self.ice_at("failed to unwrap sort key", call_range),
+        }
+        
+        let mut undecorated: Vec<Value> = decorated.into_iter()
+            .map(|p| p.1)
+            .collect();
+        if reversed { undecorated.reverse(); }
+        
+        Ok(undecorated.into())
+    }
+    
+    fn native_code_impl(&mut self, language: Option<RcStr>, is_block: bool, first_line_no: Int, src: &str, call_range: SourceRange) -> Tag {
+        use super::highlight::{syntax_highlight, enumerate_lines};
+        
+        let default = language.as_ref()
+            .map(|s| s.as_ref())
+            .unwrap_or("none");
+        let (language, src) = if is_block {
+            text::get_source_language_hint(src, default)
+        } else {
+            (default, src)
+        };
         
         let mut tag = Tag::new(str_ids::CODE, HTML::Empty);
         
         let src = text::fix_indentation(src);
-        let lines = language
-            .and_then(|language| {
-                if let Some(lines) = syntax_highlight(&src, language) {
-                    tag.attributes.insert(str_ids::CLASS, Some(format!("syntax-highlight lang-{language}").into()));
-                    Some(lines)
-                } else {
-                    let w = if cfg!(feature = "syntect") {
-                        errors::Warning::HighlightLanguageUnknown(language.into())
-                    } else {
-                        errors::Warning::HighlightNotEnabled
-                    };
-                    self.report(w, call_range);
-                    None
-                }
-            })
-            .unwrap_or_else(|| no_highlighting(&src));
+        let (lines, warning) = syntax_highlight(&src, language);
+        if let Some(warning) = warning {
+            self.report(warning, call_range);
+        } else if language != "none" {
+            tag.attributes.insert(str_ids::CLASS, Some(format!("syntax-highlight lang-{language}").into()));
+        }
         
         tag.content = if is_block {
             enumerate_lines(lines, first_line_no)

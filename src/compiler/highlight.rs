@@ -192,27 +192,29 @@ pub(super) fn enumerate_lines(lines: Vec<HTML>, start: Int) -> HTML {
     HTML::from_iter(out)
 }
 
-pub(super) fn no_highlighting(src: &str) -> Vec<HTML> {
+fn no_highlighting(src: &str) -> Vec<HTML> {
     src.lines()
         .map(HTML::text)
         .collect()
 }
 
-#[cfg(not(feature="syntect"))]
-pub(super) fn syntax_highlight(src: &str, language: &str) -> Option<Vec<HTML>> {
-    if language == "papyri" {
-        Some(syntax_highlight_papyri(src))
-    } else {
-        None
-    }
-}
-
-#[cfg(feature="syntect")]
-pub(super) fn syntax_highlight(src: &str, language: &str) -> Option<Vec<HTML>> {
-    if language == "papyri" {
-        Some(syntax_highlight_papyri(src))
-    } else {
-        syntect_highlighting::highlight(src, language)
+pub(super) fn syntax_highlight(src: &str, language: &str) -> (Vec<HTML>, Option<errors::Warning>) {
+    match language {
+        "none" => {
+            (no_highlighting(src), None)
+        },
+        "papyri" => {
+            (syntax_highlight_papyri(src), None)
+        },
+        _ => if cfg!(feature="syntect") {
+            syntect_highlighting::highlight(src, language)
+                .map_or_else(
+                    || (no_highlighting(src), Some(errors::Warning::HighlightLanguageUnknown(language.into()))),
+                    |lines| (lines, None),
+                )
+        } else {
+            (no_highlighting(src), Some(errors::Warning::HighlightNotEnabled))
+        }
     }
 }
 
