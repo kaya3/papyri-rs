@@ -22,16 +22,16 @@ jobs:
       - name: Name executable (Linux/MacOS)
         if: ${{ !startsWith(matrix.os, 'windows') }}
         run: |
-          mv target/release/papyri papyri-${{ steps.tagName.outputs.tag }}-${{ matrix.os }}
+          mv target/release/papyri target/release/papyri-${{ steps.tagName.outputs.tag }}-${{ matrix.os }}
       - name: Name executable (Windows)
         if: ${{ startsWith(matrix.os, 'windows') }}
         run: |
-          mv target/release/papyri papyri-${{ steps.tagName.outputs.tag }}-${{ matrix.os }}.exe
+          mv target/release/papyri.exe target/release/papyri-${{ steps.tagName.outputs.tag }}-${{ matrix.os }}.exe
       - name: Upload artifact
         uses: actions/upload-artifact@v3
         with:
           name: papyri-${{ matrix.os }}
-          path: papyri-*
+          path: target/release/papyri-${{ steps.tagName.outputs.tag }}-*
 
   release:
     name: Release
@@ -45,9 +45,8 @@ jobs:
         with:
           path: artifacts/
       - name: Flatten artifacts directory # From https://unix.stackexchange.com/a/52816
-        run: find . -mindepth 2 -type f -exec mv -t . -i '{}' +
+        run: find artifacts -mindepth 2 -type f -exec mv -t artifacts -i '{}' +
       - name: Release 🚀
         uses: softprops/action-gh-release@v1
         with:
-          files: |
-            artifacts/*
+          files: artifacts/*
