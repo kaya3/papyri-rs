@@ -75,7 +75,7 @@ impl Main {
         let reporting_level = if options.ignore_warnings {
             errors::ReportingLevel::Error
         } else {
-            errors::ReportingLevel::All
+            errors::ReportingLevel::Warning
         };
         
         let ctx = compiler::Context::new(reporting_level, options.out_dir.as_deref());
