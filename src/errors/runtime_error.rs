@@ -56,7 +56,7 @@ impl std::fmt::Display for RuntimeError {
             RuntimeError::ParamMissing(name) => write!(f, "missing required parameter '{name}'"),
             RuntimeError::ParamMissingImplicit(name) => write!(f, "missing required implicit parameter '{name}'"),
             RuntimeError::ParamExistsButNotImplicit(name) => write!(f, "required implicit parameter '{name}'; this name exists but is not declared implicit"),
-            RuntimeError::ParamMultipleValues(name) => write!(f, "received multiple values for parameter '{name}'"),
+            RuntimeError::ParamMultipleValues(name) => write!(f, "received multiple named arguments for parameter '{name}'"),
             RuntimeError::ParamMustBePositive(name, was) => write!(f, "parameter '{name}' must be positive (was {was})"),
             RuntimeError::RegexSyntaxError(e) => write!(f, "regex syntax error ({e})"),
             RuntimeError::RegexMixedGroupKinds => f.write_str("regex cannot have both named and unnamed capture groups"),
