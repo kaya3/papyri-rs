@@ -36,6 +36,8 @@ pub enum RuntimeError {
     FileReadError(std::rc::Rc<str>, std::io::Error),
     PathNotInOutDir(std::rc::Rc<str>),
     WriteFileNotAllowed,
+    HtmlParseError(String),
+    NetworkError(reqwest::Error),
 }
 
 impl std::fmt::Display for NameError {
@@ -68,6 +70,8 @@ impl std::fmt::Display for RuntimeError {
             RuntimeError::FileReadError(path, e) => write!(f, "failed to read file \"{path}\" ({e})"),
             RuntimeError::PathNotInOutDir(path) => write!(f, "path \"{path}\" is not within output directory"),
             RuntimeError::WriteFileNotAllowed => f.write_str("no output directory for '@file::write'; use '--out'"),
+            RuntimeError::HtmlParseError(e) => write!(f, "failed to parse HTML ({e})"),
+            RuntimeError::NetworkError(e) => write!(f, "network error ({e})"),
         }
     }
 }

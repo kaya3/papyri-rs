@@ -1,3 +1,4 @@
+use crate::compiler::html;
 use crate::errors;
 use crate::utils::{str_ids, text, relpath};
 use crate::utils::sourcefile::{SourceRange, SourceFileID};
@@ -405,6 +406,23 @@ crate::native_defs! {
         
         fn WRITE(PATH: positional RcStr, HTML: content HTML) {
             compiler.ctx.push_out_file(PATH, HTML)?
+        }
+    }
+
+    impl FETCH {
+        fn RAW(PATH: content RcStr) {
+            reqwest::blocking::get(PATH.as_ref())
+                .map_err(|e| errors::RuntimeError::NetworkError(e))?
+                .text()
+                .map_err(|e| errors::RuntimeError::NetworkError(e))?
+        }
+
+        fn HTML(PATH: content RcStr) {
+            let text = reqwest::blocking::get(PATH.as_ref())
+                .map_err(|e| errors::RuntimeError::NetworkError(e))?
+                .text()
+                .map_err(|e| errors::RuntimeError::NetworkError(e))?;
+            html::parse_html(&text, compiler.string_pool_mut())?
         }
     }
     

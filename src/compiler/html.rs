@@ -1,14 +1,20 @@
 use std::rc::Rc;
 
+use html5ever::parse_document;
+use html5ever::tendril::TendrilSink;
+use markup5ever_rcdom::{Handle, NodeData, RcDom};
+
 use crate::errors;
-use crate::utils::{NameID, taginfo, text};
+use crate::errors::RuntimeError;
+use crate::utils::{NameID, StringPool, taginfo, text};
+
 use super::tag::Tag;
 use super::value::RcStr;
 
 #[derive(Debug, Clone)]
 /// Some HTML content, possibly empty. HTML content is classified as either
 /// "block", "inline" or "empty".
-/// 
+///
 /// HTML values are normalised so sequences are not empty or a single item, and
 /// they do not contain nested sequences. Additionally, text is not empty, or a
 /// single space or newline character. This is necessary in order to ensure
@@ -16,28 +22,28 @@ use super::value::RcStr;
 pub enum HTML {
     /// Represents the absence of any HTML content.
     Empty,
-    
+
     /// An HTML Tag.
     Tag(Rc<Tag>),
-    
+
     /// A sequence of HTML content. The sequence is normalised so that it does
     /// not include `Empty` values, consecutive text nodes or nested sequences,
     /// and its length is at least 2.
     Sequence(Rc<[HTML]>),
-    
+
     /// Raw text content. May contain special characters which will need to be
     /// escaped when rendering to HTML.
     Text(RcStr),
-    
+
     /// A single space. Sequences of whitespace are collapsed to this.
     Whitespace,
-    
+
     /// A literal newline. This is only useful in pre-formatted content, such
     /// as a `<pre>` tag; otherwise it is equivalent to whitespace.
     RawNewline,
 }
 
-impl <T: AsRef<str> + Into<RcStr>> From<T> for HTML {
+impl<T: AsRef<str> + Into<RcStr>> From<T> for HTML {
     fn from(s: T) -> HTML {
         HTML::text(s)
     }
@@ -69,31 +75,31 @@ impl HTML {
             _ => HTML::Text(s.into()),
         }
     }
-    
+
     /// Creates an HTML tag with no attributes. Use `Tag::new` for more complex
     /// use-cases.
     pub(super) fn tag(name_id: NameID, content: HTML) -> HTML {
         Tag::new(name_id, content).into()
     }
-    
+
     /// Wraps this HTML content in a tag.
     pub(super) fn in_tag(self, name_id: NameID) -> HTML {
         HTML::tag(name_id, self)
     }
-    
+
     /// Indicates whether this HTML item is `HTML::Empty`. Whitespace and
     /// literal newlines are not considered to be empty.
     pub fn is_empty(&self) -> bool {
         matches!(self, HTML::Empty)
     }
-    
+
     /// Indicates whether this HTML item is block-level content, or otherwise
     /// does not need to be wrapped in a block-level element. Empty content is
     /// not considered to be block-level.
     pub fn is_block(&self) -> bool {
         self.block_kind().is_some()
     }
-    
+
     /// Returns the name of the first block tag in this HTML content, if there
     /// is one.
     pub(super) fn block_kind(&self) -> Option<NameID> {
@@ -103,7 +109,7 @@ impl HTML {
             _ => None,
         }
     }
-    
+
     /// Indicates whether this HTML item is inline content which may need to be
     /// wrapped in a block-level element. Empty content is not considered to be
     /// inline, since it doesn't need to be wrapped.
@@ -112,14 +118,14 @@ impl HTML {
             HTML::Text(_) |
             HTML::Whitespace |
             HTML::RawNewline => true,
-            
+
             HTML::Tag(tag) => !taginfo::is_block(tag.name_id),
             HTML::Sequence(seq) => seq.iter().all(HTML::is_inline),
-            
+
             HTML::Empty => false,
         }
     }
-    
+
     /// Indicates whether this HTML item is whitespace, including a literal
     /// newline or `HTML::Empty`.
     pub fn is_whitespace(&self) -> bool {
@@ -133,7 +139,7 @@ impl HTML {
             _ => false,
         }
     }
-    
+
     /// Indicates whether this HTML item matches a given set of allowed tag
     /// names. This is used to ensure e.g. that a `<ul>` tag only directly
     /// contains `<li>` tags.
@@ -145,7 +151,7 @@ impl HTML {
             _ => false,
         }
     }
-    
+
     pub(super) fn nodes(&self) -> &[HTML] {
         match self {
             HTML::Empty => &[],
@@ -163,16 +169,17 @@ impl PartialEq for HTML {
             (HTML::Empty, HTML::Empty) |
             (HTML::Whitespace, HTML::Whitespace) |
             (HTML::RawNewline, HTML::RawNewline) => true,
-            
+
             (HTML::Tag(t1), HTML::Tag(t2)) => t1 == t2,
             (HTML::Text(t1), HTML::Text(t2)) => t1 == t2,
-            
+
             (HTML::Sequence(s1), HTML::Sequence(s2)) => s1 == s2,
-            
+
             _ => false,
         }
     }
 }
+
 impl Eq for HTML {}
 
 struct HTMLSeqBuilder {
@@ -187,25 +194,25 @@ impl HTMLSeqBuilder {
             current_text_node: Vec::new(),
         }
     }
-    
+
     fn push(&mut self, child: HTML) {
         match child {
-            HTML::Empty => {},
+            HTML::Empty => {}
             HTML::Sequence(grandchildren) => {
                 for grandchild in grandchildren.iter().cloned() {
                     self.push(grandchild);
                 }
-            },
+            }
             HTML::Tag(_) => {
                 self.close_text_node();
                 self.children.push(child);
-            },
+            }
             _ => {
                 self.current_text_node.push(child);
-            },
+            }
         }
     }
-    
+
     fn close_text_node(&mut self) {
         let mut nodes = std::mem::take(&mut self.current_text_node);
         if nodes.len() >= 2 {
@@ -223,7 +230,7 @@ impl HTMLSeqBuilder {
             self.children.push(node);
         }
     }
-    
+
     fn build(mut self) -> HTML {
         self.close_text_node();
         if self.children.len() >= 2 {
@@ -231,5 +238,50 @@ impl HTMLSeqBuilder {
         } else {
             self.children.pop().unwrap_or(HTML::Empty)
         }
+    }
+}
+
+/// Parses the given string as HTML, may break on insane input.
+pub(super) fn parse_html(text: &str, pool: &mut StringPool) -> Result<HTML, RuntimeError> {
+    let dom = parse_document(RcDom::default(), Default::default())
+        .from_utf8()
+        .read_from(&mut text.as_bytes())
+        .unwrap(); // it's an io::Error, I don't *think* it can happen
+    let result = node_to_html(&dom.document, pool).unwrap_or(HTML::Empty);
+    if !dom.errors.is_empty() {
+        return Err(RuntimeError::HtmlParseError(dom.errors.first().unwrap().to_string()));
+    }
+    Ok(result)
+}
+
+fn node_to_html(node: &Handle, pool: &mut StringPool) -> Option<HTML> {
+    match &node.data {
+        NodeData::Element {
+            name,
+            attrs,
+            ..
+        } => {
+            let children = HTML::from_iter(
+                node.children.borrow().iter()
+                    .filter_map(|node| node_to_html(node, pool))
+            );
+
+            let name = pool.insert(name.local.as_ref());
+            let mut new_tag = Tag::new(name, children);
+
+            for attr in attrs.borrow().iter() {
+                let name = pool.insert(attr.name.local.as_ref());
+                new_tag.attributes.insert(name, Some(attr.value.as_ref().into()));
+            }
+
+            Some(HTML::Tag(new_tag.into()))
+        }
+        NodeData::Text { contents } => Some(contents.borrow().to_string().into()),
+        NodeData::Document { .. } => Some(HTML::from_iter(
+            node.children.borrow().iter()
+                .filter_map(|node| node_to_html(node, pool))
+        )),
+        NodeData::Doctype { .. } | NodeData::Comment { .. } => None,
+        _ => unreachable!()
     }
 }
