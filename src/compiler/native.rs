@@ -187,6 +187,10 @@ crate::native_defs! {
         fn IS_WHITESPACE(HTML: content HTML) {
             HTML.is_whitespace()
         }
+        
+        fn PARSE(PARAM: content RcStr) {
+            HTML::parse(PARAM.as_ref(), compiler.string_pool_mut())?
+        }
     }
     
     impl LIST for List {
@@ -408,6 +412,17 @@ crate::native_defs! {
         }
     }
     
+    impl NET {
+        fn FETCH_RAW(PATH: content RcStr) {
+            compiler.native_fetch_impl(PATH)?
+        }
+        
+        fn FETCH_HTML(PATH: content RcStr) {
+            let text = compiler.native_fetch_impl(PATH)?;
+            HTML::parse(text.as_ref(), compiler.string_pool_mut())?
+        }
+    }
+    
     fn CODE(LANGUAGE: implicit Option<RcStr> = (), CODE_BLOCK: named bool = false, FIRST_LINE_NO: named Int = 1, SOURCE: content RcStr) {
         compiler.native_code_impl(LANGUAGE, CODE_BLOCK, FIRST_LINE_NO, SOURCE.as_ref(), call_range)
     }
@@ -514,6 +529,18 @@ impl <'a> Compiler<'a> {
         };
         
         tag
+    }
+    
+    fn native_fetch_impl(&mut self, path: RcStr) -> errors::PapyriResult<String> {
+        Ok(reqwest::blocking::Client::builder()
+            .user_agent("Mozilla/5.0 (compatible) Papyri")
+            .build()
+            .map_err(errors::RuntimeError::NetworkError)?
+            .get(path.as_ref())
+            .send()
+            .map_err(errors::RuntimeError::NetworkError)?
+            .text()
+            .map_err(errors::RuntimeError::NetworkError)?)
     }
     
     fn escape_html_impl(&mut self, h: HTML) -> String {

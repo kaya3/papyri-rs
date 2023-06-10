@@ -100,7 +100,7 @@ impl <'a> Compiler<'a> {
                     .expect_convert();
                 if text::is_identifier(&name_str) {
                     Ok(self.string_pool_mut()
-                        .insert(name_str.to_ascii_lowercase()))
+                        .insert_lowercase(name_str))
                 } else if name_str.eq_ignore_ascii_case("!DOCTYPE") {
                     Ok(str_ids::_DOCTYPE)
                 } else {

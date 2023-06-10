@@ -45,9 +45,8 @@ impl <'a> Parser<'a> {
         if tok.kind != TokenKind::Name {
             self.ice_at(&format!("token {} is not Name", tok.kind), tok.range);
         }
-        let s = self.tok_str(tok)
-            .to_ascii_lowercase();
-        self.string_pool.insert(s)
+        let s = self.src.get_span(tok.range);
+        self.string_pool.insert_lowercase(s)
     }
     
     pub(super) fn parse_nodes_until(&mut self, closer: impl Fn(&Parser, Token) -> bool) -> (Vec<AST>, Option<Token>) {

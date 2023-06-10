@@ -63,6 +63,13 @@ impl StringPool {
         }
     }
     
+    /// Inserts a name as lowercase into this pool if it is not already present,
+    /// and returns its unique ID.
+    pub(crate) fn insert_lowercase<T>(&mut self, s: T) -> NameID
+    where T: AsRef<str> {
+        self.insert(s.as_ref().to_lowercase())
+    }
+    
     pub(crate) fn get_id_if_present(&self, s: &str) -> Option<NameID> {
         self.0.get_index_of(s)
             .map(|id| NameID::of(id as u32))

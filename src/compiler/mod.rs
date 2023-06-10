@@ -9,6 +9,7 @@ mod func;
 mod highlight;
 mod highlight_papyri;
 mod html;
+mod html_parse;
 mod matcher;
 mod module_loader;
 mod names;
