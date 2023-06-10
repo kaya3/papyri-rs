@@ -120,6 +120,9 @@ impl <'a> Parser<'a> {
             TokenKind::DoubleAsterisk => {
                 Err(self.report(SyntaxError::SpreadNamedNotAllowed, tok.range))
             },
+            TokenKind::Ellipsis => {
+                Err(self.report(SyntaxError::SpreadWildcardNotAllowed, tok.range))
+            },
             _ => {
                 Err(self.err_unexpected_token(tok))
             },
@@ -128,6 +131,10 @@ impl <'a> Parser<'a> {
     
     fn parse_positional_match_pattern(&mut self) -> Reported<PositionalMatchPattern> {
         self.skip_whitespace();
+        if let Some(tok) = self.poll_if_kind(TokenKind::Ellipsis) {
+            return Ok(PositionalMatchPattern::Spread(MatchPattern::Ignore(tok.range)));
+        }
+        
         let (spread_kind, _) = self.poll_if_spread(true, false);
         let pattern = self.parse_match_pattern()?;
         Ok(if spread_kind == SpreadKind::NoSpread {
@@ -139,6 +146,10 @@ impl <'a> Parser<'a> {
     
     fn parse_named_match_pattern(&mut self, allow_lone_name: bool) -> Reported<NamedMatchPattern> {
         self.skip_whitespace();
+        if let Some(tok) = self.poll_if_kind(TokenKind::Ellipsis) {
+            return Ok(NamedMatchPattern::Spread(MatchPattern::Ignore(tok.range)));
+        }
+        
         let (spread_kind, _) = self.poll_if_spread(false, true);
         if spread_kind != SpreadKind::NoSpread {
             return self.parse_match_pattern()

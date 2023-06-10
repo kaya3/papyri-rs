@@ -73,7 +73,7 @@
 
 @export @fn numbered $v: html -> @match $v {
     <ul **$d>$v</> -> <ol **$d>$v</>,
-    <$t **_>_</> -> @raise "expected <ul> tag, was <$t> tag",
+    <$t ...>_</> -> @raise "expected <ul> tag, was <$t> tag",
     _: $t -> @raise "expected <ul> tag, was $t",
 }
 

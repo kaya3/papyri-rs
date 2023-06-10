@@ -27,6 +27,10 @@ assert_matches! {
     spread_dict("@dict::new(x=1, y=2, z=3).", "(x=1, **(y=2, z=3))");
     equals_dict("@dict::new(x=1, y=2, z=3).", "=@dict::new(z=3, y=2, x=1).");
     
+    spread_list_wildcard("[1, 2, 3]", "[1, ...]");
+    spread_dict_wildcard("@dict::new(x=1, y=2, z=3).", "(x=1, ...)");
+    spread_tag_wildcard("<a href=\"foo.html\">foo</a>", "<a ...> _ </a>");
+    
     tag_simple("<span>Foo</span>", "<span> _ </span>");
     tag_empty("<span/>", "<span/>");
     tag_attr("<span id=`foobar`>Foo</span>", "<span id=`foobar`> _ </span>");
