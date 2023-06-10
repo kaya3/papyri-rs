@@ -1,3 +1,4 @@
+use reqwest::blocking::Client;
 use crate::compiler::html;
 use crate::errors;
 use crate::utils::{str_ids, text, relpath};
@@ -411,14 +412,24 @@ crate::native_defs! {
 
     impl FETCH {
         fn RAW(PATH: content RcStr) {
-            reqwest::blocking::get(PATH.as_ref())
+            Client::builder()
+                .user_agent("Mozilla/5.0 (compatible) Papyri")
+                .build()
+                .map_err(|e| errors::RuntimeError::NetworkError(e))?
+                .get(PATH.as_ref())
+                .send()
                 .map_err(|e| errors::RuntimeError::NetworkError(e))?
                 .text()
                 .map_err(|e| errors::RuntimeError::NetworkError(e))?
         }
 
         fn HTML(PATH: content RcStr) {
-            let text = reqwest::blocking::get(PATH.as_ref())
+            let text = Client::builder()
+                .user_agent("Mozilla/5.0 (compatible) Papyri")
+                .build()
+                .map_err(|e| errors::RuntimeError::NetworkError(e))?
+                .get(PATH.as_ref())
+                .send()
                 .map_err(|e| errors::RuntimeError::NetworkError(e))?
                 .text()
                 .map_err(|e| errors::RuntimeError::NetworkError(e))?;
