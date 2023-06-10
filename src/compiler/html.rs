@@ -248,8 +248,11 @@ pub(super) fn parse_html(text: &str, pool: &mut StringPool) -> Result<HTML, Runt
         .read_from(&mut text.as_bytes())
         .unwrap(); // it's an io::Error, I don't *think* it can happen
     let result = node_to_html(&dom.document, pool).unwrap_or(HTML::Empty);
-    if !dom.errors.is_empty() {
-        return Err(RuntimeError::HtmlParseError(dom.errors.first().unwrap().to_string()));
+    for error in dom.errors {
+        // Ignore duplicate attribute errors, since apparently a lot of sites have them.
+        if error != "Duplicate attribute" {
+            return Err(RuntimeError::HtmlParseError(error.to_string()));
+        }
     }
     Ok(result)
 }
