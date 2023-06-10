@@ -105,7 +105,7 @@ impl <'a> Compiler<'a> {
                     Ok(str_ids::_DOCTYPE)
                 } else {
                     let e = errors::NameError::InvalidTag(name_str);
-                    return Err(self.report(e, name.range()));
+                    Err(self.report(e, name.range()))
                 }
             },
         }

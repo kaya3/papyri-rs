@@ -112,4 +112,9 @@ assert_matches! {
         "@let(foo=@fn($x, $y) $_ -> [$x, $y], foo_bound=@foo::bind(x=1).) @foo_bound(y=2).",
         "=[1, 2]",
     );
+    
+    indirect_call(
+        "@let(foo=@fn($_x, $y) $z -> [$_x, $y, $z]) @function::call($foo, 1, y=2) 3",
+        "=[1, 2, 3]",
+    );
 }
