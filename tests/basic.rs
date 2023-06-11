@@ -30,6 +30,11 @@ assert_ok! {
         "<!-- Nothing\nhere -->\nSomething",
         "<p>Something</p>",
     );
+    
+    escaped_comment(
+        "\\# not a comment",
+        "<p># not a comment</p>",
+    );
 }
 
 assert_matches! {

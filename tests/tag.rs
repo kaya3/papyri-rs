@@ -16,6 +16,11 @@ assert_ok! {
         r#"<p><span id="foo" class="foo">Foo</span><span class="bar" id="bar">Bar</span></p>"#,
     );
     
+    escaped_attribute(
+        "<a href=\"\\#test\">Foo</a>",
+        "<p><a href=\"#test\">Foo</a></p>",
+    );
+    
     boolean_attribute(
         "<span hidden>Foo</span>",
         "<p><span hidden>Foo</span></p>",

@@ -1,6 +1,11 @@
 mod common;
 
 assert_matches! {
+    escaped_template(
+        "\"\\#\"",
+        "`#`",
+    );
+    
     len(
         "@let(foo=`foobar`) @foo::len.",
         "6",
