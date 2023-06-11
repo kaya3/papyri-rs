@@ -13,12 +13,12 @@ assert_ok! {
     
     named_argument(
         "@image(alt=`Foo`) `foo.png`",
-        r#"<img src="foo.png" alt="Foo">"#,
+        r#"<p><img src="foo.png" alt="Foo"></p>"#,
     );
     
     optional_argument(
         "@image `foo.png`",
-        r#"<img src="foo.png">"#,
+        r#"<p><img src="foo.png"></p>"#,
     );
     
     group_function(

@@ -34,7 +34,7 @@ pub(crate) fn is_self_closing(name_id: NameID) -> bool {
 pub(crate) fn is_block(name_id: NameID) -> bool {
     // https://developer.mozilla.org/en-US/docs/Web/HTML/Block-level_elements
     // Extras:
-    // - !DOCTYPE, base, body, canvas, head, html, link, menu, meta, script, video
+    // - !DOCTYPE, base, body, head, html, link, menu, meta, script
     matches!(
         name_id,
         str_ids::_DOCTYPE |
@@ -44,7 +44,6 @@ pub(crate) fn is_block(name_id: NameID) -> bool {
         str_ids::BASE |
         str_ids::BLOCKQUOTE |
         str_ids::BODY |
-        str_ids::CANVAS |
         str_ids::DD |
         str_ids::DETAILS |
         str_ids::DIV |
@@ -66,7 +65,7 @@ pub(crate) fn is_block(name_id: NameID) -> bool {
         str_ids::HGROUP |
         str_ids::HR |
         str_ids::HTML |
-        str_ids::IMG |
+        str_ids::IFRAME |
         str_ids::LI |
         str_ids::LINK |
         str_ids::MAIN |
@@ -82,8 +81,7 @@ pub(crate) fn is_block(name_id: NameID) -> bool {
         str_ids::TABLE |
         str_ids::TEMPLATE |
         str_ids::TITLE |
-        str_ids::UL |
-        str_ids::VIDEO
+        str_ids::UL
     )
 }
 
