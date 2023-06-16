@@ -48,7 +48,7 @@ pub fn make_identifier(s: &str, max_len: usize) -> String {
 }
 
 /// Indicates whether the given string contains any of the characters '*', '?',
-/// '[' or ']', suggesting it may be a glob pattern.
+/// '\[' or '\]', suggesting it may be a glob pattern.
 pub fn looks_like_glob(s: &str) -> bool {
     s.contains(|c| matches!(c, '*' | '?' | '[' | ']'))
 }

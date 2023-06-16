@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use crate::errors;
-use crate::utils::{NameID, taginfo, text};
+use crate::utils::{NameID, taginfo, text, str_ids};
 use super::tag::Tag;
 use super::value::RcStr;
 
@@ -17,7 +17,7 @@ pub enum HTML {
     /// Represents the absence of any HTML content.
     Empty,
     
-    /// An HTML Tag.
+    /// An HTML tag.
     Tag(Rc<Tag>),
     
     /// A sequence of HTML content. The sequence is normalised so that it does
@@ -98,7 +98,11 @@ impl HTML {
     /// is one.
     pub(super) fn block_kind(&self) -> Option<NameID> {
         match self {
-            HTML::Tag(tag) => taginfo::is_block(tag.name_id).then_some(tag.name_id),
+            HTML::Tag(tag) => if tag.name_id == str_ids::A {
+                tag.content.block_kind()
+            } else {
+                taginfo::is_block(tag.name_id).then_some(tag.name_id)
+            },
             HTML::Sequence(seq) => seq.iter().find_map(HTML::block_kind),
             _ => None,
         }

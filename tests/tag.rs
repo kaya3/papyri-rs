@@ -88,7 +88,17 @@ assert_ok! {
     
     empty_spread_attribute(
         "<span **@dict::new(hidden=.).>Foo</span>",
-        r#"<p><span hidden>Foo</span></p>"#,
+        "<p><span hidden>Foo</span></p>",
+    );
+    
+    anchor_inline(
+        "<a>Foo</a>",
+        "<p><a>Foo</a></p>",
+    );
+    
+    anchor_block(
+        "<a><div>Foo</div></a>",
+        "<a><div>Foo</div></a>",
     );
 }
 

@@ -130,6 +130,7 @@ impl ContentKind {
             str_ids::NAV |
             str_ids::SECTION => ContentKind::REQUIRE_P,
             
+            str_ids::A |
             str_ids::ANONYMOUS |
             str_ids::ADDRESS |
             str_ids::BODY |

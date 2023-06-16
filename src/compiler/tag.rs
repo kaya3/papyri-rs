@@ -3,7 +3,7 @@ use indexmap::IndexMap;
 
 use crate::errors;
 use crate::parser::{ast, Type};
-use crate::utils::{str_ids, NameID, taginfo, text};
+use crate::utils::{str_ids, NameID, text};
 use crate::utils::sourcefile::SourceRange;
 use super::base::Compiler;
 use super::html::HTML;
@@ -88,7 +88,7 @@ impl <'a> Compiler<'a> {
             }
         }
         
-        let children = self.compile_sequence(&tag.children, taginfo::ContentKind::for_(tag_name_id));
+        let children = self.compile_sequence_in_tag(&tag.children, tag_name_id);
         Ok(Tag::new_with_attrs(tag_name_id, attrs, children))
     }
     
