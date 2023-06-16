@@ -1,6 +1,6 @@
 [package]
 name = "papyri-lang"
-version = "0.6.0"
+version = "0.7.0"
 edition = "2021"
 license = "MIT"
 description = "Compiler for the Papyri markup language"

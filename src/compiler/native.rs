@@ -532,11 +532,11 @@ impl <'a> Compiler<'a> {
     }
     
     fn native_fetch_impl(&mut self, path: RcStr) -> errors::PapyriResult<String> {
-        Ok(reqwest::blocking::Client::builder()
-            .user_agent("Mozilla/5.0 (compatible) Papyri")
-            .build()
-            .map_err(errors::RuntimeError::NetworkError)?
-            .get(path.as_ref())
+        let Some(client) = &self.ctx.http_client else {
+            return Err(errors::RuntimeError::NetworkDisabled.into());
+        };
+        
+        Ok(client.get(path.as_ref())
             .send()
             .map_err(errors::RuntimeError::NetworkError)?
             .text()

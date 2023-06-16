@@ -38,6 +38,7 @@ pub enum RuntimeError {
     WriteFileNotAllowed,
     ParseHtmlError(std::rc::Rc<str>),
     NetworkError(reqwest::Error),
+    NetworkDisabled,
 }
 
 impl std::fmt::Display for NameError {
@@ -72,6 +73,7 @@ impl std::fmt::Display for RuntimeError {
             RuntimeError::WriteFileNotAllowed => f.write_str("no output directory for '@file::write'; use '--out'"),
             RuntimeError::ParseHtmlError(e) => write!(f, "failed to parse HTML ({e})"),
             RuntimeError::NetworkError(e) => write!(f, "network error ({e})"),
+            RuntimeError::NetworkDisabled => write!(f, "network access is not enabled"),
         }
     }
 }

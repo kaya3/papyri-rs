@@ -35,12 +35,15 @@ pub struct Context {
     
     /// The output files collector for this compiler context, if it has one.
     pub out_files: Option<OutFiles<HTML>>,
+    
+    /// An HTTP client used for net requests, if enabled.
+    pub http_client: Option<reqwest::blocking::Client>,
 }
 
 impl Context {
     /// Creates a new compiler context. This includes compiling the standard
     /// library.
-    pub fn new(reporting_level: errors::ReportingLevel, out_dir: Option<&std::path::Path>) -> Context {
+    pub fn new(reporting_level: errors::ReportingLevel, out_dir: Option<&std::path::Path>, http_client: Option<reqwest::blocking::Client>) -> Context {
         let natives = NativeDefs::build();
         let natives_frame = natives.to_frame().to_inactive();
         let mut ctx = Context {
@@ -52,6 +55,7 @@ impl Context {
             natives_frame,
             unique_ids: text::UniqueIDGenerator::new(),
             out_files: out_dir.map(OutFiles::new),
+            http_client,
         };
         ctx.compile_stdlib();
         ctx

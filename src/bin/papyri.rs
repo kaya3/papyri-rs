@@ -14,7 +14,9 @@ fn main() {
         std::process::exit(0);
     }
     
-    if args.paths.is_empty() {
+    args.silent |= args.use_stdin;
+    
+    if args.paths.is_empty() && !args.use_stdin {
         args.paths.push(".".to_string());
     }
     
@@ -48,9 +50,17 @@ struct ProgramArgs {
     ///Compile to text instead of HTML
     text: bool,
     
+    #[arg(short = "i", long = "stdin")]
+    ///Take input from stdin and print result to stdout
+    use_stdin: bool,
+    
     #[arg(short, long = "out")]
     ///Output directory (default is the current directory)
     out_dir: Option<std::path::PathBuf>,
+    
+    #[arg(long = "allow-http")]
+    ///Allow HTTP requests in the standard library
+    allow_http: bool,
     
     ///The Papyri source file(s) to compile. If none are specified, the current
     ///directory is searched for Papyri source files.
@@ -78,11 +88,49 @@ impl Main {
             errors::ReportingLevel::Warning
         };
         
-        let ctx = compiler::Context::new(reporting_level, options.out_dir.as_deref());
+        let http_client = options.allow_http.then(|| {
+            reqwest::blocking::Client::builder()
+                .user_agent("Mozilla/5.0 (compatible) Papyri")
+                .build()
+                .unwrap_or_else(|e| errors::ice(&format!("Failed to build HTTP client: {e}")))
+        });
+        
+        let ctx = compiler::Context::new(reporting_level, options.out_dir.as_deref(), http_client);
         Main {options, ctx}
     }
     
+    fn run_stdin(&mut self) -> Result<(), String> {
+        if !self.options.paths.is_empty() {
+            return Err("Error: --stdin option cannot be used with file inputs".to_string());
+        } else if self.options.out_dir.is_some() {
+            return Err("Error: --out option cannot be used with --stdin".to_string());
+        }
+        
+        use std::io::Read;
+        
+        let mut src_buf = Vec::new();
+        std::io::stdin()
+            .read_to_end(&mut src_buf)
+            .map_err(|e| format!("Input error: {e}"))?;
+        let src_str = String::from_utf8(src_buf)
+            .map_err(|e| format!("Input error: was not valid UTF-8 ({e})"))?;
+        
+        let result = self.ctx.compile_synthetic("<stdin>", src_str.as_ref());
+        
+        if self.ctx.diagnostics.is_empty() {
+            self.ctx.render(&result.out, !self.options.text, &mut std::io::stdout())
+                .map_err(|e| format!("Failed to write to stdout: {e}"))
+        } else {
+            self.ctx.diagnostics.print_to_stderr();
+            Err(self.ctx.diagnostics.summary())
+        }
+    }
+    
     fn run(&mut self) -> Result<(), String> {
+        if self.options.use_stdin {
+            return self.run_stdin();
+        }
+        
         let in_dir = std::env::current_dir()
             .and_then(fs::canonicalize)
             .map_err(|e| format!("File error: {e} in current working directory"))?;

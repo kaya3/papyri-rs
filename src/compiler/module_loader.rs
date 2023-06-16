@@ -82,6 +82,12 @@ impl Context {
         self._compile(src, taginfo::ContentKind::REQUIRE_P)
     }
     
+    /// Compiles Papyri source given as a string.
+    pub fn compile_synthetic(&mut self, name: &str, src_str: &str) -> CompileResult {
+        let src = self.source_files.load_synthetic(name, src_str);
+        self._compile(src, taginfo::ContentKind::REQUIRE_P)
+    }
+    
     /// Loads a Papyri source file from the filesystem and compiles it. This
     /// only fails if the source file cannot be read; any other errors which
     /// occur during compilation are reported through `self.diagnostics`.

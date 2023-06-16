@@ -12,10 +12,12 @@ pub mod utils;
 /// Compiles Papyri source given as a string into HTML, as a string. If any
 /// errors or warnings occur during compilation, the diagnostics are returned
 /// instead.
+/// 
+/// File and network IO is disabled. For more control over the compilation
+/// context, use `compiler::Context::compile_synthetic`.
 pub fn compile_str(src: &str) -> Result<String, errors::Diagnostics> {
-    let mut ctx = compiler::Context::new(errors::ReportingLevel::Warning, None);
-    let src = ctx.source_files.load_synthetic("<string>", src);
-    let result = ctx.compile(src);
+    let mut ctx = compiler::Context::new(errors::ReportingLevel::Warning, None, None);
+    let result = ctx.compile_synthetic("<string>", src);
     
     if ctx.diagnostics.is_empty() {
         let mut out = Vec::new();
