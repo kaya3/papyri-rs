@@ -82,8 +82,8 @@
 }
 
 @fn tbl_row $row: inline list -> @match $row {
-    [$a] -> <td>$a</>,
-    [$a, *$tail] -> { <td>$a</> @tbl_row $tail }
+    [$a, *$tail] -> { <td>$a</> @tbl_row $tail },
+    [] -> {},
 }
 
 @fn tbl_rows $rows: inline list list -> @match $rows {
