@@ -81,6 +81,18 @@
     |<a class="footnote-ref"/><span class="footnote panel">$v</>
 }
 
+@fn tbl_row $row: inline list -> @match $row {
+    [$a] -> <td>$a</>,
+    [$a, *$tail] -> { <td>$a</> @tbl_row $tail }
+}
+
+@fn tbl_rows $rows: inline list list -> @match $rows {
+    [$a, *$tail] -> { <tr> @tbl_row $a </tr> @tbl_rows $tail },
+    [] -> {},
+}
+
+@export @fn table $tbl: inline list list -> { <table> @tbl_rows $tbl </> }
+
 @export(
     function=@dict::new(
         **$function,
